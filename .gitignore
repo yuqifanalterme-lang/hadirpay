@@ -1,0 +1,20 @@
+# Abaikan SEMUA file dan folder di root hadirpay
+*
+
+# Kecualikan (tampilkan) file .gitignore itu sendiri jika perlu, atau abaikan juga
+# !/.gitignore
+
+# Kecualikan folder backend dan seluruh isinya
+!/backend/
+!/backend/**
+
+# Kecualikan folder frontend dan seluruh isinya
+!/frontend/
+!/frontend/**
+
+# TETAP abaikan folder library/cache berat & file rahasia di dalam backend/frontend
+**/node_modules/
+**/vendor/
+**/.env
+/backend/env
+**/.DS_Store

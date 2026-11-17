@@ -1,0 +1,386 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import {
+  CalendarCheck,
+  CalendarDays,
+  CircleX,
+  Clock3,
+  FileCheck2,
+  HeartPulse,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { StatusBadge } from '@/components/hadirpay/status-badge'
+import { Panel } from '@/components/hadirpay/panel'
+import { Button } from '@/components/ui/button'
+import { DemoDataNotice } from '@/components/ui/demo-data-notice'
+import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
+import { EmptyState, ErrorState } from '@/components/ui/empty-state'
+import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { SelectField } from '@/components/ui/select-field'
+import { StatCard } from '@/components/hadirpay/stat-card'
+import type { AttendanceCorrection, EmployeeAttendanceRecord } from '@/lib/mock/attendance'
+import { formatTanggal } from '@/lib/format'
+import {
+  getLocalDateKey,
+  listAttendanceRecords,
+  submitAttendanceCorrection,
+} from '@/lib/services/attendance-service'
+
+const weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+const statusDot: Record<EmployeeAttendanceRecord['status'], string> = {
+  Hadir: 'bg-success',
+  Terlambat: 'bg-warning',
+  Izin: 'bg-info',
+  Sakit: 'bg-info',
+  Cuti: 'bg-leave',
+  Alpha: 'bg-destructive',
+}
+
+type CorrectionField = 'Masuk' | 'Pulang'
+type CorrectionForm = { field: CorrectionField; time: string; reason: string }
+
+function formatMonthLabel(value: string) {
+  const [year, month] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(
+    new Date(year, month - 1, 1),
+  )
+}
+
+function monthOptions() {
+  const today = new Date()
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth() - index, 1)
+    return getLocalDateKey(date).slice(0, 7)
+  })
+}
+
+function getMonthDates(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const count = new Date(year, monthNumber, 0).getDate()
+  const offset = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7
+  return [
+    ...Array.from({ length: offset }, () => null),
+    ...Array.from({ length: count }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`),
+  ]
+}
+
+function getDuration(record: EmployeeAttendanceRecord) {
+  if (!record.checkIn || !record.checkOut) return '-'
+  const toMinutes = (time: string) => {
+    const [hour, minute] = time.split('.').map(Number)
+    return hour * 60 + minute
+  }
+  const minutes = toMinutes(record.checkOut) - toMinutes(record.checkIn)
+  if (minutes <= 0) return '-'
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours} jam ${remainingMinutes} menit`
+}
+
+function getSummary(records: EmployeeAttendanceRecord[]) {
+  return {
+    Hadir: records.filter((record) => record.status === 'Hadir').length,
+    Terlambat: records.filter((record) => record.status === 'Terlambat').length,
+    Izin: records.filter((record) => record.status === 'Izin').length,
+    Sakit: records.filter((record) => record.status === 'Sakit').length,
+    Cuti: records.filter((record) => record.status === 'Cuti').length,
+    Alpha: records.filter((record) => record.status === 'Alpha').length,
+  }
+}
+
+export function AttendanceHistory() {
+  const availableMonths = useMemo(
+    () => monthOptions().map((value) => ({ value, label: formatMonthLabel(value) })),
+    [],
+  )
+  const [records, setRecords] = useState<EmployeeAttendanceRecord[]>([])
+  const [selectedMonth, setSelectedMonth] = useState(availableMonths[0])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [correctionRecord, setCorrectionRecord] = useState<EmployeeAttendanceRecord | null>(null)
+  const [correction, setCorrection] = useState<CorrectionForm>({ field: 'Masuk', time: '', reason: '' })
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof CorrectionForm, string>>>({})
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    setLoadError('')
+    try {
+      setRecords(await listAttendanceRecords())
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Riwayat kehadiran gagal dimuat.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const monthRecords = useMemo(
+    () =>
+      records
+        .filter((record) => record.date.startsWith(selectedMonth.value))
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [records, selectedMonth],
+  )
+  const summary = useMemo(() => getSummary(monthRecords), [monthRecords])
+  const dates = useMemo(() => getMonthDates(selectedMonth.value), [selectedMonth])
+  const todayKey = getLocalDateKey()
+
+  function openCorrection(record: EmployeeAttendanceRecord) {
+    setCorrectionRecord(record)
+    setCorrection({ field: 'Masuk', time: record.checkIn?.replace('.', ':') ?? '', reason: '' })
+    setFormErrors({})
+    setFormError('')
+  }
+
+  function updateCorrection<K extends keyof CorrectionForm>(key: K, value: CorrectionForm[K]) {
+    setCorrection((current) => ({ ...current, [key]: value }))
+    setFormErrors((current) => ({ ...current, [key]: undefined }))
+  }
+
+  async function handleCorrectionSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!correctionRecord || submitting) return
+    const errors: Partial<Record<keyof CorrectionForm, string>> = {}
+    if (!correction.time) errors.time = 'Jam yang benar wajib diisi.'
+    if (!correction.reason.trim()) errors.reason = 'Alasan koreksi wajib diisi.'
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    setSubmitting(true)
+    setFormError('')
+    try {
+      const request: Omit<AttendanceCorrection, 'id' | 'submittedAt' | 'status' | 'isMock'> = {
+        date: correctionRecord.date,
+        field: correction.field,
+        correctedTime: correction.time.replace(':', '.'),
+        reason: correction.reason.trim(),
+      }
+      await submitAttendanceCorrection(request)
+      toast.success('Pengajuan koreksi berhasil disimpan.', {
+        description: `Tanggal ${formatTanggal(correctionRecord.date)}.`,
+      })
+      setCorrectionRecord(null)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Pengajuan koreksi gagal disimpan.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) return <PageLoadingSkeleton label="riwayat kehadiran" />
+  if (loadError) return <ErrorState message={loadError} onRetry={() => void load()} />
+
+  return (
+    <div className="flex flex-col gap-6">
+      <DemoDataNotice>
+        Riwayat kehadiran Andi Wijaya merupakan data contoh November 2026. Pengajuan koreksi tersimpan di browser ini.
+      </DemoDataNotice>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Hadir" value={String(summary.Hadir)} icon={CalendarCheck} tone="green" />
+        <StatCard label="Terlambat" value={String(summary.Terlambat)} icon={Clock3} tone="amber" />
+        <StatCard label="Izin" value={String(summary.Izin)} icon={FileCheck2} tone="blue" />
+        <StatCard label="Sakit" value={String(summary.Sakit)} icon={HeartPulse} tone="blue" />
+        <StatCard label="Cuti" value={String(summary.Cuti)} icon={CalendarDays} tone="blue" />
+        <StatCard label="Alpha" value={String(summary.Alpha)} icon={CircleX} tone="red" />
+      </div>
+
+      <Panel title="Kalender kehadiran" description="Warna penanda mengikuti status kehadiran.">
+        <SelectField
+          label="Bulan"
+          value={selectedMonth.label}
+          onChange={(label) => {
+            const month = availableMonths.find((option) => option.label === label)
+            if (month) setSelectedMonth(month)
+          }}
+          options={availableMonths.map((month) => month.label)}
+          placeholder="Pilih bulan"
+        />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Keterangan status kalender">
+          {(['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha'] as const).map((status) => (
+            <StatusBadge key={status} status={status} />
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2" role="group" aria-label={`Kalender ${selectedMonth.label}`}>
+          {weekdays.map((day) => (
+            <div key={day} aria-hidden="true" className="py-1 text-center text-xs font-semibold text-muted-foreground">
+              {day}
+            </div>
+          ))}
+          {dates.map((date, index) => {
+            if (!date) return <div key={`kosong-${index}`} aria-hidden="true" />
+            const record = monthRecords.find((item) => item.date === date)
+            const dayNumber = Number(date.slice(-2))
+            const today = date === todayKey
+            return (
+              <div
+                key={date}
+                role="group"
+                aria-label={`${formatTanggal(date)}${record ? `, ${record.status}` : ', belum ada catatan'}`}
+                title={record ? `${dayNumber}: ${record.status}` : `${dayNumber}`}
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border text-sm ${
+                  today ? 'border-primary ring-2 ring-primary/15' : 'border-border'
+                } ${record ? 'bg-white' : 'bg-surface'}`}
+              >
+                <span className="font-semibold text-heading">{dayNumber}</span>
+                {record ? (
+                  <span className={`size-2 rounded-full ${statusDot[record.status]}`} aria-hidden="true" />
+                ) : (
+                  <span className="size-2" aria-hidden="true" />
+                )}
+                {record && <span className="sr-only">{record.status}</span>}
+              </div>
+            )
+          })}
+        </div>
+      </Panel>
+
+      <Panel title="Rincian kehadiran" description={`Catatan untuk ${selectedMonth.label}.`}>
+        {monthRecords.length === 0 ? (
+          <EmptyState
+            title={`Belum ada catatan untuk ${selectedMonth.label}`}
+            description="Pilih bulan lain untuk melihat riwayat yang tersedia."
+            icon={CalendarDays}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <caption className="sr-only">Riwayat kehadiran Andi Wijaya</caption>
+              <thead>
+                <tr className="border-b border-border text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  <th scope="col" className="py-3 pr-4">Tanggal</th>
+                  <th scope="col" className="py-3 pr-4">Masuk</th>
+                  <th scope="col" className="py-3 pr-4">Pulang</th>
+                  <th scope="col" className="py-3 pr-4">Durasi</th>
+                  <th scope="col" className="py-3 pr-4">Status</th>
+                  <th scope="col" className="py-3">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthRecords.map((record) => (
+                  <tr key={record.date} className="border-b border-border/70 last:border-0">
+                    <td className="py-3 pr-4 font-medium capitalize text-heading">{formatTanggal(record.date)}</td>
+                    <td className="py-3 pr-4 tabular-nums">{record.checkIn ?? '-'}</td>
+                    <td className="py-3 pr-4 tabular-nums">{record.checkOut ?? '-'}</td>
+                    <td className="py-3 pr-4">{getDuration(record)}</td>
+                    <td className="py-3 pr-4"><StatusBadge status={record.status} /></td>
+                    <td className="py-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="action"
+                        className="bg-white"
+                        onClick={() => openCorrection(record)}
+                        aria-label={`Ajukan koreksi untuk ${formatTanggal(record.date)}`}
+                      >
+                        Ajukan koreksi
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Dialog
+        open={correctionRecord !== null}
+        onOpenChange={(open) => {
+          if (!open && !submitting) setCorrectionRecord(null)
+        }}
+        label="Ajukan koreksi kehadiran"
+        size="lg"
+      >
+        <form noValidate onSubmit={(event) => void handleCorrectionSubmit(event)}>
+          <DialogHeader
+            title="Ajukan koreksi kehadiran"
+            description={
+              correctionRecord
+                ? `Untuk ${formatTanggal(correctionRecord.date)}. Pengajuan akan berstatus Menunggu.`
+                : undefined
+            }
+            onClose={() => {
+              if (!submitting) setCorrectionRecord(null)
+            }}
+          />
+          <div className="flex flex-col gap-4 p-5 sm:p-6">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="correction-date" className="text-sm font-semibold text-heading">Tanggal</label>
+              <input
+                id="correction-date"
+                type="date"
+                value={correctionRecord?.date ?? ''}
+                readOnly
+                className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 text-base text-heading"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="correction-field" className="text-sm font-semibold text-heading">Waktu yang dikoreksi</label>
+              <select
+                id="correction-field"
+                value={correction.field}
+                onChange={(event) =>
+                  updateCorrection('field', event.target.value === 'Pulang' ? 'Pulang' : 'Masuk')
+                }
+                className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              >
+                <option value="Masuk">Jam masuk</option>
+                <option value="Pulang">Jam pulang</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="correction-time" className="text-sm font-semibold text-heading">Jam yang benar</label>
+              <input
+                id="correction-time"
+                type="time"
+                value={correction.time}
+                onChange={(event) => updateCorrection('time', event.target.value)}
+                aria-invalid={Boolean(formErrors.time)}
+                aria-describedby={formErrors.time ? 'correction-time-error' : undefined}
+                className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              />
+              {formErrors.time && <p id="correction-time-error" className="text-sm text-red-700" role="alert">{formErrors.time}</p>}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="correction-reason" className="text-sm font-semibold text-heading">Alasan koreksi</label>
+              <textarea
+                id="correction-reason"
+                rows={3}
+                value={correction.reason}
+                onChange={(event) => updateCorrection('reason', event.target.value)}
+                aria-invalid={Boolean(formErrors.reason)}
+                aria-describedby={formErrors.reason ? 'correction-reason-error' : undefined}
+                className="w-full rounded-xl border border-border bg-white px-4 py-3 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              />
+              {formErrors.reason && <p id="correction-reason-error" className="text-sm text-red-700" role="alert">{formErrors.reason}</p>}
+            </div>
+            {formError && <p className="text-sm text-red-700" role="alert">{formError}</p>}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="action"
+              onClick={() => setCorrectionRecord(null)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" variant="primary" size="action" disabled={submitting}>
+              {submitting ? 'Menyimpan...' : 'Kirim koreksi'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+    </div>
+  )
+}
