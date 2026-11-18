@@ -14,7 +14,6 @@ class DatabaseSeeder extends Seeder
         $this->call('KomponenGajiSeeder');
         $this->call('JadwalKerjaSeeder');
         $this->call('LokasiAbsensiSeeder');
-        $this->call('LokasiAbsensiSeeder');
         $this->call('KaryawanSeeder');
         $this->call('UserSeeder');
         $this->call('KuotaCutiSeeder');
