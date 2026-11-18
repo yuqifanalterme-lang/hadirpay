@@ -18,9 +18,10 @@ class Karyawan extends BaseController
     private function withRelasi(): KaryawanModel
     {
         return $this->model
-            ->select('karyawan.*, departemen.nama AS departemen_nama, jabatan.nama AS jabatan_nama')
+            ->select('karyawan.*, departemen.nama AS departemen_nama, jabatan.nama AS jabatan_nama, users.role AS akun_role, users.aktif AS akun_aktif')
             ->join('departemen', 'departemen.id = karyawan.departemen_id', 'left')
-            ->join('jabatan', 'jabatan.id = karyawan.jabatan_id', 'left');
+            ->join('jabatan', 'jabatan.id = karyawan.jabatan_id', 'left')
+            ->join('users', 'users.karyawan_id = karyawan.id', 'left');
     }
 
     private function detail($id): ?array
@@ -93,14 +94,46 @@ class Karyawan extends BaseController
         }
 
         $data = $this->payload($input);
+
+        $db = db_connect();
+
         if (empty($data['kode'])) {
-            $max          = (int) db_connect()->table('karyawan')->selectMax('id')->get()->getRow()->id;
+            $max          = (int) $db->table('karyawan')->selectMax('id')->get()->getRow()->id;
             $data['kode'] = sprintf('KRY-%04d', $max + 1);
         }
 
-        $id = $this->model->insert($data, true);
+        $role     = $input['role'] ?? 'karyawan';
+        $password = $input['password'];
 
-        return ApiResponse::success($this->detail($id), 'Karyawan dibuat', null, 201);
+        $db->transBegin();
+        try {
+            $id = $this->model->insert($data, true);
+
+            $now = date('Y-m-d H:i:s');
+            $db->table('users')->insert([
+                'karyawan_id'   => $id,
+                'nama'          => $data['nama'],
+                'email'         => $data['email'],
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                'role'          => $role,
+                'aktif'         => $data['status'] === 'aktif' ? 1 : 0,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ]);
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return ApiResponse::error('SERVER_ERROR', 'Gagal menyimpan karyawan dan akun', null, 500);
+        }
+
+        $row         = $this->detail($id);
+        $row['akun'] = [
+            'email' => $data['email'],
+            'role'  => $role,
+        ];
+
+        return ApiResponse::success($row, 'Karyawan dan akun dibuat', null, 201);
     }
 
     public function update($id = null)
@@ -128,19 +161,51 @@ class Karyawan extends BaseController
             $data['kode'] = $lama['kode'];
         }
 
-        $this->model->update($id, $data);
+        $db = db_connect();
+        $db->transBegin();
+        try {
+            $this->model->update($id, $data);
+
+            $akun = [
+                'nama'       => $data['nama'],
+                'email'      => $data['email'],
+                'aktif'      => $data['status'] === 'aktif' ? 1 : 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if (! empty($input['role'])) {
+                $akun['role'] = $input['role'];
+            }
+            $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return ApiResponse::error('SERVER_ERROR', 'Gagal memperbarui karyawan', null, 500);
+        }
 
         return ApiResponse::success($this->detail($id), 'Karyawan diperbarui');
     }
 
-    // Tidak dihapus permanen: hanya dinonaktifkan (data dipakai absensi & gaji nanti)
+    // Tidak dihapus permanen: karyawan dan akunnya dinonaktifkan
     public function delete($id = null)
     {
         if (! $this->model->find($id)) {
             return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
         }
 
-        $this->model->update($id, ['status' => 'nonaktif']);
+        $db = db_connect();
+        $db->transBegin();
+        try {
+            $this->model->update($id, ['status' => 'nonaktif']);
+            $db->table('users')->where('karyawan_id', (int) $id)->update([
+                'aktif'      => 0,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return ApiResponse::error('SERVER_ERROR', 'Gagal menonaktifkan karyawan', null, 500);
+        }
 
         return ApiResponse::success($this->detail($id), 'Karyawan dinonaktifkan');
     }
@@ -179,12 +244,13 @@ class Karyawan extends BaseController
 
     private function rules(?int $id): array
     {
-        $ex = $id === null ? '' : ',id,' . $id;
+        $ex      = $id === null ? '' : ',id,' . $id;
+        $exUsers = $id === null ? '' : ',karyawan_id,' . $id;
 
         return [
             'kode'             => 'permit_empty|max_length[20]|is_unique[karyawan.kode' . $ex . ']',
             'nama'             => 'required|min_length[2]|max_length[150]',
-            'email'            => 'required|valid_email|max_length[150]|is_unique[karyawan.email' . $ex . ']',
+            'email'            => 'required|valid_email|max_length[150]|is_unique[karyawan.email' . $ex . ']|is_unique[users.email' . $exUsers . ']',
             'no_hp'            => 'permit_empty|max_length[20]',
             'departemen_id'    => 'required|is_natural_no_zero|is_not_unique[departemen.id]',
             'jabatan_id'       => 'required|is_natural_no_zero|is_not_unique[jabatan.id]',
@@ -195,6 +261,10 @@ class Karyawan extends BaseController
             'npwp'             => 'permit_empty|max_length[25]',
             'no_bpjs'          => 'permit_empty|max_length[25]',
             'status'           => 'permit_empty|in_list[aktif,nonaktif]',
+            'role'             => 'permit_empty|in_list[admin_hrd,karyawan,keuangan,pemilik]',
+            'password'         => $id === null
+                ? 'required|min_length[8]|max_length[72]'
+                : 'permit_empty|min_length[8]|max_length[72]',
         ];
     }
 
@@ -222,6 +292,11 @@ class Karyawan extends BaseController
             ],
             'jenis_penggajian' => ['in_list' => 'Pilih bulanan atau harian'],
             'status'           => ['in_list' => 'Pilih aktif atau nonaktif'],
+            'role'             => ['in_list' => 'Role harus admin_hrd, karyawan, keuangan, atau pemilik'],
+            'password'         => [
+                'required'   => 'Password wajib diisi',
+                'min_length' => 'Password minimal 8 karakter',
+            ],
         ];
     }
 }
