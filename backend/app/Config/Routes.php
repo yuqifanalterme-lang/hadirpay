@@ -52,6 +52,32 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('karyawan/(:num)', 'Karyawan::update/$1');
             $routes->delete('karyawan/(:num)', 'Karyawan::delete/$1');
         });
+                // lokasi absensi: semua user login boleh baca (karyawan perlu untuk absen)
+        $routes->get('lokasi-absensi', 'LokasiAbsensi::index');
+        $routes->get('lokasi-absensi/(:num)', 'LokasiAbsensi::show/$1');
+
+        // lokasi absensi: hanya admin_hrd boleh tulis
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
+            $routes->post('lokasi-absensi', 'LokasiAbsensi::create');
+            $routes->put('lokasi-absensi/(:num)', 'LokasiAbsensi::update/$1');
+            $routes->delete('lokasi-absensi/(:num)', 'LokasiAbsensi::delete/$1');
+        });
+                // jadwal kerja & hari libur: semua user login boleh baca
+        $routes->get('jadwal-kerja', 'JadwalKerja::index');
+        $routes->get('jadwal-kerja/(:num)', 'JadwalKerja::show/$1');
+        $routes->get('hari-libur', 'HariLibur::index');
+        $routes->get('hari-libur/(:num)', 'HariLibur::show/$1');
+
+        // jadwal kerja & hari libur: hanya admin_hrd boleh tulis
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
+            $routes->post('jadwal-kerja', 'JadwalKerja::create');
+            $routes->put('jadwal-kerja/(:num)', 'JadwalKerja::update/$1');
+            $routes->delete('jadwal-kerja/(:num)', 'JadwalKerja::delete/$1');
+
+            $routes->post('hari-libur', 'HariLibur::create');
+            $routes->put('hari-libur/(:num)', 'HariLibur::update/$1');
+            $routes->delete('hari-libur/(:num)', 'HariLibur::delete/$1');
+        });
         });
     });
 });
