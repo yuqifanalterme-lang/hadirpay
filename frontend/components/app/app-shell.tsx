@@ -3,22 +3,31 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
+import { toast } from 'sonner'
 import { Sidebar, type CollapseMode } from './sidebar'
 import { Topbar } from './topbar'
-import { findNavItem, ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
+import { canRoleAccessPath, findNavItem, isRole, ROLE_STORAGE_KEY, roleChangedEvent, type Role } from '@/lib/navigation'
 import { adminUser, employeeUser } from '@/lib/mock-data'
-import { listRequests } from '@/lib/services/request-service'
-import { requestsChangedEvent } from '@/lib/services/request-events'
+import type { DemoSettings } from '@/lib/mock/settings'
+import { getDemoSettings, settingsChangedEvent } from '@/lib/services/settings-service'
+import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 
-function subscribe(callback: () => void) {
+function subscribeRole(callback: () => void) {
   window.addEventListener('storage', callback)
-  return () => window.removeEventListener('storage', callback)
+  window.addEventListener(roleChangedEvent, callback)
+  return () => {
+    window.removeEventListener('storage', callback)
+    window.removeEventListener(roleChangedEvent, callback)
+  }
 }
 
 function useStoredRole(): Role | null {
   return useSyncExternalStore(
-    subscribe,
-    () => (localStorage.getItem(ROLE_STORAGE_KEY) as Role | null) ?? null,
+    subscribeRole,
+    () => {
+      const stored = localStorage.getItem(ROLE_STORAGE_KEY)
+      return isRole(stored) ? stored : null
+    },
     () => null,
   )
 }
@@ -37,56 +46,62 @@ function useIsWide() {
   )
 }
 
-const todayLabel = 'Selasa, 17 Nov 2026'
+const todayLabel = 'Rabu, 18 Nov 2026'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const storedRole = useStoredRole()
+  const role = useStoredRole()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mode, setMode] = useState<CollapseMode>('auto')
-  const [notificationCount, setNotificationCount] = useState(0)
+  const [settings, setSettings] = useState<DemoSettings | null>(null)
+  const [hydrated, setHydrated] = useState(false)
   const isWide = useIsWide()
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
+  const canAccess = role ? canRoleAccessPath(role, pathname) : false
+
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (!role) {
+      router.replace('/login')
+      return
+    }
+    if (!canAccess) router.replace('/403')
+  }, [hydrated, role, canAccess, router])
 
   useEffect(() => {
     if (wasOpen.current && !drawerOpen) menuButtonRef.current?.focus()
     wasOpen.current = drawerOpen
   }, [drawerOpen])
 
-  const employeeArea =
-    pathname.startsWith('/app/riwayat-kehadiran') ||
-    pathname === '/app/beranda' ||
-    (pathname === '/app/absensi' && storedRole !== 'admin')
-  const adminArea =
-    pathname.startsWith('/app/karyawan') ||
-    pathname.startsWith('/app/master/') ||
-    pathname === '/app/absensi/rekap' ||
-    (pathname === '/app/absensi' && storedRole === 'admin')
-  const role: Role =
-    pathname === '/app' || adminArea ? 'admin' : employeeArea ? 'karyawan' : (storedRole ?? 'admin')
-  const user = role === 'admin'
-    ? adminUser
-    : role === 'keuangan'
-      ? { ...employeeUser, role: 'Tim Keuangan' }
-      : role === 'pemilik'
-        ? { name: 'Pemilik demo', role: 'Akses pemilik', initials: 'PD' }
-        : employeeUser
-  const title =
-    pathname === '/app/penggajian/komponen'
-      ? 'Komponen Gaji'
-      : pathname === '/app/penggajian/proses'
-      ? 'Proses Penggajian'
-      : pathname === '/app/absensi/rekap'
-      ? 'Rekap Absensi'
-      : pathname.startsWith('/app/karyawan/') && pathname !== '/app/karyawan'
-      ? 'Detail Karyawan'
-      : findNavItem(pathname)?.label ?? 'HADIRPAY'
+  useEffect(() => {
+    let active = true
+    async function loadSettings() {
+      try {
+        const value = await getDemoSettings()
+        if (active) setSettings(value)
+      } catch (error) {
+        if (active) toast.error(error instanceof Error ? error.message : 'Pengaturan perusahaan gagal dimuat.')
+      }
+    }
+    void loadSettings()
+    window.addEventListener('storage', loadSettings)
+    window.addEventListener(settingsChangedEvent, loadSettings)
+    return () => {
+      active = false
+      window.removeEventListener('storage', loadSettings)
+      window.removeEventListener(settingsChangedEvent, loadSettings)
+    }
+  }, [])
 
   useEffect(() => {
     if (!drawerOpen) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpen(false)
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setDrawerOpen(false)
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
@@ -95,62 +110,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [drawerOpen])
 
-  useEffect(() => {
-    if (!pathname.startsWith('/app/karyawan') && !pathname.startsWith('/app/master/')) return
-    const previousOverflowX = document.body.style.overflowX
-    document.body.style.overflowX = 'hidden'
-    return () => {
-      document.body.style.overflowX = previousOverflowX
-    }
-  }, [pathname])
-
   function handleLogout() {
     localStorage.removeItem(ROLE_STORAGE_KEY)
+    window.dispatchEvent(new Event(roleChangedEvent))
     router.push('/login')
   }
 
+  if (!hydrated || !role || !canAccess) {
+    return <PageLoadingSkeleton label={!hydrated || !role ? 'sesi demo' : 'hak akses'} />
+  }
+
+  const account = settings?.users.find((user) => user.role === role)
+  const accountName = account?.name ?? (
+    role === 'admin' ? adminUser.name
+      : role === 'karyawan' ? employeeUser.name
+        : role === 'keuangan' ? 'Andi Wijaya' : 'Pemilik Demo'
+  )
+  const user = {
+    name: accountName,
+    role: role === 'admin' ? 'Admin HRD'
+      : role === 'karyawan' ? 'Staf Keuangan'
+        : role === 'keuangan' ? 'Tim Keuangan' : 'Akses pemilik',
+    initials: accountName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+  }
+  const title =
+    pathname === '/app/penggajian/komponen'
+      ? 'Komponen Gaji'
+      : pathname === '/app/penggajian/proses'
+        ? 'Proses Penggajian'
+        : pathname === '/app/absensi/rekap'
+          ? 'Rekap Absensi'
+          : pathname.startsWith('/app/karyawan/') && pathname !== '/app/karyawan'
+            ? 'Detail Karyawan'
+            : findNavItem(pathname)?.label ?? 'HADIRPAY'
   const expandedNow = mode === 'expanded' || (mode === 'auto' && isWide)
-
-  useEffect(() => {
-    let active = true
-    async function refreshNotificationCount() {
-      try {
-        const requests = await listRequests()
-        const pending = requests.filter(
-          (request) =>
-            request.status === 'Menunggu persetujuan' &&
-            (role === 'admin' || request.employeeId === 'HP-0001'),
-        ).length
-        if (active) setNotificationCount(pending)
-      } catch (error) {
-        console.error('Jumlah pengajuan gagal dimuat.', error)
-      }
-    }
-
-    const refresh = () => void refreshNotificationCount()
-    refresh()
-    window.addEventListener('storage', refresh)
-    window.addEventListener(requestsChangedEvent, refresh)
-    return () => {
-      active = false
-      window.removeEventListener('storage', refresh)
-      window.removeEventListener(requestsChangedEvent, refresh)
-    }
-  }, [role])
+  const widthClass =
+    mode === 'collapsed' ? 'md:w-24' : mode === 'expanded' ? 'md:w-72' : 'md:w-24 lg:w-72'
 
   function handleToggle() {
     setMode(expandedNow ? 'collapsed' : 'expanded')
   }
 
-  const widthClass =
-    mode === 'collapsed' ? 'md:w-24' : mode === 'expanded' ? 'md:w-72' : 'md:w-24 lg:w-72'
-
   return (
     <div className="min-h-dvh bg-surface">
       <div className="flex">
-        <div
-          className={`sticky top-0 hidden h-dvh shrink-0 p-4 pr-0 transition-[width] duration-200 md:block ${widthClass}`}
-        >
+        <div className={`sticky top-0 hidden h-dvh shrink-0 p-4 pr-0 transition-[width] duration-200 md:block ${widthClass}`}>
           <Sidebar
             role={role}
             activeHref={pathname}
@@ -158,6 +162,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             expanded={expandedNow}
             onLogout={handleLogout}
             onToggle={handleToggle}
+            brandName={settings?.company.name}
+            companyLogo={settings?.company.logoDataUrl}
           />
         </div>
 
@@ -167,17 +173,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               title={title}
               subtitle={todayLabel}
               user={user}
-              notificationHref={role === 'pemilik' ? undefined : '/app/pengajuan'}
-              notificationCount={notificationCount}
-              notificationLabel={
-                role === 'admin'
-                  ? `${notificationCount} pengajuan perlu ditinjau`
-                  : role === 'pemilik'
-                    ? 'Notifikasi tidak tersedia untuk pemilik demo'
-                    : `${notificationCount} pengajuan saya`
-              }
+              role={role}
+              employeeId={role === 'karyawan' ? 'HP-0001' : undefined}
+              companyName={settings?.company.name}
               onMenu={() => setDrawerOpen(true)}
               menuButtonRef={menuButtonRef}
+              onLogout={handleLogout}
             />
           </div>
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
@@ -188,26 +189,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu navigasi">
           <button
             type="button"
+            aria-label="Tutup menu"
             className="absolute inset-0 bg-navy/60 animate-in fade-in duration-200"
             onClick={() => setDrawerOpen(false)}
-          >
-            <span className="sr-only">Tutup menu</span>
-          </button>
+          />
           <div className="relative h-full w-[calc(100%-5rem)] max-w-80 p-3 animate-in slide-in-from-left duration-200">
             <Sidebar
               role={role}
               activeHref={pathname}
               onNavigate={() => setDrawerOpen(false)}
               onLogout={handleLogout}
+              brandName={settings?.company.name}
+              companyLogo={settings?.company.logoDataUrl}
             />
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
+              aria-label="Tutup menu"
               autoFocus
-              className="absolute top-5 -right-14 flex size-11 items-center justify-center rounded-full bg-white text-navy shadow-lg"
+              className="absolute top-5 -right-14 flex size-11 items-center justify-center rounded-full bg-white text-navy shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <X className="size-5" aria-hidden="true" />
-              <span className="sr-only">Tutup menu</span>
             </button>
           </div>
         </div>

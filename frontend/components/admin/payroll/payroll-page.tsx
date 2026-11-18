@@ -52,11 +52,11 @@ export function PayrollPage() {
 
   useEffect(() => {
     const storedRole = localStorage.getItem(ROLE_STORAGE_KEY)
-    setRole(storedRole === 'admin' || storedRole === 'keuangan' || storedRole === 'karyawan' ? storedRole : null)
+    setRole(storedRole === 'admin' || storedRole === 'keuangan' || storedRole === 'karyawan' || storedRole === 'pemilik' ? storedRole : null)
   }, [])
 
   useEffect(() => {
-    if (role === 'admin' || role === 'keuangan') void load()
+    if (role === 'admin' || role === 'keuangan' || role === 'pemilik') void load()
     else setLoading(false)
   }, [role])
 
@@ -84,8 +84,8 @@ export function PayrollPage() {
   if (!role || role === 'karyawan') {
     return (
       <EmptyState
-        title="Halaman ini untuk Admin/HRD dan Keuangan"
-        description="Masuk dengan mode demo Admin/HRD atau Keuangan untuk mengelola penggajian."
+        title="Penggajian untuk Admin, Keuangan, dan Pemilik"
+        description="Pilih mode demo Admin/HRD atau Keuangan untuk mengelola gaji. Pemilik dapat melihat ringkasan."
         icon={FileCheck2}
         action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
       />
@@ -114,15 +114,17 @@ export function PayrollPage() {
           <h2 className="text-xl font-bold text-heading">Penggajian</h2>
           <p className="mt-1 text-sm text-muted-foreground">Tinjau total periode dan lanjutkan persetujuan sesuai peran.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/app/penggajian/komponen" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
-            Komponen gaji
-          </Link>
-          <Link href="/app/penggajian/proses" className={buttonVariants({ variant: 'primary', size: 'action' })}>
-            Buka proses penggajian
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </div>
+        {(role === 'admin' || role === 'keuangan') && (
+          <div className="flex flex-wrap gap-3">
+            <Link href="/app/penggajian/komponen" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
+              Komponen gaji
+            </Link>
+            <Link href="/app/penggajian/proses" className={buttonVariants({ variant: 'primary', size: 'action' })}>
+              Buka proses penggajian
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { AdminDashboard } from '@/components/admin/admin-dashboard'
+import { RoleDashboard } from '@/components/app/role-dashboard'
 
-export const metadata: Metadata = { title: 'Dashboard Admin · HADIRPAY' }
+export const metadata: Metadata = { title: 'Dashboard · HADIRPAY' }
 
-export default function AdminDashboardPage() {
-  return <AdminDashboard />
+export default function DashboardPage() {
+  return <RoleDashboard />
 }

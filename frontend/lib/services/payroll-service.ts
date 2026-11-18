@@ -13,6 +13,7 @@ import { listEmployees } from '@/lib/services/employee-service'
 import type { Role } from '@/lib/navigation'
 import { createPayrollAccrualJournal, createPayrollPaymentJournal } from '@/lib/accounting/journal'
 import { readAccountingState, writeAccountingState } from './accounting-storage'
+import { notifyNotificationsChanged } from './request-events'
 
 const COMPONENTS_KEY = 'hadirpay-payroll-components'
 
@@ -109,6 +110,7 @@ export async function updatePayrollStatus(
     if (!entries.some((entry) => entry.id === journal.id)) entries.push(journal)
   }
   writeAccountingState({ ...accountingState, payrollStatus: status[action], entries })
+  notifyNotificationsChanged()
   return { ...period, status: status[action] }
 }
 

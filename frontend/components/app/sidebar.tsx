@@ -16,6 +16,8 @@ export function Sidebar({
   onLogout,
   onToggle,
   className,
+  brandName,
+  companyLogo,
 }: {
   role: Role
   activeHref: string
@@ -26,6 +28,8 @@ export function Sidebar({
   onLogout?: () => void
   onToggle?: () => void
   className?: string
+  brandName?: string
+  companyLogo?: string
 }) {
   const sm = size === 'sm'
   const labelClass =
@@ -46,7 +50,7 @@ export function Sidebar({
     >
       <div className={sm ? 'mb-2' : 'mb-6'}>
         <div className={cn('items-center rounded-2xl bg-white', showWhenExpanded, sm ? 'p-1' : 'px-3 py-2.5')}>
-          <Logo />
+          <Logo brandName={brandName} imageUrl={companyLogo} />
         </div>
         <div
           className={cn(
@@ -55,7 +59,9 @@ export function Sidebar({
             sm ? 'rounded-lg p-1' : 'p-2',
           )}
         >
-          <LogoMark className={sm ? 'size-4' : 'size-8'} />
+          {companyLogo
+            ? <img src={companyLogo} alt="" className={cn('shrink-0 rounded-lg object-contain', sm ? 'size-4' : 'size-8')} />
+            : <LogoMark className={sm ? 'size-4' : 'size-8'} />}
           <span className="sr-only">HADIRPAY</span>
         </div>
       </div>
@@ -94,16 +100,6 @@ export function Sidebar({
                         aria-hidden="true"
                       />
                       <span className={cn('flex-1 truncate', labelClass)}>{item.label}</span>
-                      {!item.ready && !sm && (
-                        <span
-                          className={cn(
-                            'text-[11px] font-medium text-blue-200/70',
-                            mode === 'collapsed' ? 'hidden' : mode === 'auto' ? 'hidden lg:inline' : '',
-                          )}
-                        >
-                          Segera
-                        </span>
-                      )}
                     </Link>
                   </li>
                 )

@@ -16,7 +16,24 @@ const payrollStatuses: PayrollPeriodStatus[] = [
 function isAccountingState(value: unknown): value is AccountingState {
   if (!value || typeof value !== 'object') return false
   const state = value as Partial<AccountingState>
-  return payrollStatuses.includes(state.payrollStatus as PayrollPeriodStatus) && Array.isArray(state.entries)
+  return payrollStatuses.includes(state.payrollStatus as PayrollPeriodStatus) &&
+    Array.isArray(state.entries) &&
+    state.entries.every((entry) => {
+      if (!entry || typeof entry !== 'object') return false
+      const journal = entry as AccountingState['entries'][number]
+      return typeof journal.id === 'string' &&
+        typeof journal.date === 'string' &&
+        typeof journal.voucherNumber === 'string' &&
+        typeof journal.description === 'string' &&
+        (journal.type === 'Otomatis' || journal.type === 'Manual') &&
+        Array.isArray(journal.lines) &&
+        journal.lines.every((line) =>
+          typeof line.accountCode === 'string' &&
+          typeof line.accountName === 'string' &&
+          Number.isFinite(line.debit) &&
+          Number.isFinite(line.credit),
+        )
+    })
 }
 
 export function readAccountingState(): AccountingState {

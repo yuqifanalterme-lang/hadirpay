@@ -22,22 +22,30 @@ export function Logo({
   className,
   tone = 'dark',
   showWordmark = true,
+  brandName = 'HADIRPAY',
+  imageUrl,
 }: {
   className?: string
   tone?: 'dark' | 'light'
   showWordmark?: boolean
+  brandName?: string
+  imageUrl?: string
 }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <LogoMark />
+      {imageUrl
+        ? <img src={imageUrl} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
+        : <LogoMark />}
       {showWordmark && (
         <span
           className={cn(
-            'text-lg font-extrabold tracking-tight',
+            'max-w-40 truncate text-lg font-extrabold tracking-tight',
             tone === 'light' ? 'text-white' : 'text-heading',
           )}
         >
-          HADIR<span className={tone === 'light' ? 'text-blue-300' : 'text-primary'}>PAY</span>
+          {brandName === 'HADIRPAY'
+            ? <>HADIR<span className={tone === 'light' ? 'text-blue-300' : 'text-primary'}>PAY</span></>
+            : brandName}
         </span>
       )}
     </span>

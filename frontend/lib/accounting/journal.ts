@@ -3,7 +3,7 @@ import {
   type AccountingAccount,
   type JournalEntry,
   type JournalLine,
-} from '@/lib/mock/accounting'
+} from '../mock/accounting'
 import type { PayrollLine, PayrollPeriod } from '../mock/payroll'
 
 const accountByCode = new Map(mockAccounts.map((account) => [account.code, account]))
@@ -29,7 +29,12 @@ function makeLine(accountCode: string, debit: number, credit: number): JournalLi
 }
 
 function assertDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+  const parsed = new Date(`${date}T00:00:00.000Z`)
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== date
+  ) {
     throw new RangeError('Tanggal jurnal harus menggunakan format YYYY-MM-DD.')
   }
 }

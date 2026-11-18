@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createPayrollAccrualJournal, createPayrollPaymentJournal } from './journal'
+import { createManualJournal, createPayrollAccrualJournal, createPayrollPaymentJournal } from './journal'
 import { mockPayrollPeriod, type PayrollLine } from '../mock/payroll'
 
 const sampleLine: PayrollLine = {
@@ -67,6 +67,48 @@ test('membentuk jurnal pembayaran dengan mendebit utang gaji dan mengkredit kas/
 test('menolak jurnal dengan nominal gaji yang tidak valid', () => {
   assert.throws(
     () => createPayrollPaymentJournal(mockPayrollPeriod, [{ ...sampleLine, netPay: -1 }], '2026-11-25'),
+    RangeError,
+  )
+})
+
+test('jurnal manual mendebit dan mengkredit akun dengan nominal yang sama', () => {
+  const journal = createManualJournal({
+    id: 'manual-20261118-001',
+    date: '2026-11-18',
+    voucherNumber: 'JM-20261118-001',
+    description: 'Pencatatan saldo kas demo',
+    debitAccountCode: '1-1100',
+    creditAccountCode: '2-1200',
+    amount: 1_250_000,
+  })
+
+  assert.equal(journal.type, 'Manual')
+  assert.equal(journal.lines[0].debit, journal.lines[1].credit)
+})
+
+test('menolak jurnal manual dengan akun yang sama dan tanggal tidak valid', () => {
+  assert.throws(
+    () => createManualJournal({
+      id: 'manual-20261118-002',
+      date: '2026-11-18',
+      voucherNumber: 'JM-20261118-002',
+      description: 'Jurnal demo',
+      debitAccountCode: '1-1100',
+      creditAccountCode: '1-1100',
+      amount: 100,
+    }),
+    Error,
+  )
+  assert.throws(
+    () => createManualJournal({
+      id: 'manual-20261118-003',
+      date: '2026-02-31',
+      voucherNumber: 'JM-20261118-003',
+      description: 'Jurnal demo',
+      debitAccountCode: '1-1100',
+      creditAccountCode: '2-1200',
+      amount: 100,
+    }),
     RangeError,
   )
 })

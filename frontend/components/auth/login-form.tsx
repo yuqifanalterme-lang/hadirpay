@@ -7,6 +7,8 @@ import { ArrowRight, ShieldCheck, UserRound, Wallet, Building2 } from 'lucide-re
 import { PasswordField, submitClass, TextField } from './fields'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
+import { authenticateDemoRole } from '@/lib/services/auth-service'
+import { toast } from 'sonner'
 
 const roles: { value: Role; label: string; hint: string; email: string; icon: typeof ShieldCheck }[] = [
   { value: 'admin', label: 'Admin/HRD', hint: 'Kelola absensi & gaji', email: 'rina.hrd@hadirpay.id', icon: ShieldCheck },
@@ -20,17 +22,26 @@ export function LoginForm() {
   const [role, setRole] = useState<Role>('admin')
   const [email, setEmail] = useState(roles[0].email)
   const [loading, setLoading] = useState(false)
+  const [password, setPassword] = useState('demo12345')
 
   function selectRole(r: (typeof roles)[number]) {
     setRole(r.value)
     setEmail(r.email)
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    localStorage.setItem(ROLE_STORAGE_KEY, role)
-    router.push(role === 'admin' ? '/app' : role === 'keuangan' ? '/app/penggajian' : role === 'pemilik' ? '/app/akuntansi/akun' : '/app/beranda')
+    try {
+      await authenticateDemoRole(role, password)
+      localStorage.setItem(ROLE_STORAGE_KEY, role)
+      window.dispatchEvent(new Event('hadirpay-role-changed'))
+      router.push(role === 'karyawan' ? '/app/beranda' : '/app')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Login demo gagal.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -77,7 +88,13 @@ export function LoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <PasswordField name="password" autoComplete="current-password" required defaultValue="demo12345" />
+      <PasswordField
+        name="password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+      />
 
       <button type="submit" className={submitClass} disabled={loading}>
         {loading ? 'Memproses…' : 'Masuk'}

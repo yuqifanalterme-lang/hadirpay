@@ -39,7 +39,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Penggajian', href: '/app/penggajian', icon: Wallet, ready: true },
         { label: 'Slip Gaji', href: '/app/slip-gaji', icon: ReceiptText, ready: true },
-        { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn },
+        { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn, ready: true },
       ],
     },
     {
@@ -53,7 +53,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
     },
     {
       label: 'Sistem',
-      items: [{ label: 'Pengaturan', href: '/app/pengaturan', icon: Settings }],
+      items: [{ label: 'Pengaturan', href: '/app/pengaturan', icon: Settings, ready: true }],
     },
     {
       label: 'Data Master',
@@ -80,10 +80,15 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
   ],
   keuangan: [
     {
+      label: 'Ringkasan',
+      items: [{ label: 'Dashboard', href: '/app', icon: LayoutDashboard, ready: true }],
+    },
+    {
       label: 'Keuangan',
       items: [
         { label: 'Penggajian', href: '/app/penggajian', icon: Wallet, ready: true },
         { label: 'Slip Gaji', href: '/app/slip-gaji', icon: ReceiptText, ready: true },
+        { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn, ready: true },
       ],
     },
     {
@@ -97,6 +102,17 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
     },
   ],
   pemilik: [
+    {
+      label: 'Ringkasan',
+      items: [{ label: 'Dashboard', href: '/app', icon: LayoutDashboard, ready: true }],
+    },
+    {
+      label: 'Keuangan',
+      items: [
+        { label: 'Penggajian', href: '/app/penggajian', icon: Wallet, ready: true },
+        { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn, ready: true },
+      ],
+    },
     {
       label: 'Akuntansi',
       items: [
@@ -117,6 +133,32 @@ export const navByRole: Record<Role, NavItem[]> = {
 }
 
 export const ROLE_STORAGE_KEY = 'hadirpay-role'
+export const roleChangedEvent = 'hadirpay-role-changed'
+
+export function isRole(value: unknown): value is Role {
+  return value === 'admin' || value === 'karyawan' || value === 'keuangan' || value === 'pemilik'
+}
+
+export function canRoleAccessPath(role: Role, pathname: string) {
+  if (pathname === '/app') return true
+  if (pathname === '/app/absensi/rekap') return role === 'admin'
+  if (pathname === '/app/absensi') return role === 'admin' || role === 'karyawan'
+  if (pathname === '/app/beranda' || pathname === '/app/riwayat-kehadiran') return role === 'karyawan'
+  if (pathname === '/app/pengajuan') return role === 'admin' || role === 'karyawan'
+  if (pathname === '/app/pengaturan' || pathname === '/app/penggajian/komponen') return role === 'admin'
+  if (pathname === '/app/penggajian/proses' || pathname === '/app/slip-gaji') {
+    return role === 'admin' || role === 'keuangan'
+  }
+
+  const isRegisteredRoute = Object.values(navByRole).flat().some((item) =>
+    item.href === pathname || (item.href !== '/app' && pathname.startsWith(`${item.href}/`)),
+  )
+  if (!isRegisteredRoute) return true
+
+  return navByRole[role].some((item) =>
+    item.href === pathname || (item.href !== '/app' && pathname.startsWith(`${item.href}/`)),
+  )
+}
 
 export function findNavItem(href: string) {
   const items = Object.values(navByRole).flat()

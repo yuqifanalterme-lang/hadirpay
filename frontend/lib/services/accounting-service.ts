@@ -31,6 +31,13 @@ export type TrialBalanceReport = {
   hasTransactions: boolean
 }
 
+function validatePeriod(period: string) {
+  const month = Number(period.slice(5, 7))
+  if (!/^\d{4}-\d{2}$/.test(period) || month < 1 || month > 12) {
+    throw new Error('Periode harus menggunakan format YYYY-MM dengan bulan yang valid.')
+  }
+}
+
 export async function listAccounts() {
   return mockAccounts
 }
@@ -65,7 +72,7 @@ export async function saveManualJournal(input: {
 export async function getAccountLedger(accountCode: string, period: string): Promise<LedgerReport> {
   const account = mockAccounts.find((item) => item.code === accountCode)
   if (!account) throw new Error('Akun yang dipilih tidak ditemukan.')
-  if (!/^\d{4}-\d{2}$/.test(period)) throw new Error('Periode harus menggunakan format YYYY-MM.')
+  validatePeriod(period)
 
   const entries = [...await listJournalEntries()].sort((a, b) =>
     a.date.localeCompare(b.date) || a.voucherNumber.localeCompare(b.voucherNumber),
@@ -104,7 +111,7 @@ export async function getAccountLedger(accountCode: string, period: string): Pro
 }
 
 export async function getTrialBalance(period: string): Promise<TrialBalanceReport> {
-  if (!/^\d{4}-\d{2}$/.test(period)) throw new Error('Periode harus menggunakan format YYYY-MM.')
+  validatePeriod(period)
   const entries = await listJournalEntries()
   const periodEntries = entries.filter((entry) => entry.date.slice(0, 7) === period)
   const totals = new Map<string, { debit: number; credit: number }>()
