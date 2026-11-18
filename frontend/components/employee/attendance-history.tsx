@@ -187,9 +187,9 @@ export function AttendanceHistory() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Hadir" value={String(summary.Hadir)} icon={CalendarCheck} tone="green" />
         <StatCard label="Terlambat" value={String(summary.Terlambat)} icon={Clock3} tone="amber" />
-        <StatCard label="Izin" value={String(summary.Izin)} icon={FileCheck2} tone="blue" />
-        <StatCard label="Sakit" value={String(summary.Sakit)} icon={HeartPulse} tone="blue" />
-        <StatCard label="Cuti" value={String(summary.Cuti)} icon={CalendarDays} tone="blue" />
+        <StatCard label="Izin" value={String(summary.Izin)} icon={FileCheck2} tone="sky" />
+        <StatCard label="Sakit" value={String(summary.Sakit)} icon={HeartPulse} tone="sky" />
+        <StatCard label="Cuti" value={String(summary.Cuti)} icon={CalendarDays} tone="violet" />
         <StatCard label="Alpha" value={String(summary.Alpha)} icon={CircleX} tone="red" />
       </div>
 
@@ -251,7 +251,7 @@ export function AttendanceHistory() {
             icon={CalendarDays}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="no-scrollbar overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <caption className="sr-only">Riwayat kehadiran Andi Wijaya</caption>
               <thead>

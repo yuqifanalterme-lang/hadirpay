@@ -13,7 +13,7 @@ export function AttendanceTable({
   className?: string
 }) {
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    <div className={cn('no-scrollbar overflow-x-auto', className)}>
       <table className="w-full min-w-[560px] text-left text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>

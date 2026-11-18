@@ -191,7 +191,7 @@ export function RequestsPage() {
           value={`${remainingLeave} hari`}
           hint={`Dari ${mockLeaveQuota.annual} hari, termasuk pengajuan yang sudah disetujui`}
           icon={CalendarDays}
-          tone="blue"
+          tone="violet"
         />
       </div>
       <Panel

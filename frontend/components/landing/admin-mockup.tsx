@@ -36,7 +36,7 @@ export function AdminMockup() {
                 {recentAttendance.slice(0, 3).map((r) => (
                   <li key={r.name} className="flex items-center justify-between gap-1">
                     <span className="truncate text-[7px] font-semibold text-heading">{r.name}</span>
-                    <StatusBadge status={r.status} className="px-1 py-0 text-[6px] [&>span]:size-1" />
+                    <StatusBadge status={r.status} className="px-1 py-0 text-[6px]" />
                   </li>
                 ))}
               </ul>

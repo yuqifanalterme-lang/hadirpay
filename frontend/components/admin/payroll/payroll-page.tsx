@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
@@ -140,9 +141,7 @@ export function PayrollPage() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary">
-                  <FileCheck2 className="size-5" aria-hidden="true" />
-                </span>
+                <StatIcon icon={FileCheck2} tone="primary" size="md" />
                 <div className="min-w-0">
                   <p className="font-semibold text-heading">{period.period}</p>
                   <p className="text-sm text-muted-foreground">48 karyawan · tutup {period.cutoffDate}</p>

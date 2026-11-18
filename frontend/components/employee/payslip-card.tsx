@@ -2,6 +2,7 @@
 
 import { ReceiptText } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { formatRupiah, payslip } from '@/lib/mock-data'
 
 export function PayslipCard() {
@@ -11,9 +12,7 @@ export function PayslipCard() {
   return (
     <Panel title="Slip gaji terakhir" description={`Periode ${payslip.periode} · terbit ${payslip.issued}`}>
       <div className="flex items-center gap-4 rounded-2xl bg-emerald-50 p-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-success text-white">
-          <ReceiptText className="size-6" aria-hidden="true" />
-        </span>
+        <StatIcon icon={ReceiptText} tone="green" size="lg" />
         <div>
           <p className="text-sm font-medium text-emerald-800">Gaji bersih diterima</p>
           <p className="text-2xl font-extrabold tracking-tight text-heading">{formatRupiah(payslip.net)}</p>

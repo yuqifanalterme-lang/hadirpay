@@ -16,47 +16,25 @@ export type StatusBadgeStatus =
   | 'Nonaktif'
 
 const styles: Record<StatusBadgeStatus, string> = {
-  Hadir: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  Disetujui: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  Seimbang: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  'Tidak seimbang': 'bg-red-50 text-red-700 ring-red-200',
-  Otomatis: 'bg-sky-50 text-sky-700 ring-sky-200',
-  Manual: 'bg-slate-100 text-slate-700 ring-slate-200',
-  Aktif: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  Terlambat: 'bg-amber-50 text-amber-700 ring-amber-200',
-  Menunggu: 'bg-amber-50 text-amber-700 ring-amber-200',
-  'Menunggu persetujuan': 'bg-amber-50 text-amber-700 ring-amber-200',
-  'Menunggu validasi keuangan': 'bg-amber-50 text-amber-700 ring-amber-200',
-  Draft: 'bg-slate-100 text-slate-700 ring-slate-200',
-  Dibayar: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  Alpha: 'bg-red-50 text-red-700 ring-red-200',
-  Ditolak: 'bg-red-50 text-red-700 ring-red-200',
-  Nonaktif: 'bg-slate-100 text-slate-700 ring-slate-200',
-  Izin: 'bg-sky-50 text-sky-700 ring-sky-200',
-  Sakit: 'bg-sky-50 text-sky-700 ring-sky-200',
-  Cuti: 'bg-violet-50 text-violet-700 ring-violet-200',
-}
-
-const dots: Record<StatusBadgeStatus, string> = {
-  Hadir: 'bg-success',
-  Disetujui: 'bg-success',
-  Seimbang: 'bg-success',
-  'Tidak seimbang': 'bg-destructive',
-  Otomatis: 'bg-info',
-  Manual: 'bg-slate-500',
-  Aktif: 'bg-success',
-  Terlambat: 'bg-warning',
-  Menunggu: 'bg-warning',
-  'Menunggu persetujuan': 'bg-warning',
-  'Menunggu validasi keuangan': 'bg-warning',
-  Draft: 'bg-slate-500',
-  Dibayar: 'bg-success',
-  Alpha: 'bg-destructive',
-  Ditolak: 'bg-destructive',
-  Nonaktif: 'bg-slate-500',
-  Izin: 'bg-info',
-  Sakit: 'bg-info',
-  Cuti: 'bg-leave',
+  Hadir: 'bg-success text-white',
+  Disetujui: 'bg-success text-white',
+  Seimbang: 'bg-success text-white',
+  'Tidak seimbang': 'bg-red-600 text-white',
+  Otomatis: 'bg-sky-700 text-white',
+  Manual: 'bg-slate-600 text-white',
+  Aktif: 'bg-success text-white',
+  Terlambat: 'bg-amber-700 text-white',
+  Menunggu: 'bg-amber-700 text-white',
+  'Menunggu persetujuan': 'bg-amber-700 text-white',
+  'Menunggu validasi keuangan': 'bg-amber-700 text-white',
+  Draft: 'bg-slate-600 text-white',
+  Dibayar: 'bg-success text-white',
+  Alpha: 'bg-red-600 text-white',
+  Ditolak: 'bg-red-600 text-white',
+  Nonaktif: 'bg-slate-600 text-white',
+  Izin: 'bg-sky-700 text-white',
+  Sakit: 'bg-sky-700 text-white',
+  Cuti: 'bg-violet-700 text-white',
 }
 
 export function StatusBadge({
@@ -69,12 +47,11 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
-        styles[status],
+        'inline-flex items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold text-white whitespace-nowrap',
+        styles[status] ?? 'bg-slate-600 text-white',
         className,
       )}
     >
-      <span className={cn('size-1.5 rounded-full', dots[status])} aria-hidden="true" />
       {status}
     </span>
   )

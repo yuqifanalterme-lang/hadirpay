@@ -116,7 +116,7 @@ export function TrialBalancePage() {
                 icon={Scale}
               />
             )}
-            <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
               <table className="w-full min-w-[680px] border-collapse text-left text-sm">
                 <caption className="sr-only">
                   Neraca saldo per akun untuk {period}

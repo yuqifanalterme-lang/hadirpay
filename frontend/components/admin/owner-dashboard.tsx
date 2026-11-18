@@ -129,7 +129,7 @@ export function OwnerDashboard() {
           className="min-w-0"
         >
           {data.tardiness.length ? (
-            <div className="overflow-x-auto">
+            <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[440px] text-left text-sm">
                 <caption className="sr-only">Daftar keterlambatan terbanyak</caption>
                 <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">

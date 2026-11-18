@@ -218,7 +218,7 @@ export function SettingsPage() {
       </DemoDataNotice>
 
       <div
-        className="flex min-w-0 gap-2 overflow-x-auto border-b border-border"
+        className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto border-b border-border"
         role="tablist"
         aria-label="Pengaturan perusahaan"
         onKeyDown={handleTabKeyDown}
@@ -391,7 +391,7 @@ export function SettingsPage() {
 
           {tab === 'users' && (
             settings.users.length ? (
-              <div className="overflow-x-auto">
+              <div className="no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[620px] text-left text-sm">
                   <caption className="sr-only">Pengguna demo dan hak aksesnya</caption>
                   <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">

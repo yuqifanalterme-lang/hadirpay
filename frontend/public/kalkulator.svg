@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 534 467" width="534" height="467" fill="none">
+  <!-- Clean Modern Calculator (Enlarged, Soft Border, No Harsh Blue Outline) -->
+  <g transform="translate(139, 36)">
+    <!-- 3D Base Thickness / Soft Edge -->
+    <rect x="8" y="10" width="256" height="388" rx="36" fill="#dbeafe" />
+
+    <!-- Main Calculator Body (Clean White, Soft Light Border) -->
+    <rect x="0" y="0" width="256" height="388" rx="36" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+
+    <!-- Top Solar Strip (Clean 3-Cell Solar Cell) -->
+    <g transform="translate(88, 18)">
+      <rect x="0" y="0" width="80" height="14" rx="4" fill="#eff6ff" stroke="#cbd5e1" stroke-width="1.2" />
+      <line x1="26" y1="0" x2="26" y2="14" stroke="#cbd5e1" stroke-width="1.2" />
+      <line x1="53" y1="0" x2="53" y2="14" stroke="#cbd5e1" stroke-width="1.2" />
+    </g>
+
+    <!-- Display Screen (Deep Navy, Big Clean Figures) -->
+    <g transform="translate(20, 44)">
+      <rect x="0" y="0" width="216" height="76" rx="18" fill="#1e3a8a" />
+      <!-- Indicator Dot & Bar -->
+      <circle cx="22" cy="24" r="5" fill="#38bdf8" opacity="0.8" />
+      <rect x="34" y="21" width="40" height="6" rx="3" fill="#93c5fd" opacity="0.6" />
+      <!-- Stylized Amount Display -->
+      <text x="196" y="56" text-anchor="end" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="1">186,4 jt</text>
+    </g>
+
+    <!-- Keypad Area (Clean Tactile Round Keys) -->
+    <g transform="translate(20, 136)">
+      <!-- Row 0: C, ±, %, ÷ -->
+      <circle cx="24" cy="24" r="20" fill="#fee2e2" />
+      <text x="24" y="30" text-anchor="middle" fill="#ef4444" font-family="system-ui, sans-serif" font-size="16" font-weight="800">C</text>
+
+      <circle cx="76" cy="24" r="20" fill="#eff6ff" stroke="#e2e8f0" stroke-width="1" />
+      <text x="76" y="30" text-anchor="middle" fill="#2563eb" font-family="system-ui, sans-serif" font-size="15" font-weight="700">±</text>
+
+      <circle cx="128" cy="24" r="20" fill="#eff6ff" stroke="#e2e8f0" stroke-width="1" />
+      <text x="128" y="30" text-anchor="middle" fill="#2563eb" font-family="system-ui, sans-serif" font-size="15" font-weight="700">%</text>
+
+      <circle cx="180" cy="24" r="20" fill="#dbeafe" />
+      <text x="180" y="30" text-anchor="middle" fill="#1d4ed8" font-family="system-ui, sans-serif" font-size="17" font-weight="700">÷</text>
+
+      <!-- Row 1: 7, 8, 9, × -->
+      <circle cx="24" cy="72" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="24" y="78" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">7</text>
+
+      <circle cx="76" cy="72" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="76" y="78" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">8</text>
+
+      <circle cx="128" cy="72" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="128" y="78" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">9</text>
+
+      <circle cx="180" cy="72" r="20" fill="#dbeafe" />
+      <text x="180" y="78" text-anchor="middle" fill="#1d4ed8" font-family="system-ui, sans-serif" font-size="17" font-weight="700">×</text>
+
+      <!-- Row 2: 4, 5, 6, − -->
+      <circle cx="24" cy="120" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="24" y="126" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">4</text>
+
+      <circle cx="76" cy="120" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="76" y="126" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">5</text>
+
+      <circle cx="128" cy="120" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="128" y="126" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">6</text>
+
+      <circle cx="180" cy="120" r="20" fill="#dbeafe" />
+      <text x="180" y="126" text-anchor="middle" fill="#1d4ed8" font-family="system-ui, sans-serif" font-size="18" font-weight="700">−</text>
+
+      <!-- Row 3: 1, 2, 3, + -->
+      <circle cx="24" cy="168" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="24" y="174" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">1</text>
+
+      <circle cx="76" cy="168" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="76" y="174" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">2</text>
+
+      <circle cx="128" cy="168" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="128" y="174" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">3</text>
+
+      <circle cx="180" cy="168" r="20" fill="#dbeafe" />
+      <text x="180" y="174" text-anchor="middle" fill="#1d4ed8" font-family="system-ui, sans-serif" font-size="18" font-weight="700">+</text>
+
+      <!-- Row 4: 0, ., = -->
+      <rect x="4" y="196" width="94" height="40" rx="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="51" y="222" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="16" font-weight="700">0</text>
+
+      <circle cx="128" cy="216" r="20" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      <text x="128" y="222" text-anchor="middle" fill="#1e293b" font-family="system-ui, sans-serif" font-size="18" font-weight="700">.</text>
+
+      <!-- Primary Blue Equal Key -->
+      <circle cx="180" cy="216" r="20" fill="#2563eb" />
+      <text x="180" y="223" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="20" font-weight="800">=</text>
+    </g>
+  </g>
+</svg>

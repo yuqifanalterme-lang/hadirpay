@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 534 467" width="534" height="467" fill="none">
+  <!-- Clean Modern Accounting Ledger Book (Predominantly White, Soft Borders, Harmonic Blue Accents) -->
+  <g transform="translate(124, 40)">
+    <!-- 3D Base Thickness / Soft Edge -->
+    <rect x="8" y="10" width="286" height="366" rx="22" fill="#dbeafe" />
+
+    <!-- Paper Page Stack Visible Along Right Edge & Bottom (Off-white Pages with Page Block Texture) -->
+    <rect x="24" y="10" width="262" height="352" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" />
+    <!-- Fine Page Stack Lines along Right Edge -->
+    <line x1="274" y1="20" x2="274" y2="352" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 3" />
+    <line x1="279" y1="24" x2="279" y2="348" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="3 3" />
+    <!-- Fine Page Stack Lines along Bottom Edge -->
+    <line x1="36" y1="352" x2="270" y2="352" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 3" />
+    <line x1="42" y1="356" x2="265" y2="356" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="3 3" />
+
+    <!-- Satin Bookmark Ribbon Hanging Out from Bottom -->
+    <path d="M152 334 L152 396 L168 380 L184 396 L184 334 Z" fill="#2563eb" stroke="#1d4ed8" stroke-width="1" />
+    <path d="M152 334 L168 334 L168 380 L152 396 Z" fill="#3b82f6" opacity="0.4" />
+
+    <!-- Front Hardcover (Predominantly White #ffffff, Soft Light Border #e2e8f0) -->
+    <g transform="translate(0, 0)">
+      <!-- Main Clean White Cover Surface -->
+      <path d="M0 22 C0 10 10 0 22 0 L268 0 C274.6 0 280 5.4 280 12 L280 354 C280 360.6 274.6 366 268 366 L22 366 C10 366 0 356 0 344 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+
+      <!-- Left Spine Binding Tape (Royal Blue #2563eb Accent) -->
+      <path d="M0 22 C0 10 10 0 22 0 L36 0 L36 366 L22 366 C10 366 0 356 0 344 Z" fill="#2563eb" />
+      <line x1="36" y1="0" x2="36" y2="366" stroke="#1d4ed8" stroke-width="2" />
+
+      <!-- Minimal Spine Accent Bands -->
+      <line x1="8" y1="56" x2="28" y2="56" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
+      <line x1="8" y1="183" x2="28" y2="183" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
+      <line x1="8" y1="310" x2="28" y2="310" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
+
+      <!-- Soft Blue Inner Cover Panel (Matches Phone & Payslip Cards) -->
+      <rect x="56" y="24" width="206" height="318" rx="16" fill="#eff6ff" stroke="#dbeafe" stroke-width="1.2" />
+
+      <!-- Accounting Balance Scale Emblem (Clean Royal Blue Medallion) -->
+      <g transform="translate(159, 144)">
+        <circle cx="0" cy="0" r="44" fill="#2563eb" stroke="#bfdbfe" stroke-width="2" />
+        <!-- Central Post & Base -->
+        <line x1="0" y1="-20" x2="0" y2="18" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
+        <line x1="-12" y1="18" x2="12" y2="18" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
+        <circle cx="0" cy="-18" r="3" fill="#ffffff" />
+        <!-- Balance Beam -->
+        <line x1="-22" y1="-8" x2="22" y2="-8" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
+        <!-- Left Pan Ropes & Pan -->
+        <path d="M-22 -8 L-28 7 H-16 Z" stroke="#ffffff" stroke-width="2" fill="none" stroke-linejoin="round" />
+        <!-- Right Pan Ropes & Pan -->
+        <path d="M22 -8 L16 7 H28 Z" stroke="#ffffff" stroke-width="2" fill="none" stroke-linejoin="round" />
+      </g>
+
+      <!-- Clean White Journal Label Plaque -->
+      <g transform="translate(113, 212)">
+        <rect x="0" y="0" width="92" height="26" rx="13" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.2" />
+        <text x="46" y="17" text-anchor="middle" fill="#1e3a8a" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="2">JURNAL</text>
+      </g>
+
+      <!-- Minimal Subtitle / Entry Placeholder Lines -->
+      <rect x="127" y="254" width="64" height="5" rx="2.5" fill="#93c5fd" opacity="0.8" />
+      <rect x="139" y="265" width="40" height="4" rx="2" fill="#cbd5e1" opacity="0.7" />
+    </g>
+  </g>
+</svg>

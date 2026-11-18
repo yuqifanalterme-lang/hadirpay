@@ -66,7 +66,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav aria-label="Menu utama" className="-mx-1 flex-1 overflow-y-auto px-1">
+      <nav aria-label="Menu utama" className="no-scrollbar flex-1 overflow-y-auto pb-2">
         {navGroupsByRole[role].map((group, gi) => (
           <div key={group.label} className={cn(gi > 0 && (sm ? 'mt-1.5' : 'mt-5'))}>
             {!sm && (

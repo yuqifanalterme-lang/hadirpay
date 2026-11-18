@@ -178,7 +178,7 @@ export function AdminRequestsPage() {
           />
         ) : (
           <>
-            <div className="hidden min-w-0 overflow-x-auto rounded-xl border border-border xl:block">
+            <div className="no-scrollbar hidden min-w-0 overflow-x-auto rounded-xl border border-border xl:block">
               <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                 <caption className="sr-only">Antrian pengajuan karyawan</caption>
                 <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">

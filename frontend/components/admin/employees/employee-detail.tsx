@@ -144,7 +144,7 @@ export function EmployeeDetail({ id }: { id: string }) {
         </div>
       </Panel>
 
-      <div role="tablist" aria-label="Informasi karyawan" className="flex overflow-x-auto border-b border-border">
+      <div role="tablist" aria-label="Informasi karyawan" className="no-scrollbar flex overflow-x-auto border-b border-border">
         {tabs.map((tab, index) => (
           <button
             key={tab}
@@ -202,7 +202,7 @@ export function EmployeeDetail({ id }: { id: string }) {
             />
           ) : (
             <Panel title="Riwayat kehadiran" description="Ringkasan absensi pada data contoh.">
-              <div className="overflow-x-auto">
+              <div className="no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[560px] text-left text-sm">
                   <caption className="sr-only">Riwayat kehadiran {employee.name}</caption>
                   <thead>
@@ -258,7 +258,7 @@ export function EmployeeDetail({ id }: { id: string }) {
             />
           ) : (
             <Panel title="Riwayat slip gaji" description="Ringkasan slip gaji contoh, belum berupa berkas unduhan.">
-              <div className="overflow-x-auto">
+              <div className="no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-sm">
                   <caption className="sr-only">Riwayat slip gaji {employee.name}</caption>
                   <thead>

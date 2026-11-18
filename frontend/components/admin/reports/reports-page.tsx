@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
@@ -169,9 +170,7 @@ export function ReportsIndexPage() {
                   href={`/app/laporan/${report.id}`}
                   className="group flex min-h-40 flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:p-6"
                 >
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-primary">
-                    <Icon className="size-5" aria-hidden="true" />
-                  </span>
+                  <StatIcon icon={Icon} tone="primary" size="md" />
                   <span className="flex flex-1 flex-col gap-1">
                     <span className="font-bold text-heading">{report.title}</span>
                     <span className="text-sm text-muted-foreground">{report.description}</span>
@@ -333,7 +332,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
 
         <Panel className="min-w-0" title="Rincian laporan" description={`${dataset.rows.length} baris data untuk periode yang dipilih.`}>
           {dataAvailable && dataset.columns.length ? (
-            <div className="overflow-x-auto">
+            <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
                 <caption className="sr-only">{dataset.title}, periode {period}</caption>
                 <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">

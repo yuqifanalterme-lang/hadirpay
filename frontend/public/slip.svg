@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 534 467" width="534" height="467" fill="none">
+  <!-- Clean Modern Payslip Document (Enlarged, Soft Border, Layered 2.5D Depth) -->
+  <g transform="translate(139, 36)">
+    <!-- Back Sheet for Subtle Layered Depth -->
+    <g transform="rotate(3, 130, 200) translate(14, 10)">
+      <rect x="0" y="0" width="246" height="366" rx="24" fill="#dbeafe" stroke="#bfdbfe" stroke-width="1.5" />
+      <rect x="24" y="28" width="88" height="10" rx="5" fill="#bfdbfe" />
+      <rect x="24" y="50" width="180" height="6" rx="3" fill="#bfdbfe" opacity="0.6" />
+    </g>
+
+    <!-- Front Sheet (Main Payslip Card) -->
+    <g transform="translate(0, 0)">
+      <!-- Main Paper Body (Clean White, Soft Light Border) -->
+      <rect x="0" y="0" width="256" height="388" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+
+      <!-- Top Royal Blue Header Banner -->
+      <path d="M0 28 C0 12.5 12.5 0 28 0 L228 0 C243.5 0 256 12.5 256 28 L256 68 L0 68 Z" fill="#2563eb" />
+
+      <!-- Header Icon & Title Pill -->
+      <circle cx="34" cy="34" r="14" fill="#ffffff" opacity="0.25" />
+      <path d="M29 34 L33 38 L40 30" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+      <rect x="58" y="28" width="96" height="11" rx="5.5" fill="#ffffff" />
+
+      <!-- PDF Chip on Header -->
+      <rect x="194" y="23" width="44" height="22" rx="6" fill="#ffffff" />
+      <text x="216" y="38" text-anchor="middle" fill="#2563eb" font-family="system-ui, sans-serif" font-size="11" font-weight="900">PDF</text>
+
+      <!-- Employee Mini Profile Bar -->
+      <g transform="translate(20, 84)">
+        <rect x="0" y="0" width="216" height="40" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+        <circle cx="22" cy="20" r="10" fill="#dbeafe" />
+        <rect x="42" y="13" width="100" height="6" rx="3" fill="#334155" />
+        <rect x="42" y="23" width="64" height="5" rx="2.5" fill="#94a3b8" />
+        <rect x="168" y="16" width="34" height="8" rx="4" fill="#2563eb" opacity="0.8" />
+      </g>
+
+      <!-- Clean Itemized Breakdown Rows -->
+      <g transform="translate(20, 142)">
+        <!-- Row 1: Gaji Pokok -->
+        <rect x="0" y="0" width="76" height="7" rx="3.5" fill="#64748b" />
+        <rect x="150" y="0" width="66" height="7" rx="3.5" fill="#0f172a" />
+        <line x1="0" y1="18" x2="216" y2="18" stroke="#f1f5f9" stroke-width="1.5" />
+
+        <!-- Row 2: Tunjangan Tetap -->
+        <rect x="0" y="30" width="94" height="7" rx="3.5" fill="#64748b" />
+        <rect x="160" y="30" width="56" height="7" rx="3.5" fill="#0f172a" />
+        <line x1="0" y1="48" x2="216" y2="48" stroke="#f1f5f9" stroke-width="1.5" />
+
+        <!-- Row 3: Uang Lembur -->
+        <rect x="0" y="60" width="82" height="7" rx="3.5" fill="#64748b" />
+        <rect x="164" y="60" width="52" height="7" rx="3.5" fill="#0f172a" />
+        <line x1="0" y1="78" x2="216" y2="78" stroke="#f1f5f9" stroke-width="1.5" />
+
+        <!-- Row 4: Potongan Kehadiran / PPh -->
+        <rect x="0" y="90" width="88" height="7" rx="3.5" fill="#64748b" />
+        <rect x="168" y="90" width="48" height="7" rx="3.5" fill="#ef4444" />
+        <line x1="0" y1="108" x2="216" y2="108" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4" />
+      </g>
+
+      <!-- Take Home Pay Total Box -->
+      <g transform="translate(20, 268)">
+        <rect x="0" y="0" width="216" height="54" rx="16" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5" />
+        <rect x="16" y="14" width="72" height="6" rx="3" fill="#2563eb" />
+        <text x="16" y="41" fill="#1e3a8a" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800">Rp 4.375.454</text>
+        <circle cx="188" cy="27" r="13" fill="#2563eb" />
+        <path d="M183 27 L187 31 L194 23" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+      </g>
+
+      <!-- Minimal Barcode Line at Bottom -->
+      <g transform="translate(28, 344)">
+        <rect x="0" y="0" width="3" height="16" fill="#94a3b8" />
+        <rect x="7" y="0" width="2" height="16" fill="#94a3b8" />
+        <rect x="13" y="0" width="6" height="16" fill="#94a3b8" />
+        <rect x="23" y="0" width="3" height="16" fill="#94a3b8" />
+        <rect x="30" y="0" width="5" height="16" fill="#94a3b8" />
+        <rect x="39" y="0" width="2" height="16" fill="#94a3b8" />
+        <rect x="45" y="0" width="5" height="16" fill="#94a3b8" />
+        <rect x="54" y="0" width="6" height="16" fill="#94a3b8" />
+        <rect x="76" y="6" width="100" height="5" rx="2.5" fill="#cbd5e1" />
+      </g>
+    </g>
+  </g>
+</svg>

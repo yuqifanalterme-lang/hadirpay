@@ -18,11 +18,11 @@ type TabId = (typeof tabs)[number]['id']
 
 function AttendancePanel() {
   const summary = [
-    { label: 'Hadir', value: 41, color: 'bg-success' },
-    { label: 'Terlambat', value: 4, color: 'bg-warning' },
-    { label: 'Izin', value: 1, color: 'bg-info' },
-    { label: 'Cuti', value: 1, color: 'bg-leave' },
-    { label: 'Alpha', value: 1, color: 'bg-destructive' },
+    { label: 'Hadir', value: 41, bg: 'bg-success' },
+    { label: 'Terlambat', value: 4, bg: 'bg-amber-700' },
+    { label: 'Izin', value: 1, bg: 'bg-sky-700' },
+    { label: 'Cuti', value: 1, bg: 'bg-violet-700' },
+    { label: 'Alpha', value: 1, bg: 'bg-red-600' },
   ]
   return (
     <div className="flex flex-col gap-5">
@@ -33,9 +33,15 @@ function AttendancePanel() {
         </div>
         <ul className="flex flex-wrap gap-2">
           {summary.map((s) => (
-            <li key={s.label} className="flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-sm">
-              <span className={cn('size-2 rounded-full', s.color)} aria-hidden="true" />
-              {s.label} <strong className="text-heading">{s.value}</strong>
+            <li
+              key={s.label}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-white',
+                s.bg,
+              )}
+            >
+              <span>{s.label}</span>
+              <strong className="font-bold text-white">{s.value}</strong>
             </li>
           ))}
         </ul>
@@ -102,7 +108,7 @@ function JournalPanel() {
         </div>
         <StatusBadge status="Seimbang" className="px-3 py-1.5 text-sm" />
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-border bg-white">
+      <div className="no-scrollbar overflow-x-auto rounded-2xl border border-border bg-white">
         <table className="w-full min-w-[560px] text-left text-sm">
           <caption className="sr-only">Jurnal umum penggajian Oktober 2026</caption>
           <thead>
@@ -154,12 +160,11 @@ export function PreviewGallery() {
   }
 
   return (
-    <section id="pratinjau" className="scroll-mt-20 bg-surface py-20 sm:py-24">
+    <section id="pratinjau" className="scroll-mt-20 bg-white pt-14 pb-20 sm:pt-16 sm:pb-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
-          <p className="text-sm font-bold tracking-wider text-primary uppercase">Pratinjau sistem</p>
           <h2 className="text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-            Lihat langsung tampilan kerja HADIRPAY
+            Pratinjau Sistem HADIRPAY
           </h2>
         </div>
 
@@ -167,7 +172,7 @@ export function PreviewGallery() {
           role="tablist"
           aria-label="Pilih pratinjau"
           onKeyDown={onKeyDown}
-          className="mx-auto mt-10 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-white p-1.5 shadow-sm"
+          className="mx-auto mt-10 flex max-w-full flex-wrap items-center justify-center gap-2 sm:gap-2.5"
         >
           {tabs.map((t) => {
             const selected = t.id === active
@@ -183,8 +188,10 @@ export function PreviewGallery() {
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setActive(t.id)}
                 className={cn(
-                  'flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors duration-200 sm:px-5 sm:text-[15px]',
-                  selected ? 'bg-navy text-white shadow-sm' : 'text-foreground hover:bg-surface hover:text-heading',
+                  'flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-5 sm:text-[15px]',
+                  selected
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'bg-transparent text-foreground hover:bg-slate-100 hover:text-heading',
                 )}
               >
                 <Icon className="size-4" aria-hidden="true" />

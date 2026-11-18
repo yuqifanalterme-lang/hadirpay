@@ -213,7 +213,7 @@ export function PayrollProcessPage() {
 
       {step === 2 && (
         <Panel title="Hasil perhitungan" description={`Rumus gaji bersih: gaji pokok + tunjangan + upah lembur - total potongan. Total periode ${formatRupiah(totals.net)}.`}>
-          <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
+          <div className="no-scrollbar hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full min-w-[980px] border-collapse text-left text-sm">
               <caption className="sr-only">Hasil perhitungan gaji periode {period.period}</caption>
               <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">

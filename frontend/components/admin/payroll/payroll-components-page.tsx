@@ -166,7 +166,7 @@ export function PayrollComponentsPage() {
             action={<Button type="button" variant="primary" size="action" onClick={() => openForm()}>Tambah komponen</Button>}
           />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[660px] border-collapse text-left text-sm">
               <caption className="sr-only">Daftar komponen gaji contoh</caption>
               <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">

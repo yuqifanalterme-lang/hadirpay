@@ -5,6 +5,7 @@ import { CircleCheck, Clock3, LogIn, LogOut, MapPin, MapPinCheck } from 'lucide-
 import { toast } from 'sonner'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Button } from '@/components/ui/button'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { ErrorState } from '@/components/ui/empty-state'
@@ -234,9 +235,7 @@ export function AttendancePage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Jadwal kerja" description="Jam kerja reguler karyawan">
           <div className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary">
-              <Clock3 className="size-5" aria-hidden="true" />
-            </span>
+            <StatIcon icon={Clock3} tone="primary" size="md" />
             <div>
               <p className="font-semibold text-heading">Senin sampai Jumat</p>
               <p className="text-sm text-muted-foreground">08.00 sampai 17.00</p>
@@ -247,13 +246,11 @@ export function AttendancePage() {
         <Panel title="Status lokasi" description="Pemeriksaan lokasi bersifat opsional">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary">
-                {locationState === 'Lokasi perangkat tersedia' ? (
-                  <MapPinCheck className="size-5" aria-hidden="true" />
-                ) : (
-                  <MapPin className="size-5" aria-hidden="true" />
-                )}
-              </span>
+              <StatIcon
+                icon={locationState === 'Lokasi perangkat tersedia' ? MapPinCheck : MapPin}
+                tone="primary"
+                size="md"
+              />
               <div>
                 <p className="font-semibold text-heading">{locationState}</p>
                 <p className="text-sm text-muted-foreground">Absensi tetap dapat dilakukan tanpa lokasi.</p>

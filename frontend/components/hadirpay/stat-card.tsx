@@ -1,13 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
+import { StatIcon, type StatIconTone } from '@/components/ui/stat-icon'
 import { cn } from '@/lib/utils'
-
-const tones = {
-  blue: 'bg-blue-50 text-primary',
-  green: 'bg-emerald-50 text-emerald-600',
-  amber: 'bg-amber-50 text-amber-600',
-  red: 'bg-red-50 text-red-600',
-  navy: 'bg-white/15 text-white',
-}
 
 export function StatCard({
   label,
@@ -23,7 +16,7 @@ export function StatCard({
   value: string
   hint?: string
   icon: LucideIcon
-  tone?: keyof typeof tones
+  tone?: StatIconTone
   size?: 'sm' | 'md'
   highlight?: boolean
   className?: string
@@ -50,15 +43,11 @@ export function StatCard({
         >
           {label}
         </span>
-        <span
-          className={cn(
-            'flex shrink-0 items-center justify-center rounded-xl',
-            highlight ? tones.navy : tones[tone],
-            sm ? 'size-5 rounded-md' : 'size-10',
-          )}
-        >
-          <Icon className={sm ? 'size-3' : 'size-5'} aria-hidden="true" />
-        </span>
+        <StatIcon
+          icon={Icon}
+          tone={highlight ? 'white' : tone}
+          size={sm ? 'sm' : 'md'}
+        />
       </div>
       <p
         className={cn(

@@ -255,7 +255,7 @@ export function Topbar({
             <section
               id="topbar-notifications"
               aria-label="Notifikasi"
-              className="absolute top-14 right-0 z-30 flex max-h-[min(70dvh,32rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-2xl border border-border bg-white p-4 shadow-lg"
+              className="no-scrollbar absolute top-14 right-0 z-30 flex max-h-[min(70dvh,32rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-2xl border border-border bg-white p-4 shadow-lg"
             >
               <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
                 <h2 className="font-bold text-heading">Notifikasi</h2>

@@ -185,7 +185,7 @@ export function GeneralLedgerPage() {
                     }
                   />
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-border">
+                  <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
                     <table className="w-full min-w-[880px] border-collapse text-left text-sm">
                       <caption className="sr-only">
                         Mutasi buku besar {account.name} untuk {period}

@@ -190,7 +190,7 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <caption className="sr-only">Daftar {kindLabel(kind).toLowerCase()} contoh</caption>
                 <thead>

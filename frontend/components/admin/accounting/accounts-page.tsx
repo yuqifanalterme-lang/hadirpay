@@ -54,7 +54,7 @@ export function AccountsPage() {
             {accounts.length === 0 ? (
               <EmptyState title="Belum ada akun" description="Bagan akun belum memiliki data seed." icon={BookOpenText} />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
+              <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[640px] border-collapse text-left text-sm">
                   <caption className="sr-only">Bagan akun akuntansi demo</caption>
                   <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">

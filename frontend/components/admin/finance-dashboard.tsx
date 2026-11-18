@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { formatRupiah } from '@/lib/mock-data'
 import { getFinanceDashboardData } from '@/lib/services/report-service'
 
@@ -88,9 +89,7 @@ export function FinanceDashboard() {
       <Panel title="Periode November 2026" description="Status penggajian dan ringkasan pembayaran yang diproses.">
         <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary">
-              <Wallet className="size-5" aria-hidden="true" />
-            </span>
+            <StatIcon icon={Wallet} tone="primary" size="md" />
             <div className="min-w-0">
               <p className="font-semibold text-heading">{data.employeeCount} karyawan</p>
               <p className="text-sm text-muted-foreground">Total gaji bersih {formatRupiah(data.totalNetPay)}</p>

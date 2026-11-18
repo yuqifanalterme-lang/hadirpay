@@ -200,7 +200,7 @@ export function EmployeeList() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[980px] text-left text-sm">
                 <caption className="sr-only">Daftar karyawan contoh HadirPay</caption>
                 <thead>

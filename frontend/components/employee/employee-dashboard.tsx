@@ -6,6 +6,7 @@ import { GreetingCard } from '@/components/hadirpay/greeting-card'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { buttonVariants } from '@/components/ui/button'
+import { StatIcon } from '@/components/ui/stat-icon'
 import { latestRequest } from '@/lib/mock-data'
 
 export function EmployeeDashboard() {
@@ -27,9 +28,7 @@ export function EmployeeDashboard() {
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                  <CalendarDays className="size-6" aria-hidden="true" />
-                </span>
+                <StatIcon icon={CalendarDays} tone="violet" size="lg" />
                 <div>
                   <p className="text-lg font-bold text-heading">{latestRequest.type}</p>
                   <p className="text-sm text-muted-foreground">Untuk tanggal {latestRequest.date}</p>

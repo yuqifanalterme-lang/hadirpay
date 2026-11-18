@@ -161,7 +161,7 @@ export function JournalPage() {
                 action={<Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>Buat jurnal manual</Button>}
               />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
+              <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[980px] border-collapse text-left text-sm">
                   <caption className="sr-only">Rincian jurnal umum dan akun-akun yang terposting</caption>
                   <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
