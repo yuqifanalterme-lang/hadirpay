@@ -43,6 +43,15 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('jabatan', 'Jabatan::create');
             $routes->put('jabatan/(:num)', 'Jabatan::update/$1');
             $routes->delete('jabatan/(:num)', 'Jabatan::delete/$1');
+
+                // karyawan: berisi data gaji, jadi semuanya khusus admin_hrd dulu
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
+            $routes->get('karyawan', 'Karyawan::index');
+            $routes->get('karyawan/(:num)', 'Karyawan::show/$1');
+            $routes->post('karyawan', 'Karyawan::create');
+            $routes->put('karyawan/(:num)', 'Karyawan::update/$1');
+            $routes->delete('karyawan/(:num)', 'Karyawan::delete/$1');
+        });
         });
     });
 });
