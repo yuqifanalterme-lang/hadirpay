@@ -15,7 +15,7 @@ class LokasiAbsensiSeeder extends Seeder
             'latitude'     => -6.5877800,
             'longitude'    => 106.8058300,
             'radius_meter' => 300,
-            'wajib_lokasi' => 0,
+            'wajib_lokasi' => 1,
             'aktif'        => 1,
             'created_at'   => $now,
             'updated_at'   => $now,
