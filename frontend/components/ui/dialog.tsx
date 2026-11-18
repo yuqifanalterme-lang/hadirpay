@@ -15,7 +15,7 @@ export function Dialog({
   onOpenChange: (open: boolean) => void
   label: string
   children: React.ReactNode
-  size?: 'md' | 'lg'
+  size?: 'md' | 'lg' | 'drawer'
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -43,9 +43,13 @@ export function Dialog({
       onClick={(event) => {
         if (event.target === event.currentTarget) onOpenChange(false)
       }}
-      className={`fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-2xl border border-border bg-white p-0 text-foreground shadow-lg backdrop:bg-navy/50 ${
-        size === 'lg' ? 'max-w-2xl' : 'max-w-xl'
-      }`}
+      className={
+        size === 'drawer'
+          ? 'fixed inset-y-0 right-0 m-0 h-dvh max-h-dvh w-full max-w-2xl overflow-y-auto rounded-l-2xl border-y-0 border-r-0 border-l border-border bg-white p-0 text-foreground shadow-lg backdrop:bg-navy/50'
+          : `fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-2xl border border-border bg-white p-0 text-foreground shadow-lg backdrop:bg-navy/50 ${
+              size === 'lg' ? 'max-w-2xl' : 'max-w-xl'
+            }`
+      }
     >
       {children}
     </dialog>

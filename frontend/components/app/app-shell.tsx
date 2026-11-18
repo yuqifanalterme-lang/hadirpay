@@ -56,15 +56,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [drawerOpen])
 
   const employeeArea =
-    pathname === '/app/absensi' ||
     pathname.startsWith('/app/riwayat-kehadiran') ||
-    pathname === '/app/beranda'
-  const adminArea = pathname.startsWith('/app/karyawan') || pathname.startsWith('/app/master/')
+    pathname === '/app/beranda' ||
+    (pathname === '/app/absensi' && storedRole !== 'admin')
+  const adminArea =
+    pathname.startsWith('/app/karyawan') ||
+    pathname.startsWith('/app/master/') ||
+    pathname === '/app/absensi/rekap' ||
+    (pathname === '/app/absensi' && storedRole === 'admin')
   const role: Role =
     pathname === '/app' || adminArea ? 'admin' : employeeArea ? 'karyawan' : (storedRole ?? 'admin')
-  const user = role === 'admin' ? adminUser : employeeUser
+  const user = role === 'admin'
+    ? adminUser
+    : role === 'keuangan'
+      ? { ...employeeUser, role: 'Tim Keuangan' }
+      : role === 'pemilik'
+        ? { name: 'Pemilik demo', role: 'Akses pemilik', initials: 'PD' }
+        : employeeUser
   const title =
-    pathname.startsWith('/app/karyawan/') && pathname !== '/app/karyawan'
+    pathname === '/app/penggajian/komponen'
+      ? 'Komponen Gaji'
+      : pathname === '/app/penggajian/proses'
+      ? 'Proses Penggajian'
+      : pathname === '/app/absensi/rekap'
+      ? 'Rekap Absensi'
+      : pathname.startsWith('/app/karyawan/') && pathname !== '/app/karyawan'
       ? 'Detail Karyawan'
       : findNavItem(pathname)?.label ?? 'HADIRPAY'
 
@@ -151,12 +167,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               title={title}
               subtitle={todayLabel}
               user={user}
-              notificationHref="/app/pengajuan"
+              notificationHref={role === 'pemilik' ? undefined : '/app/pengajuan'}
               notificationCount={notificationCount}
               notificationLabel={
                 role === 'admin'
                   ? `${notificationCount} pengajuan perlu ditinjau`
-                  : `${notificationCount} pengajuan saya`
+                  : role === 'pemilik'
+                    ? 'Notifikasi tidak tersedia untuk pemilik demo'
+                    : `${notificationCount} pengajuan saya`
               }
               onMenu={() => setDrawerOpen(true)}
               menuButtonRef={menuButtonRef}

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { AttendancePage } from '@/components/employee/attendance-page'
+import { AttendanceRolePage } from '@/components/admin/attendance/attendance-role-page'
 
 export const metadata: Metadata = { title: 'Absensi · HADIRPAY' }
 
 export default function AttendanceRoute() {
-  return <AttendancePage />
+  return <AttendanceRolePage />
 }

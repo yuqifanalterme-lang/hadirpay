@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, ShieldCheck, UserRound } from 'lucide-react'
+import { ArrowRight, ShieldCheck, UserRound, Wallet, Building2 } from 'lucide-react'
 import { PasswordField, submitClass, TextField } from './fields'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 const roles: { value: Role; label: string; hint: string; email: string; icon: typeof ShieldCheck }[] = [
   { value: 'admin', label: 'Admin/HRD', hint: 'Kelola absensi & gaji', email: 'rina.hrd@hadirpay.id', icon: ShieldCheck },
   { value: 'karyawan', label: 'Karyawan', hint: 'Absen & lihat slip gaji', email: 'andi.wijaya@hadirpay.id', icon: UserRound },
+  { value: 'keuangan', label: 'Keuangan', hint: 'Validasi & bayar gaji', email: 'andi.wijaya@hadirpay.id', icon: Wallet },
+  { value: 'pemilik', label: 'Pemilik', hint: 'Lihat laporan akuntansi', email: 'pemilik@contoh.id', icon: Building2 },
 ]
 
 export function LoginForm() {
@@ -28,14 +30,14 @@ export function LoginForm() {
     e.preventDefault()
     setLoading(true)
     localStorage.setItem(ROLE_STORAGE_KEY, role)
-    router.push(role === 'admin' ? '/app' : '/app/beranda')
+    router.push(role === 'admin' ? '/app' : role === 'keuangan' ? '/app/penggajian' : role === 'pemilik' ? '/app/akuntansi/akun' : '/app/beranda')
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-semibold text-heading">Masuk sebagai (mode demo)</legend>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {roles.map((r) => {
             const active = role === r.value
             const Icon = r.icon

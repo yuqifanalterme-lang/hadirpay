@@ -14,12 +14,12 @@ class TestKoneksi extends Controller
             $db = Database::connect();
             
             // Ambil versi database untuk memastikan koneksi hidup
-            $query = $db->query('SELECT version();');
+            $query = $db->query('SELECT VERSION() AS version;');
             $result = $query->getRow();
 
             return $this->response->setJSON([
                 'status' => 'success',
-                'message' => 'Berhasil terhubung ke database Supabase!',
+                'message' => 'Berhasil terhubung ke database Aiven MySQL!',
                 'db_version' => $result->version
             ]);
         } catch (\Throwable $e) {

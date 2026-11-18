@@ -4,8 +4,14 @@ import { cn } from '@/lib/utils'
 export type StatusBadgeStatus =
   | AttendanceStatus
   | 'Menunggu persetujuan'
+  | 'Menunggu validasi keuangan'
+  | 'Draft'
+  | 'Dibayar'
   | 'Sakit'
   | 'Seimbang'
+  | 'Tidak seimbang'
+  | 'Otomatis'
+  | 'Manual'
   | 'Aktif'
   | 'Nonaktif'
 
@@ -13,10 +19,16 @@ const styles: Record<StatusBadgeStatus, string> = {
   Hadir: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   Disetujui: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   Seimbang: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  'Tidak seimbang': 'bg-red-50 text-red-700 ring-red-200',
+  Otomatis: 'bg-sky-50 text-sky-700 ring-sky-200',
+  Manual: 'bg-slate-100 text-slate-700 ring-slate-200',
   Aktif: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   Terlambat: 'bg-amber-50 text-amber-700 ring-amber-200',
   Menunggu: 'bg-amber-50 text-amber-700 ring-amber-200',
   'Menunggu persetujuan': 'bg-amber-50 text-amber-700 ring-amber-200',
+  'Menunggu validasi keuangan': 'bg-amber-50 text-amber-700 ring-amber-200',
+  Draft: 'bg-slate-100 text-slate-700 ring-slate-200',
+  Dibayar: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   Alpha: 'bg-red-50 text-red-700 ring-red-200',
   Ditolak: 'bg-red-50 text-red-700 ring-red-200',
   Nonaktif: 'bg-slate-100 text-slate-700 ring-slate-200',
@@ -29,10 +41,16 @@ const dots: Record<StatusBadgeStatus, string> = {
   Hadir: 'bg-success',
   Disetujui: 'bg-success',
   Seimbang: 'bg-success',
+  'Tidak seimbang': 'bg-destructive',
+  Otomatis: 'bg-info',
+  Manual: 'bg-slate-500',
   Aktif: 'bg-success',
   Terlambat: 'bg-warning',
   Menunggu: 'bg-warning',
   'Menunggu persetujuan': 'bg-warning',
+  'Menunggu validasi keuangan': 'bg-warning',
+  Draft: 'bg-slate-500',
+  Dibayar: 'bg-success',
   Alpha: 'bg-destructive',
   Ditolak: 'bg-destructive',
   Nonaktif: 'bg-slate-500',

@@ -27,7 +27,7 @@ export function AdminDashboard() {
         >
           <div className="mt-auto flex flex-wrap gap-3">
             <Link
-              href="/app/absensi"
+              href="/app/absensi/rekap"
               className={buttonVariants({
                 variant: 'primary',
                 size: 'action',
