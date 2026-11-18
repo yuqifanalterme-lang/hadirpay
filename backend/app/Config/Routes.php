@@ -34,5 +34,15 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('departemen/(:num)', 'Departemen::update/$1');
             $routes->delete('departemen/(:num)', 'Departemen::delete/$1');
         });
+                // jabatan: semua user login boleh baca
+        $routes->get('jabatan', 'Jabatan::index');
+        $routes->get('jabatan/(:num)', 'Jabatan::show/$1');
+
+        // jabatan: hanya admin_hrd boleh tulis
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
+            $routes->post('jabatan', 'Jabatan::create');
+            $routes->put('jabatan/(:num)', 'Jabatan::update/$1');
+            $routes->delete('jabatan/(:num)', 'Jabatan::delete/$1');
+        });
     });
 });
