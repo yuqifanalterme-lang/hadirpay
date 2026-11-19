@@ -60,6 +60,38 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->get('pengaturan', 'Pengaturan::index');
         $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
 
+                // ---- PAYROLL ----
+        // slip gaji sendiri: semua user login yang punya karyawan_id
+        $routes->get('slip-gaji/saya', 'SlipGaji::saya');
+        $routes->get('slip-gaji/(:num)', 'SlipGaji::show/$1');
+
+        // baca data payroll: admin_hrd, pemilik, keuangan
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,pemilik,keuangan']], static function ($routes) {
+            $routes->get('periode-gaji', 'PeriodeGaji::index');
+            $routes->get('periode-gaji/(:num)', 'PeriodeGaji::show/$1');
+            $routes->get('periode-gaji/(:num)/penggajian', 'Penggajian::index/$1');
+            $routes->get('penggajian/(:num)', 'Penggajian::show/$1');
+        });
+
+        // buat periode, hitung, ajukan validasi: admin_hrd
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
+            $routes->post('periode-gaji', 'PeriodeGaji::create');
+            $routes->delete('periode-gaji/(:num)', 'PeriodeGaji::delete/$1');
+            $routes->post('periode-gaji/(:num)/hitung', 'PeriodeGaji::hitung/$1');
+            $routes->put('periode-gaji/(:num)/ajukan', 'PeriodeGaji::ajukan/$1');
+        });
+
+        // validasi (setujui / kembalikan): pemilik dan admin_hrd
+        $routes->group('', ['filter' => ['auth', 'role:pemilik,admin_hrd']], static function ($routes) {
+            $routes->put('periode-gaji/(:num)/setujui', 'PeriodeGaji::setujui/$1');
+            $routes->put('periode-gaji/(:num)/kembalikan', 'PeriodeGaji::kembalikan/$1');
+        });
+
+        // pembayaran: keuangan dan admin_hrd
+        $routes->group('', ['filter' => ['auth', 'role:keuangan,admin_hrd']], static function ($routes) {
+            $routes->put('periode-gaji/(:num)/bayar', 'PeriodeGaji::bayar/$1');
+        });
+
         // ---- TULIS: hanya admin_hrd ----
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('departemen', 'Departemen::create');
