@@ -45,7 +45,14 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->post('absensi/check-out', 'Absensi::checkOut');
         $routes->get('absensi/riwayat', 'Absensi::riwayat');
 
-        // ---- TULIS: hanya admin_hrd ----
+        // ---- CUTI DAN IZIN sisi karyawan: semua user login yang punya karyawan_id ----
+        $routes->get('kuota-cuti/saya', 'KuotaCuti::saya');
+        $routes->get('pengajuan-izin/saya', 'PengajuanIzin::saya');
+        $routes->post('pengajuan-izin', 'PengajuanIzin::create');
+        $routes->get('pengajuan-izin/(:num)', 'PengajuanIzin::show/$1');
+        $routes->put('pengajuan-izin/(:num)/batalkan', 'PengajuanIzin::batalkan/$1');
+
+// ---- TULIS: hanya admin_hrd ----
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('departemen', 'Departemen::create');
             $routes->put('departemen/(:num)', 'Departemen::update/$1');
@@ -73,6 +80,12 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('hari-libur', 'HariLibur::create');
             $routes->put('hari-libur/(:num)', 'HariLibur::update/$1');
             $routes->delete('hari-libur/(:num)', 'HariLibur::delete/$1');
+            // cuti dan izin: khusus admin_hrd
+            $routes->get('kuota-cuti', 'KuotaCuti::index');
+            $routes->put('kuota-cuti', 'KuotaCuti::simpan');
+            $routes->get('pengajuan-izin', 'PengajuanIzin::index');
+            $routes->put('pengajuan-izin/(:num)/setujui', 'PengajuanIzin::setujui/$1');
+            $routes->put('pengajuan-izin/(:num)/tolak', 'PengajuanIzin::tolak/$1');
         });
         $routes->group('absensi', ['namespace' => 'App\Controllers\Api\V1', 'filter' => 'auth'], static function ($routes) {
         $routes->get('hari-ini', 'Absensi::hariIni');
