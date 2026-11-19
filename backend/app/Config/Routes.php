@@ -86,6 +86,18 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->get('pengajuan-izin', 'PengajuanIzin::index');
             $routes->put('pengajuan-izin/(:num)/setujui', 'PengajuanIzin::setujui/$1');
             $routes->put('pengajuan-izin/(:num)/tolak', 'PengajuanIzin::tolak/$1');
+            // komponen gaji: khusus admin_hrd
+            $routes->get('komponen-gaji', 'KomponenGaji::index');
+            $routes->get('komponen-gaji/(:num)', 'KomponenGaji::show/$1');
+            $routes->post('komponen-gaji', 'KomponenGaji::create');
+            $routes->put('komponen-gaji/(:num)', 'KomponenGaji::update/$1');
+            $routes->delete('komponen-gaji/(:num)', 'KomponenGaji::delete/$1');
+
+            // komponen gaji per karyawan: khusus admin_hrd
+            $routes->get('karyawan/(:num)/komponen', 'KaryawanKomponen::index/$1');
+            $routes->post('karyawan/(:num)/komponen', 'KaryawanKomponen::create/$1');
+            $routes->put('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::update/$1/$2');
+            $routes->delete('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::delete/$1/$2');
         });
         $routes->group('absensi', ['namespace' => 'App\Controllers\Api\V1', 'filter' => 'auth'], static function ($routes) {
         $routes->get('hari-ini', 'Absensi::hariIni');
