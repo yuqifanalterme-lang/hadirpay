@@ -52,7 +52,15 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->get('pengajuan-izin/(:num)', 'PengajuanIzin::show/$1');
         $routes->put('pengajuan-izin/(:num)/batalkan', 'PengajuanIzin::batalkan/$1');
 
-// ---- TULIS: hanya admin_hrd ----
+        // ---- NOTIFIKASI (milik sendiri) dan PENGATURAN (baca): semua user login ----
+        $routes->get('notifikasi', 'Notifikasi::index');
+        $routes->get('notifikasi/belum-dibaca', 'Notifikasi::jumlahBelumDibaca');
+        $routes->put('notifikasi/dibaca-semua', 'Notifikasi::dibacaSemua');
+        $routes->put('notifikasi/(:num)/dibaca', 'Notifikasi::dibaca/$1');
+        $routes->get('pengaturan', 'Pengaturan::index');
+        $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
+
+        // ---- TULIS: hanya admin_hrd ----
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('departemen', 'Departemen::create');
             $routes->put('departemen/(:num)', 'Departemen::update/$1');
@@ -98,6 +106,11 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('karyawan/(:num)/komponen', 'KaryawanKomponen::create/$1');
             $routes->put('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::update/$1/$2');
             $routes->delete('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::delete/$1/$2');
+            // notifikasi (kirim) dan pengaturan (tulis): khusus admin_hrd
+            $routes->post('notifikasi', 'Notifikasi::create');
+            $routes->put('pengaturan', 'Pengaturan::simpanMassal');
+            $routes->put('pengaturan/(:segment)', 'Pengaturan::simpan/$1');
+            $routes->delete('pengaturan/(:segment)', 'Pengaturan::delete/$1');
         });
         $routes->group('absensi', ['namespace' => 'App\Controllers\Api\V1', 'filter' => 'auth'], static function ($routes) {
         $routes->get('hari-ini', 'Absensi::hariIni');
