@@ -5,6 +5,7 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\BaseController;
 use App\Libraries\ApiResponse;
 use App\Libraries\JwtService;
+use App\Libraries\Tanggal;
 use App\Models\NotifikasiModel;
 
 class Notifikasi extends BaseController
@@ -16,43 +17,46 @@ class Notifikasi extends BaseController
         $this->model = new NotifikasiModel();
     }
 
-    // GET /api/v1/notifikasi?page=1&per_page=10&tipe=pengajuan&belum_dibaca=1
+    // GET /api/v1/notifikasi?belum_dibaca=true&tipe=pengajuan&page=1&per_page=10
     public function index()
     {
         $uid     = $this->userId();
         $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
         $perPage = min(100, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
         $tipe    = (string) $this->request->getGet('tipe');
-        $belum   = (string) $this->request->getGet('belum_dibaca');
+        $belum   = in_array(strtolower((string) $this->request->getGet('belum_dibaca')), ['1', 'true'], true);
 
         $this->model->where('user_id', $uid);
         if (in_array($tipe, NotifikasiModel::TIPE, true)) {
             $this->model->where('tipe', $tipe);
         }
-        if ($belum === '1') {
+        if ($belum) {
             $this->model->where('dibaca_pada IS NULL', null, false);
         }
 
         $total = $this->model->countAllResults(false);
         $rows  = $this->model->orderBy('created_at', 'DESC')->orderBy('id', 'DESC')->findAll($perPage, ($page - 1) * $perPage);
 
-        return ApiResponse::success(array_map([NotifikasiModel::class, 'format'], $rows), 'OK', [
-            'page'         => $page,
-            'per_page'     => $perPage,
-            'total'        => $total,
-            'total_pages'  => (int) ceil($total / $perPage),
-            'belum_dibaca' => $this->hitungBelumDibaca($uid),
-        ]);
+        $data = array_map(static fn ($r) => [
+            'id'          => (int) $r['id'],
+            'judul'       => $r['judul'],
+            'pesan'       => $r['pesan'],
+            'tipe'        => $r['tipe'],
+            'tautan'      => $r['tautan'],
+            'dibaca'      => $r['dibaca_pada'] !== null,
+            'dibuat_pada' => Tanggal::waktuIso($r['created_at']),
+        ], $rows);
+
+        return ApiResponse::success($data, 'OK', [
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'total'       => $total,
+            'total_pages' => (int) ceil($total / $perPage),
+        ], 200, ['jumlah_belum_dibaca' => $this->hitungBelumDibaca($uid)]);
     }
 
-    // GET /api/v1/notifikasi/belum-dibaca
-    public function jumlahBelumDibaca()
-    {
-        return ApiResponse::success(['jumlah' => $this->hitungBelumDibaca($this->userId())]);
-    }
-
-    // PUT /api/v1/notifikasi/(:num)/dibaca
-    public function dibaca($id = null)
+    // PATCH /api/v1/notifikasi/(:num)/baca
+    public function baca($id = null)
     {
         $row = $this->model->where('id', (int) $id)->where('user_id', $this->userId())->first();
         if (! $row) {
@@ -61,22 +65,19 @@ class Notifikasi extends BaseController
 
         if ($row['dibaca_pada'] === null) {
             $this->model->update($row['id'], ['dibaca_pada' => date('Y-m-d H:i:s')]);
-            $row = $this->model->find($row['id']);
         }
-
-        return ApiResponse::success(NotifikasiModel::format($row), 'Notifikasi ditandai sudah dibaca');
+        return ApiResponse::success(null, 'Notifikasi ditandai sudah dibaca');
     }
 
-    // PUT /api/v1/notifikasi/dibaca-semua
-    public function dibacaSemua()
+    // POST /api/v1/notifikasi/baca-semua
+    public function bacaSemua()
     {
-        $db = db_connect();
-        $db->table('notifikasi')
+        db_connect()->table('notifikasi')
             ->where('user_id', $this->userId())
             ->where('dibaca_pada IS NULL', null, false)
             ->update(['dibaca_pada' => date('Y-m-d H:i:s')]);
 
-        return ApiResponse::success(['jumlah_diubah' => $db->affectedRows()], 'Semua notifikasi ditandai sudah dibaca');
+        return ApiResponse::success(null, 'Semua notifikasi ditandai sudah dibaca');
     }
 
     // POST /api/v1/notifikasi   (admin_hrd) body: {judul, pesan, tipe?, tautan?, user_id | role}
@@ -104,9 +105,7 @@ class Notifikasi extends BaseController
         $adaUser = ! empty($in['user_id']);
         $adaRole = ! empty($in['role']);
         if ($adaUser === $adaRole) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
-                'user_id' => 'Isi salah satu saja: user_id atau role penerima',
-            ], 422);
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['user_id' => 'Isi salah satu saja: user_id atau role penerima'], 422);
         }
 
         $tipe   = $in['tipe'] ?? 'sistem';
@@ -121,8 +120,6 @@ class Notifikasi extends BaseController
 
         return ApiResponse::success(['jumlah_terkirim' => $jumlah], 'Notifikasi dikirim', null, 201);
     }
-
-    // ---------- helper ----------
 
     private function userId(): int
     {

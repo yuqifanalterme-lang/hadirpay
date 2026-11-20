@@ -45,18 +45,13 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->post('absensi/check-out', 'Absensi::checkOut');
         $routes->get('absensi/riwayat', 'Absensi::riwayat');
 
-        // ---- CUTI DAN IZIN sisi karyawan: semua user login yang punya karyawan_id ----
+        // ---- kuota cuti sendiri ----
         $routes->get('kuota-cuti/saya', 'KuotaCuti::saya');
-        $routes->get('pengajuan-izin/saya', 'PengajuanIzin::saya');
-        $routes->post('pengajuan-izin', 'PengajuanIzin::create');
-        $routes->get('pengajuan-izin/(:num)', 'PengajuanIzin::show/$1');
-        $routes->put('pengajuan-izin/(:num)/batalkan', 'PengajuanIzin::batalkan/$1');
 
         // ---- NOTIFIKASI (milik sendiri) dan PENGATURAN (baca): semua user login ----
         $routes->get('notifikasi', 'Notifikasi::index');
-        $routes->get('notifikasi/belum-dibaca', 'Notifikasi::jumlahBelumDibaca');
-        $routes->put('notifikasi/dibaca-semua', 'Notifikasi::dibacaSemua');
-        $routes->put('notifikasi/(:num)/dibaca', 'Notifikasi::dibaca/$1');
+        $routes->patch('notifikasi/(:num)/baca', 'Notifikasi::baca/$1');
+        $routes->post('notifikasi/baca-semua', 'Notifikasi::bacaSemua');
         $routes->get('pengaturan', 'Pengaturan::index');
         $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
 
@@ -67,7 +62,17 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->get('slip-gaji/(:num)', 'SlipGaji::show/$1');
         $routes->get('penggajian/(:num)', 'Penggajian::show/$1');
 
-        // baca payroll dan akuntansi (kontrak bagian 7 dan 8): admin_hrd, keuangan, pemilik
+        // ---- PENGAJUAN (kontrak bagian 6): admin_hrd (semua), karyawan dan keuangan (milik sendiri) ----
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,karyawan,keuangan']], static function ($routes) {
+            $routes->get('pengajuan', 'Pengajuan::index');
+            $routes->get('pengajuan/kuota', 'Pengajuan::kuota');
+            $routes->get('pengajuan/(:num)', 'Pengajuan::show/$1');
+            $routes->get('pengajuan/(:num)/lampiran', 'Pengajuan::lampiran/$1');
+            $routes->post('pengajuan', 'Pengajuan::create');
+            $routes->delete('pengajuan/(:num)', 'Pengajuan::delete/$1');
+        });
+
+        // baca payroll, akuntansi, dan data karyawan: admin_hrd, keuangan, pemilik
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan,pemilik']], static function ($routes) {
             $routes->get('periode-gaji', 'PeriodeGaji::index');
             $routes->get('periode-gaji/(:num)', 'PeriodeGaji::show/$1');
@@ -78,6 +83,16 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->get('jurnal/(:num)', 'Jurnal::show/$1');
             $routes->get('buku-besar', 'BukuBesar::index');
             $routes->get('neraca-saldo', 'NeracaSaldo::index');
+
+            // karyawan: admin_hrd tulis, keuangan dan pemilik hanya baca (kontrak bagian 12)
+            $routes->get('karyawan', 'Karyawan::index');
+            $routes->get('karyawan/(:num)', 'Karyawan::show/$1');
+        });
+
+        // baca komponen gaji: admin_hrd dan keuangan
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan']], static function ($routes) {
+            $routes->get('komponen-gaji', 'KomponenGaji::index');
+            $routes->get('komponen-gaji/(:num)', 'KomponenGaji::show/$1');
         });
 
         // buat periode, hitung, ajukan validasi: admin_hrd
@@ -113,9 +128,6 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('jabatan/(:num)', 'Jabatan::update/$1');
             $routes->delete('jabatan/(:num)', 'Jabatan::delete/$1');
 
-            // karyawan berisi data gaji, jadi semuanya khusus admin_hrd
-            $routes->get('karyawan', 'Karyawan::index');
-            $routes->get('karyawan/(:num)', 'Karyawan::show/$1');
             $routes->post('karyawan', 'Karyawan::create');
             $routes->put('karyawan/(:num)', 'Karyawan::update/$1');
             $routes->delete('karyawan/(:num)', 'Karyawan::delete/$1');
@@ -131,15 +143,17 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('hari-libur', 'HariLibur::create');
             $routes->put('hari-libur/(:num)', 'HariLibur::update/$1');
             $routes->delete('hari-libur/(:num)', 'HariLibur::delete/$1');
-            // cuti dan izin: khusus admin_hrd
+
+            // kuota cuti: atur oleh admin_hrd
             $routes->get('kuota-cuti', 'KuotaCuti::index');
             $routes->put('kuota-cuti', 'KuotaCuti::simpan');
-            $routes->get('pengajuan-izin', 'PengajuanIzin::index');
-            $routes->put('pengajuan-izin/(:num)/setujui', 'PengajuanIzin::setujui/$1');
-            $routes->put('pengajuan-izin/(:num)/tolak', 'PengajuanIzin::tolak/$1');
-            // komponen gaji: khusus admin_hrd
-            $routes->get('komponen-gaji', 'KomponenGaji::index');
-            $routes->get('komponen-gaji/(:num)', 'KomponenGaji::show/$1');
+
+            // proses pengajuan: admin_hrd
+            $routes->post('pengajuan/bulk-proses', 'Pengajuan::bulkProses');
+            $routes->post('pengajuan/(:num)/setujui', 'Pengajuan::setujui/$1');
+            $routes->post('pengajuan/(:num)/tolak', 'Pengajuan::tolak/$1');
+
+            // komponen gaji: tulis khusus admin_hrd
             $routes->post('komponen-gaji', 'KomponenGaji::create');
             $routes->put('komponen-gaji/(:num)', 'KomponenGaji::update/$1');
             $routes->delete('komponen-gaji/(:num)', 'KomponenGaji::delete/$1');
@@ -149,6 +163,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('karyawan/(:num)/komponen', 'KaryawanKomponen::create/$1');
             $routes->put('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::update/$1/$2');
             $routes->delete('karyawan/(:num)/komponen/(:num)', 'KaryawanKomponen::delete/$1/$2');
+
             // notifikasi (kirim) dan pengaturan (tulis): khusus admin_hrd
             $routes->post('notifikasi', 'Notifikasi::create');
             $routes->put('pengaturan', 'Pengaturan::simpanMassal');

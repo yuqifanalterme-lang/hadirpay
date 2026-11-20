@@ -1,4 +1,4 @@
-<?php
+<?php // pembulatan-2-desimal
 
 namespace App\Services;
 
@@ -230,15 +230,15 @@ class PayrollService
         if ($jenis === 'harian') {
             $tarifHarian = $gajiDasar;
             $hariDibayar = $hadirBayar + $hitung['cuti'];
-            $gajiPokok   = round($tarifHarian * $hariDibayar);
+            $gajiPokok   = round($tarifHarian * $hariDibayar, 2);
             $ketPokok    = $hariDibayar . ' hari x ' . $this->rp($tarifHarian);
         } else {
             $tarifHarian = $totalPeriode > 0 ? $gajiDasar / $totalPeriode : 0.0;
             if ($totalPeriode > 0 && $totalWajib < $totalPeriode) {
-                $gajiPokok = round($gajiDasar * $totalWajib / $totalPeriode);
+                $gajiPokok = round($gajiDasar * $totalWajib / $totalPeriode, 2);
                 $ketPokok  = "Gaji pokok bulanan (prorata {$totalWajib}/{$totalPeriode} hari kerja)";
             } else {
-                $gajiPokok = round($gajiDasar);
+                $gajiPokok = round($gajiDasar, 2);
                 $ketPokok  = 'Gaji pokok bulanan';
             }
         }
@@ -287,7 +287,7 @@ class PayrollService
                     $jml = 0;
                     $ket = null;
             }
-            $jml = round($jml);
+            $jml = round($jml, 2);
             if ($jml <= 0) {
                 continue;
             }
@@ -305,7 +305,7 @@ class PayrollService
         $lembur = $this->aturan(self::KODE_LEMBUR, $byKode, $assigned);
         if ($lembur && $lembur['nilai'] !== null && $menitLembur > 0) {
             $jam = $menitLembur / 60;
-            $jml = round($jam * $lembur['nilai']);
+            $jml = round($jam * $lembur['nilai'], 2);
             if ($jml > 0) {
                 $upahLembur = $jml;
                 $pend[]     = $this->baris((int) $lembur['m']['id'], $lembur['m']['nama'], 'pendapatan', $this->angka($jam) . ' jam x ' . $this->rp($lembur['nilai']), $jml);
@@ -315,7 +315,7 @@ class PayrollService
         // --- komponen otomatis: keterlambatan ---
         $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned);
         if ($telat && $telat['nilai'] !== null && $menitTelat > 0) {
-            $jml = round($menitTelat * $telat['nilai']);
+            $jml = round($menitTelat * $telat['nilai'], 2);
             if ($jml > 0) {
                 $pot[] = $this->baris((int) $telat['m']['id'], $telat['m']['nama'], 'potongan', $menitTelat . ' menit x ' . $this->rp($telat['nilai']), $jml);
             }
@@ -325,19 +325,19 @@ class PayrollService
         $alpha = $this->aturan(self::KODE_ALPHA, $byKode, $assigned);
         if ($jenis === 'bulanan' && $alpha && $hitung['alpha'] > 0) {
             $rate = $alpha['nilai'] ?? $tarifHarian;
-            $jml  = round($hitung['alpha'] * $rate);
+            $jml  = round($hitung['alpha'] * $rate, 2);
             if ($jml > 0) {
                 $pot[] = $this->baris((int) $alpha['m']['id'], $alpha['m']['nama'], 'potongan', $hitung['alpha'] . ' hari x ' . $this->rp($rate), $jml);
             }
         }
 
         // --- total ---
-        $totalPend = $gajiPokok + $tunjangan + $upahLembur;
+        $totalPend = round($gajiPokok + $tunjangan + $upahLembur, 2);
         $totalPot  = 0.0;
         foreach ($pot as $p) {
             $totalPot += $p['jumlah'];
         }
-        $bersih     = $totalPend - $totalPot;
+        $bersih = round($totalPend - $totalPot, 2);
         $peringatan = [];
         if ($bersih < 0) {
             $peringatan[] = 'Potongan melebihi pendapatan, gaji bersih diset 0';
@@ -401,7 +401,7 @@ class PayrollService
 
     private function rp(float $n): string
     {
-        return 'Rp ' . number_format($n, 0, ',', '.');
+        return number_format($n, floor($n) == $n ? 0 : 2, ',', '.');
     }
 
     private function angka(float $n): string

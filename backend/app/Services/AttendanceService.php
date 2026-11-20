@@ -216,7 +216,7 @@ class AttendanceService
 
         $jadwal = $this->jadwal();
         $durasi = max(0, intdiv($now->getTimestamp() - strtotime($tanggal . ' ' . $abs['jam_masuk']), 60));
-        $lembur = max(0, intdiv($now->getTimestamp() - strtotime($tanggal . ' ' . $jadwal['jam_pulang']), 60));
+        $lembur = (int) ($abs['lembur_menit'] ?? 0); // lembur hanya dari pengajuan lembur yang disetujui (kontrak)
         $jam    = $now->format('H:i:s');
 
         $this->db->table('absensi')->where('id', $abs['id'])->update([
