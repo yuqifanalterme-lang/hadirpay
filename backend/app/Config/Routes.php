@@ -60,17 +60,24 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->get('pengaturan', 'Pengaturan::index');
         $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
 
-                // ---- PAYROLL ----
-        // slip gaji sendiri: semua user login yang punya karyawan_id
+        // ---- PAYROLL (mengikuti kontrak bagian 7) ----
+        // slip gaji dan rincian gaji: controller memeriksa kepemilikan untuk karyawan biasa
+        $routes->get('slip-gaji', 'SlipGaji::index');
         $routes->get('slip-gaji/saya', 'SlipGaji::saya');
         $routes->get('slip-gaji/(:num)', 'SlipGaji::show/$1');
+        $routes->get('penggajian/(:num)', 'Penggajian::show/$1');
 
-        // baca data payroll: admin_hrd, pemilik, keuangan
-        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,pemilik,keuangan']], static function ($routes) {
+        // baca payroll dan akuntansi (kontrak bagian 7 dan 8): admin_hrd, keuangan, pemilik
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan,pemilik']], static function ($routes) {
             $routes->get('periode-gaji', 'PeriodeGaji::index');
             $routes->get('periode-gaji/(:num)', 'PeriodeGaji::show/$1');
             $routes->get('periode-gaji/(:num)/penggajian', 'Penggajian::index/$1');
-            $routes->get('penggajian/(:num)', 'Penggajian::show/$1');
+
+            $routes->get('akun', 'Akun::index');
+            $routes->get('jurnal', 'Jurnal::index');
+            $routes->get('jurnal/(:num)', 'Jurnal::show/$1');
+            $routes->get('buku-besar', 'BukuBesar::index');
+            $routes->get('neraca-saldo', 'NeracaSaldo::index');
         });
 
         // buat periode, hitung, ajukan validasi: admin_hrd
@@ -78,18 +85,22 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('periode-gaji', 'PeriodeGaji::create');
             $routes->delete('periode-gaji/(:num)', 'PeriodeGaji::delete/$1');
             $routes->post('periode-gaji/(:num)/hitung', 'PeriodeGaji::hitung/$1');
-            $routes->put('periode-gaji/(:num)/ajukan', 'PeriodeGaji::ajukan/$1');
+            $routes->post('periode-gaji/(:num)/ajukan-validasi', 'PeriodeGaji::ajukanValidasi/$1');
         });
 
-        // validasi (setujui / kembalikan): pemilik dan admin_hrd
-        $routes->group('', ['filter' => ['auth', 'role:pemilik,admin_hrd']], static function ($routes) {
-            $routes->put('periode-gaji/(:num)/setujui', 'PeriodeGaji::setujui/$1');
-            $routes->put('periode-gaji/(:num)/kembalikan', 'PeriodeGaji::kembalikan/$1');
-        });
+        // validasi, pembayaran, akun, dan jurnal: keuangan
+        $routes->group('', ['filter' => ['auth', 'role:keuangan']], static function ($routes) {
+            $routes->post('periode-gaji/(:num)/kembalikan', 'PeriodeGaji::kembalikan/$1');
+            $routes->post('periode-gaji/(:num)/setujui', 'PeriodeGaji::setujui/$1');
+            $routes->post('periode-gaji/(:num)/bayar', 'PeriodeGaji::bayar/$1');
 
-        // pembayaran: keuangan dan admin_hrd
-        $routes->group('', ['filter' => ['auth', 'role:keuangan,admin_hrd']], static function ($routes) {
-            $routes->put('periode-gaji/(:num)/bayar', 'PeriodeGaji::bayar/$1');
+            $routes->post('akun', 'Akun::create');
+            $routes->put('akun/(:num)', 'Akun::update/$1');
+            $routes->delete('akun/(:num)', 'Akun::delete/$1');
+
+            $routes->post('jurnal', 'Jurnal::create');
+            $routes->put('jurnal/(:num)', 'Jurnal::update/$1');
+            $routes->delete('jurnal/(:num)', 'Jurnal::delete/$1');
         });
 
         // ---- TULIS: hanya admin_hrd ----
@@ -144,11 +155,5 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('pengaturan/(:segment)', 'Pengaturan::simpan/$1');
             $routes->delete('pengaturan/(:segment)', 'Pengaturan::delete/$1');
         });
-        $routes->group('absensi', ['namespace' => 'App\Controllers\Api\V1', 'filter' => 'auth'], static function ($routes) {
-        $routes->get('hari-ini', 'Absensi::hariIni');
-        $routes->post('check-in', 'Absensi::checkIn');
-        $routes->post('check-out', 'Absensi::checkOut');
-        $routes->get('riwayat', 'Absensi::riwayat');
-    });
     });
 });

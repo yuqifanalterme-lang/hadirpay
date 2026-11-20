@@ -5,8 +5,10 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\BaseController;
 use App\Libraries\ApiResponse;
 use App\Libraries\JwtService;
+use App\Libraries\Tanggal;
 use App\Models\NotifikasiModel;
 use App\Models\PeriodeGajiModel;
+use App\Services\AccountingService;
 use App\Services\PayrollService;
 
 class PeriodeGaji extends BaseController
@@ -46,16 +48,26 @@ class PeriodeGaji extends BaseController
                 ->join('penggajian g', 'g.periode_gaji_id = p.id', 'left')
         )->groupBy('p.id')->orderBy('p.periode', 'DESC')->limit($perPage, ($page - 1) * $perPage)->get()->getResultArray();
 
-        $rows = array_map(static function ($r) {
-            $r = PeriodeGajiModel::format($r);
-            $r['jumlah_karyawan']   = (int) $r['jumlah_karyawan'];
-            $r['total_pendapatan']  = (float) $r['total_pendapatan'];
-            $r['total_potongan']    = (float) $r['total_potongan'];
-            $r['total_gaji_bersih'] = (float) $r['total_gaji_bersih'];
-            return $r;
-        }, $rows);
+        $uids  = array_values(array_unique(array_filter(array_map(static fn ($r) => (int) $r['dibuat_oleh'], $rows))));
+        $nama  = $uids ? array_column($db->table('users')->select('id, nama')->whereIn('id', $uids)->get()->getResultArray(), 'nama', 'id') : [];
 
-        return ApiResponse::success($rows, 'OK', [
+        $data = array_map(static fn ($r) => [
+            'id'                => (int) $r['id'],
+            'periode'           => $r['periode'],
+            'label'             => Tanggal::labelPeriode($r['periode']),
+            'tanggal_mulai'     => $r['tanggal_mulai'],
+            'tanggal_selesai'   => $r['tanggal_selesai'],
+            'tanggal_tutup'     => $r['tanggal_tutup'],
+            'hari_kerja'        => (int) $r['hari_kerja'],
+            'status'            => $r['status'],
+            'jumlah_karyawan'   => (int) $r['jumlah_karyawan'],
+            'total_pendapatan'  => (float) $r['total_pendapatan'],
+            'total_potongan'    => (float) $r['total_potongan'],
+            'total_gaji_bersih' => (float) $r['total_gaji_bersih'],
+            'dibuat_oleh'       => $nama[$r['dibuat_oleh']] ?? null,
+        ], $rows);
+
+        return ApiResponse::success($data, 'OK', [
             'page'        => $page,
             'per_page'    => $perPage,
             'total'       => $total,
@@ -66,38 +78,14 @@ class PeriodeGaji extends BaseController
     // GET /api/v1/periode-gaji/(:num)
     public function show($id = null)
     {
-        $p = $this->model->find($id);
-        if (! $p) {
+        $d = $this->detail((int) $id);
+        if (! $d) {
             return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
         }
-
-        $db   = db_connect();
-        $ring = $db->table('penggajian')
-            ->select('COUNT(id) AS jumlah_karyawan, COALESCE(SUM(total_pendapatan),0) AS total_pendapatan, '
-                . 'COALESCE(SUM(total_potongan),0) AS total_potongan, COALESCE(SUM(gaji_bersih),0) AS total_gaji_bersih')
-            ->where('periode_gaji_id', (int) $id)
-            ->get()->getRowArray();
-
-        $log = $db->table('periode_status_log l')
-            ->select('l.status, l.catatan, l.created_at, u.nama AS oleh_nama')
-            ->join('users u', 'u.id = l.oleh', 'left')
-            ->where('l.periode_gaji_id', (int) $id)
-            ->orderBy('l.id', 'ASC')
-            ->get()->getResultArray();
-
-        $data = PeriodeGajiModel::format($p);
-        $data['ringkasan'] = [
-            'jumlah_karyawan'   => (int) $ring['jumlah_karyawan'],
-            'total_pendapatan'  => (float) $ring['total_pendapatan'],
-            'total_potongan'    => (float) $ring['total_potongan'],
-            'total_gaji_bersih' => (float) $ring['total_gaji_bersih'],
-        ];
-        $data['riwayat_status'] = $log;
-
-        return ApiResponse::success($data);
+        return ApiResponse::success($d);
     }
 
-    // POST /api/v1/periode-gaji   body: {"periode":"2026-11", "tanggal_mulai"?, "tanggal_selesai"?, "tanggal_tutup"?}
+    // POST /api/v1/periode-gaji   body: {"periode":"2026-11", "tanggal_tutup"?, "tanggal_mulai"?, "tanggal_selesai"?}
     public function create()
     {
         $in = $this->body();
@@ -123,9 +111,6 @@ class PeriodeGaji extends BaseController
 
         if ($selesai < $mulai) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['tanggal_selesai' => 'Tanggal selesai tidak boleh sebelum tanggal mulai'], 422);
-        }
-        if ($tutup < $selesai) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['tanggal_tutup' => 'Tanggal tutup tidak boleh sebelum tanggal selesai'], 422);
         }
 
         if ($this->model->where('periode', $periode)->countAllResults() > 0) {
@@ -161,7 +146,7 @@ class PeriodeGaji extends BaseController
             return ApiResponse::error('SERVER_ERROR', 'Gagal membuat periode gaji', null, 500);
         }
 
-        return ApiResponse::success(PeriodeGajiModel::format($this->model->find($id)), 'Periode gaji dibuat', null, 201);
+        return ApiResponse::success($this->detail((int) $id), 'Periode gaji dibuat', null, 201);
     }
 
     // DELETE /api/v1/periode-gaji/(:num)   (hanya draft)
@@ -172,7 +157,7 @@ class PeriodeGaji extends BaseController
             return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
         }
         if ($p['status'] !== 'draft') {
-            return ApiResponse::error('UNPROCESSABLE', 'Hanya periode berstatus draft yang bisa dihapus', null, 422);
+            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Hanya periode berstatus draft yang bisa dihapus', null, 409);
         }
 
         $this->model->delete($id);
@@ -187,7 +172,7 @@ class PeriodeGaji extends BaseController
             return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
         }
         if ($p['status'] !== 'draft') {
-            return ApiResponse::error('UNPROCESSABLE', 'Hanya periode berstatus draft yang bisa dihitung ulang', null, 422);
+            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Hanya periode berstatus draft yang bisa dihitung ulang', null, 409);
         }
 
         try {
@@ -197,11 +182,11 @@ class PeriodeGaji extends BaseController
             return ApiResponse::error('SERVER_ERROR', 'Gagal menghitung gaji', null, 500);
         }
 
-        return ApiResponse::success($hasil, 'Gaji berhasil dihitung');
+        return ApiResponse::success(['periode_id' => (int) $id] + $hasil, 'Gaji berhasil dihitung');
     }
 
-    // PUT /api/v1/periode-gaji/(:num)/ajukan   draft -> menunggu_validasi
-    public function ajukan($id = null)
+    // POST /api/v1/periode-gaji/(:num)/ajukan-validasi   draft -> menunggu_validasi
+    public function ajukanValidasi($id = null)
     {
         $hasil = $this->transisi((int) $id, 'draft', 'menunggu_validasi', null, [], static function ($p, $db) {
             if (! $p['dihitung_pada']) {
@@ -216,14 +201,14 @@ class PeriodeGaji extends BaseController
             return $hasil;
         }
 
-        $this->aman(static function () use ($hasil) {
-            NotifikasiModel::kirimKeRole('pemilik', 'Penggajian menunggu validasi', "Periode {$hasil['periode']} menunggu validasi Anda.", 'penggajian', '/penggajian/' . $hasil['id']);
+        $this->aman(function () use ($hasil) {
+            NotifikasiModel::kirimKeRole('keuangan', 'Penggajian menunggu validasi', "Periode {$hasil['periode']} menunggu validasi Anda.", 'penggajian', '/penggajian/' . $hasil['id']);
         });
 
-        return ApiResponse::success(PeriodeGajiModel::format($hasil), 'Periode diajukan untuk validasi');
+        return ApiResponse::success($this->detail((int) $id), 'Periode diajukan untuk validasi');
     }
 
-    // PUT /api/v1/periode-gaji/(:num)/kembalikan   menunggu_validasi -> draft   body: {"catatan":"..."}
+    // POST /api/v1/periode-gaji/(:num)/kembalikan   menunggu_validasi -> draft   body: {"catatan":"..."}
     public function kembalikan($id = null)
     {
         $in = $this->body();
@@ -238,91 +223,150 @@ class PeriodeGaji extends BaseController
             return $hasil;
         }
 
-        $this->aman(static function () use ($hasil, $in) {
+        $this->aman(function () use ($hasil, $in) {
             NotifikasiModel::kirimKeRole('admin_hrd', 'Penggajian dikembalikan', "Periode {$hasil['periode']} dikembalikan: {$in['catatan']}", 'penggajian', '/penggajian/' . $hasil['id']);
         });
 
-        return ApiResponse::success(PeriodeGajiModel::format($hasil), 'Periode dikembalikan ke draft');
+        return ApiResponse::success($this->detail((int) $id), 'Periode dikembalikan ke draft');
     }
 
-    // PUT /api/v1/periode-gaji/(:num)/setujui   menunggu_validasi -> disetujui   body: {"catatan"?}
+    // POST /api/v1/periode-gaji/(:num)/setujui   menunggu_validasi -> disetujui
+    // Membuat slip gaji semua karyawan dan jurnal pengakuan gaji.
     public function setujui($id = null)
     {
         $in      = $this->body();
         $catatan = isset($in['catatan']) ? mb_substr(trim((string) $in['catatan']), 0, 255) : null;
+        $userId  = $this->userId();
+        $terbit  = date('Y-m-d');
 
-        $hasil = $this->transisi((int) $id, 'menunggu_validasi', 'disetujui', $catatan);
-        if (! is_array($hasil)) {
-            return $hasil;
-        }
-
-        $this->aman(static function () use ($hasil) {
-            NotifikasiModel::kirimKeRole('keuangan', 'Penggajian disetujui', "Periode {$hasil['periode']} disetujui dan siap dibayarkan.", 'penggajian', '/penggajian/' . $hasil['id']);
-        });
-
-        return ApiResponse::success(PeriodeGajiModel::format($hasil), 'Periode disetujui');
-    }
-
-    // PUT /api/v1/periode-gaji/(:num)/bayar   disetujui -> dibayar   body: {"tanggal_bayar"?}
-    // Slip gaji diterbitkan untuk semua karyawan di periode ini.
-    public function bayar($id = null)
-    {
-        $in = $this->body();
-        $validation = service('validation');
-        $validation->setRules(['tanggal_bayar' => 'permit_empty|valid_date[Y-m-d]']);
-        if (! $validation->run($in)) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
-        }
-        $tgl = ! empty($in['tanggal_bayar']) ? $in['tanggal_bayar'] : date('Y-m-d');
-
-        $hasil = $this->transisi((int) $id, 'disetujui', 'dibayar', null, ['tanggal_bayar' => $tgl], null, static function ($p, $db, $now) use ($tgl) {
-            $rows  = $db->table('penggajian')->select('id')->where('periode_gaji_id', $p['id'])->get()->getResultArray();
+        $hasil = $this->transisi((int) $id, 'menunggu_validasi', 'disetujui', $catatan, [], null, static function ($p, $db, $now) use ($userId, $terbit) {
+            $rows  = $db->table('penggajian')->select('id')->where('periode_gaji_id', $p['id'])->orderBy('id', 'ASC')->get()->getResultArray();
+            $bagi  = explode('-', $p['periode']);
             $batch = [];
-            foreach ($rows as $r) {
+            foreach ($rows as $i => $r) {
                 $batch[] = [
                     'penggajian_id'  => (int) $r['id'],
-                    'nomor_slip'     => sprintf('SLP-%s-%05d', str_replace('-', '', $p['periode']), $r['id']),
-                    'tanggal_terbit' => $tgl,
+                    'nomor_slip'     => sprintf('SLP/%s/%s/%04d', $bagi[0], $bagi[1], $i + 1),
+                    'tanggal_terbit' => $terbit,
                     'created_at'     => $now,
                 ];
             }
             if ($batch) {
                 $db->table('slip_gaji')->insertBatch($batch);
             }
+
+            $jurnalId = AccountingService::jurnalPengakuan($db, $p, $userId);
+            $db->table('periode_gaji')->where('id', $p['id'])->update(['jurnal_pengakuan_id' => $jurnalId]);
         });
         if (! is_array($hasil)) {
             return $hasil;
         }
 
-        $this->aman(static function () use ($hasil) {
-            $users = db_connect()->table('penggajian g')
-                ->select('u.id AS user_id')
-                ->join('users u', 'u.karyawan_id = g.karyawan_id')
-                ->where('g.periode_gaji_id', $hasil['id'])
-                ->where('u.aktif', 1)
-                ->get()->getResultArray();
-
-            $now   = date('Y-m-d H:i:s');
-            $batch = [];
-            foreach ($users as $u) {
-                $batch[] = [
-                    'user_id'    => (int) $u['user_id'],
-                    'judul'      => 'Slip gaji ' . $hasil['periode'] . ' terbit',
-                    'pesan'      => 'Gaji periode ' . $hasil['periode'] . ' sudah dibayarkan. Slip gaji bisa dilihat.',
-                    'tipe'       => 'slip',
-                    'tautan'     => '/slip-gaji',
-                    'created_at' => $now,
-                ];
-            }
-            if ($batch) {
-                (new NotifikasiModel())->insertBatch($batch);
-            }
+        $this->aman(function () use ($hasil) {
+            $this->notifKaryawan((int) $hasil['id'], 'Slip gaji ' . $hasil['periode'] . ' terbit', 'Slip gaji periode ' . $hasil['periode'] . ' sudah bisa dilihat.', 'slip', '/slip-gaji');
+            NotifikasiModel::kirimKeRole('admin_hrd', 'Penggajian disetujui', "Periode {$hasil['periode']} disetujui dan siap dibayarkan.", 'penggajian', '/penggajian/' . $hasil['id']);
         });
 
-        return ApiResponse::success(PeriodeGajiModel::format($hasil), 'Gaji dibayarkan dan slip diterbitkan');
+        return ApiResponse::success($this->detail((int) $id), 'Periode disetujui, slip gaji dan jurnal pengakuan dibuat');
+    }
+
+    // POST /api/v1/periode-gaji/(:num)/bayar   disetujui -> dibayar
+    // body: {"tanggal_bayar"?, "akun_kas_id"?, "catatan"?}. Membuat jurnal pembayaran.
+    public function bayar($id = null)
+    {
+        $in = $this->body();
+        $validation = service('validation');
+        $validation->setRules([
+            'tanggal_bayar' => 'permit_empty|valid_date[Y-m-d]',
+            'akun_kas_id'   => 'permit_empty|is_natural_no_zero',
+        ]);
+        if (! $validation->run($in)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
+        }
+
+        $tgl     = ! empty($in['tanggal_bayar']) ? $in['tanggal_bayar'] : date('Y-m-d');
+        $catatan = isset($in['catatan']) ? mb_substr(trim((string) $in['catatan']), 0, 255) : null;
+
+        $db  = db_connect();
+        $kas = ! empty($in['akun_kas_id'])
+            ? $db->table('akun')->where('id', (int) $in['akun_kas_id'])->get()->getRowArray()
+            : $db->table('akun')->where('kode', AccountingService::AKUN_KAS)->get()->getRowArray();
+
+        if (! $kas || ! (int) $kas['aktif'] || $kas['kategori'] !== 'aset') {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['akun_kas_id' => 'Akun kas/bank tidak valid (harus akun aset yang aktif)'], 422);
+        }
+
+        $kasId  = (int) $kas['id'];
+        $userId = $this->userId();
+
+        $hasil = $this->transisi((int) $id, 'disetujui', 'dibayar', $catatan, ['tanggal_bayar' => $tgl], null, static function ($p, $db, $now) use ($userId, $kasId, $tgl) {
+            $jurnalId = AccountingService::jurnalPembayaran($db, $p, $userId, $kasId, $tgl);
+            $db->table('periode_gaji')->where('id', $p['id'])->update(['jurnal_pembayaran_id' => $jurnalId]);
+        });
+        if (! is_array($hasil)) {
+            return $hasil;
+        }
+
+        $this->aman(function () use ($hasil) {
+            $this->notifKaryawan((int) $hasil['id'], 'Gaji ' . $hasil['periode'] . ' dibayarkan', 'Gaji periode ' . $hasil['periode'] . ' sudah dibayarkan.', 'penggajian', '/slip-gaji');
+        });
+
+        return ApiResponse::success($this->detail((int) $id), 'Gaji dibayarkan dan jurnal pembayaran dibuat');
     }
 
     // ---------- helper ----------
+
+    private function detail(int $id): ?array
+    {
+        $p = $this->model->find($id);
+        if (! $p) {
+            return null;
+        }
+
+        $db   = db_connect();
+        $ring = $db->table('penggajian')
+            ->select('COUNT(id) AS jumlah_karyawan, COALESCE(SUM(total_pendapatan),0) AS total_pendapatan, '
+                . 'COALESCE(SUM(total_potongan),0) AS total_potongan, COALESCE(SUM(gaji_bersih),0) AS total_gaji_bersih')
+            ->where('periode_gaji_id', $id)
+            ->get()->getRowArray();
+
+        $log = $db->table('periode_status_log l')
+            ->select('l.status, l.catatan, l.created_at, u.nama AS oleh_nama')
+            ->join('users u', 'u.id = l.oleh', 'left')
+            ->where('l.periode_gaji_id', $id)
+            ->orderBy('l.id', 'ASC')
+            ->get()->getResultArray();
+
+        $pembuat = $db->table('users')->select('nama')->where('id', (int) $p['dibuat_oleh'])->get()->getRowArray();
+
+        return [
+            'id'              => (int) $p['id'],
+            'periode'         => $p['periode'],
+            'label'           => Tanggal::labelPeriode($p['periode']),
+            'tanggal_mulai'   => $p['tanggal_mulai'],
+            'tanggal_selesai' => $p['tanggal_selesai'],
+            'tanggal_tutup'   => $p['tanggal_tutup'],
+            'hari_kerja'      => (int) $p['hari_kerja'],
+            'status'          => $p['status'],
+            'dihitung_pada'   => $p['dihitung_pada'],
+            'tanggal_bayar'   => $p['tanggal_bayar'],
+            'dibuat_oleh'     => $pembuat['nama'] ?? null,
+            'ringkasan'       => [
+                'jumlah_karyawan'   => (int) $ring['jumlah_karyawan'],
+                'total_pendapatan'  => (float) $ring['total_pendapatan'],
+                'total_potongan'    => (float) $ring['total_potongan'],
+                'total_gaji_bersih' => (float) $ring['total_gaji_bersih'],
+            ],
+            'riwayat_status' => array_map(static fn ($l) => [
+                'status'  => $l['status'],
+                'oleh'    => $l['oleh_nama'],
+                'waktu'   => Tanggal::waktuIso($l['created_at']),
+                'catatan' => $l['catatan'],
+            ], $log),
+            'jurnal_pengakuan_id'  => $p['jurnal_pengakuan_id'] !== null ? (int) $p['jurnal_pengakuan_id'] : null,
+            'jurnal_pembayaran_id' => $p['jurnal_pembayaran_id'] !== null ? (int) $p['jurnal_pembayaran_id'] : null,
+        ];
+    }
 
     /**
      * Ubah status periode dalam satu transaksi (baris dikunci).
@@ -342,7 +386,7 @@ class PeriodeGaji extends BaseController
             }
             if ($p['status'] !== $dari) {
                 $db->transRollback();
-                return ApiResponse::error('UNPROCESSABLE', "Periode berstatus {$p['status']}, harus {$dari} untuk aksi ini", null, 422);
+                return ApiResponse::error('INVALID_STATUS_TRANSITION', "Periode berstatus {$p['status']}, harus {$dari} untuk aksi ini", null, 409);
             }
             if ($pra && ($err = $pra($p, $db))) {
                 $db->transRollback();
@@ -364,13 +408,42 @@ class PeriodeGaji extends BaseController
             }
 
             $db->transCommit();
+        } catch (\DomainException $e) {
+            $db->transRollback();
+            return ApiResponse::error('UNPROCESSABLE', $e->getMessage(), null, 422);
         } catch (\Throwable $e) {
             $db->transRollback();
-            log_message('error', 'Gagal ubah status periode: ' . $e->getMessage());
+            log_message('error', 'Gagal ubah status periode: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
             return ApiResponse::error('SERVER_ERROR', 'Gagal mengubah status periode', null, 500);
         }
 
         return $this->model->find($id);
+    }
+
+    private function notifKaryawan(int $periodeId, string $judul, string $pesan, string $tipe, string $tautan): void
+    {
+        $users = db_connect()->table('penggajian g')
+            ->select('u.id AS user_id')
+            ->join('users u', 'u.karyawan_id = g.karyawan_id')
+            ->where('g.periode_gaji_id', $periodeId)
+            ->where('u.aktif', 1)
+            ->get()->getResultArray();
+
+        $now   = date('Y-m-d H:i:s');
+        $batch = [];
+        foreach ($users as $u) {
+            $batch[] = [
+                'user_id'    => (int) $u['user_id'],
+                'judul'      => mb_substr($judul, 0, 150),
+                'pesan'      => mb_substr($pesan, 0, 255),
+                'tipe'       => $tipe,
+                'tautan'     => $tautan,
+                'created_at' => $now,
+            ];
+        }
+        if ($batch) {
+            (new NotifikasiModel())->insertBatch($batch);
+        }
     }
 
     private function aman(callable $fn): void

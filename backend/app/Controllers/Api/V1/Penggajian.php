@@ -4,11 +4,12 @@ namespace App\Controllers\Api\V1;
 
 use App\Controllers\BaseController;
 use App\Libraries\ApiResponse;
-use App\Services\PayrollService;
+use App\Libraries\JwtService;
+use App\Services\PayslipFormatter;
 
 class Penggajian extends BaseController
 {
-    // GET /api/v1/periode-gaji/(:num)/penggajian?page=1&per_page=10&q=rina&departemen_id=1
+    // GET /api/v1/periode-gaji/(:num)/penggajian?page=1&per_page=10&search=rina&departemen_id=1
     public function index($periodeId = null)
     {
         $db = db_connect();
@@ -20,15 +21,13 @@ class Penggajian extends BaseController
 
         $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
         $perPage = min(100, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
-        $q       = trim((string) $this->request->getGet('q'));
+        $q       = trim((string) ($this->request->getGet('search') ?? $this->request->getGet('q')));
         $deptId  = (int) ($this->request->getGet('departemen_id') ?? 0);
 
         $dasar = static function () use ($db, $periodeId, $q, $deptId) {
             $b = $db->table('penggajian g')
                 ->join('karyawan k', 'k.id = g.karyawan_id')
                 ->join('departemen d', 'd.id = k.departemen_id', 'left')
-                ->join('jabatan j', 'j.id = k.jabatan_id', 'left')
-                ->join('slip_gaji s', 's.penggajian_id = g.id', 'left')
                 ->where('g.periode_gaji_id', (int) $periodeId);
 
             if ($q !== '') {
@@ -43,14 +42,29 @@ class Penggajian extends BaseController
         $total = $dasar()->countAllResults();
 
         $rows = $dasar()
-            ->select('g.id, g.periode_gaji_id, g.karyawan_id, g.gaji_pokok, g.tunjangan, g.upah_lembur, g.total_pendapatan, '
-                . 'g.total_potongan, g.gaji_bersih, g.tarif_harian, k.kode AS karyawan_kode, k.nama AS karyawan_nama, '
-                . 'd.nama AS departemen_nama, j.nama AS jabatan_nama, s.nomor_slip')
+            ->select('g.id, g.gaji_pokok, g.tunjangan, g.upah_lembur, g.total_pendapatan, g.total_potongan, g.gaji_bersih, '
+                . 'k.id AS karyawan_id, k.kode AS karyawan_kode, k.nama AS karyawan_nama, d.nama AS departemen_nama')
             ->orderBy('k.nama', 'ASC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->get()->getResultArray();
 
-        return ApiResponse::success(array_map([PayrollService::class, 'castUang'], $rows), 'OK', [
+        $data = array_map(static fn ($r) => [
+            'id'       => (int) $r['id'],
+            'karyawan' => [
+                'id'         => (int) $r['karyawan_id'],
+                'kode'       => $r['karyawan_kode'],
+                'nama'       => $r['karyawan_nama'],
+                'departemen' => $r['departemen_nama'],
+            ],
+            'gaji_pokok'       => (float) $r['gaji_pokok'],
+            'tunjangan'        => (float) $r['tunjangan'],
+            'upah_lembur'      => (float) $r['upah_lembur'],
+            'total_pendapatan' => (float) $r['total_pendapatan'],
+            'total_potongan'   => (float) $r['total_potongan'],
+            'gaji_bersih'      => (float) $r['gaji_bersih'],
+        ], $rows);
+
+        return ApiResponse::success($data, 'OK', [
             'page'        => $page,
             'per_page'    => $perPage,
             'total'       => $total,
@@ -60,38 +74,21 @@ class Penggajian extends BaseController
         ]);
     }
 
-    // GET /api/v1/penggajian/(:num)
+    // GET /api/v1/penggajian/(:num)   admin_hrd, keuangan, pemilik: semua. karyawan: milik sendiri.
     public function show($id = null)
     {
-        $db = db_connect();
-
-        $g = $db->table('penggajian g')
-            ->select('g.*, k.kode AS karyawan_kode, k.nama AS karyawan_nama, k.npwp, k.no_bpjs, '
-                . 'd.nama AS departemen_nama, j.nama AS jabatan_nama, p.periode, p.status AS periode_status, p.tanggal_mulai, p.tanggal_selesai')
-            ->join('karyawan k', 'k.id = g.karyawan_id')
-            ->join('departemen d', 'd.id = k.departemen_id', 'left')
-            ->join('jabatan j', 'j.id = k.jabatan_id', 'left')
-            ->join('periode_gaji p', 'p.id = g.periode_gaji_id')
-            ->where('g.id', (int) $id)
-            ->get()->getRowArray();
-
-        if (! $g) {
+        $d = PayslipFormatter::detail((int) $id);
+        if (! $d) {
             return ApiResponse::error('NOT_FOUND', 'Data penggajian tidak ditemukan', null, 404);
         }
 
-        $detail = $db->table('detail_penggajian')->where('penggajian_id', (int) $id)->orderBy('urutan', 'ASC')->get()->getResultArray();
-        $detail = array_map(static function ($d) {
-            $d['jumlah'] = (float) $d['jumlah'];
-            return $d;
-        }, $detail);
+        $user = JwtService::$user ?? [];
+        $role = $user['role'] ?? '';
+        if (! in_array($role, ['admin_hrd', 'keuangan', 'pemilik'], true)
+            && (int) $d['karyawan']['id'] !== (int) ($user['karyawan_id'] ?? 0)) {
+            return ApiResponse::error('FORBIDDEN', 'Anda tidak berhak mengakses data ini', null, 403);
+        }
 
-        $g['rekap'] = $g['rekap_json'] ? json_decode($g['rekap_json'], true) : null;
-        unset($g['rekap_json']);
-        $g = PayrollService::castUang($g);
-
-        $g['pendapatan'] = array_values(array_filter($detail, static fn ($d) => $d['tipe'] === 'pendapatan'));
-        $g['potongan']   = array_values(array_filter($detail, static fn ($d) => $d['tipe'] === 'potongan'));
-
-        return ApiResponse::success($g);
+        return ApiResponse::success($d);
     }
 }
