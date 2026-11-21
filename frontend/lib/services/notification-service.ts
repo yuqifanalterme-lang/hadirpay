@@ -12,6 +12,7 @@ export type AppNotification = {
   description: string
   href: string
   isRead: boolean
+  unreadCount?: number
 }
 
 function readIds() {

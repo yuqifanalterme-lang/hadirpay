@@ -38,7 +38,7 @@ export async function listPayrollComponents(): Promise<PayrollComponent[]> {
 export async function savePayrollComponent(
   component: Omit<PayrollComponent, 'isMock'> & { isMock?: true },
 ): Promise<PayrollComponent[]> {
-  if (!component.name.trim() || !Number.isFinite(component.amount) || component.amount < 0) {
+  if (!component.name.trim() || (component.amount !== null && (!Number.isFinite(component.amount) || component.amount < 0))) {
     throw new Error('Nama dan nilai komponen harus diisi dengan benar.')
   }
   const current = await listPayrollComponents()
@@ -114,6 +114,15 @@ export async function updatePayrollStatus(
   return { ...period, status: status[action] }
 }
 
+export async function returnPayrollPeriod(): Promise<void> {
+  const accountingState = readAccountingState()
+  if (accountingState.payrollStatus !== 'Menunggu validasi keuangan') {
+    throw new Error('Periode hanya dapat dikembalikan saat menunggu validasi keuangan.')
+  }
+  writeAccountingState({ ...accountingState, payrollStatus: 'Draft' })
+  notifyNotificationsChanged()
+}
+
 function todayIsoDate() {
   const today = new Date()
   const year = today.getFullYear()
@@ -152,6 +161,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       baseSalary: input.baseSalary,
       fixedAllowance: input.fixedAllowance,
       overtimePay: input.overtimePay,
+      totalEarnings: input.baseSalary + input.fixedAllowance + input.overtimePay,
       totalDeductions: calculation.totalDeductions,
       netPay: calculation.netPay,
       workDays: input.workDays,
@@ -185,6 +195,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
         baseSalary: 0,
         fixedAllowance: 0,
         overtimePay: 0,
+        totalEarnings: 0,
         totalDeductions: 0,
         netPay: aggregateNet,
         workDays: mockPayrollPeriod.workDays,

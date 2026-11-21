@@ -3,6 +3,34 @@ import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
 import { createManualJournal } from '@/lib/accounting/journal'
 import { readAccountingState, writeAccountingState } from './accounting-storage'
 import { getPayrollPeriod } from './payroll-service'
+import type { Akun, AkunWriteRequest } from '@/lib/types/akuntansi'
+
+const categoryLabels: Record<Akun['kategori'], AccountingAccount['category']> = {
+  aset: 'Aset',
+  kewajiban: 'Liabilitas',
+  ekuitas: 'Ekuitas',
+  pendapatan: 'Pendapatan',
+  beban: 'Beban',
+}
+const categoryValues: Record<AccountingAccount['category'], Akun['kategori']> = {
+  Aset: 'aset',
+  Liabilitas: 'kewajiban',
+  Ekuitas: 'ekuitas',
+  Pendapatan: 'pendapatan',
+  Beban: 'beban',
+}
+
+function accountFromWrite(input: AkunWriteRequest, id = input.kode): AccountingAccount {
+  return {
+    id,
+    code: input.kode,
+    name: input.nama,
+    category: categoryLabels[input.kategori],
+    normalBalance: input.saldo_normal === 'debit' ? 'Debit' : 'Kredit',
+    active: input.aktif,
+    isMock: true,
+  }
+}
 
 export type LedgerMovement = {
   entry: JournalEntry
@@ -39,7 +67,7 @@ function validatePeriod(period: string) {
 }
 
 export async function listAccounts() {
-  return mockAccounts
+  return readAccountingState().accounts ?? mockAccounts
 }
 
 export async function listJournalEntries(): Promise<JournalEntry[]> {
@@ -63,14 +91,63 @@ export async function saveManualJournal(input: {
     ...input,
     id: `manual-${dateId}-${sequence}`,
     voucherNumber: `JM-${dateId}-${String(sequence).padStart(3, '0')}`,
+    accounts: state.accounts ?? mockAccounts,
   })
 
   writeAccountingState({ ...state, entries: [...state.entries, journal] })
   return journal
 }
 
+export async function createAccount(input: AkunWriteRequest): Promise<AccountingAccount> {
+  const state = readAccountingState()
+  const accounts = state.accounts ?? mockAccounts
+  if (accounts.some((account) => account.code === input.kode)) {
+    throw new Error(`Kode akun ${input.kode} sudah digunakan.`)
+  }
+  const account = accountFromWrite(input)
+  writeAccountingState({ ...state, accounts: [...accounts, account] })
+  return account
+}
+
+export async function updateAccount(id: string | number, input: Partial<Akun>): Promise<AccountingAccount> {
+  const state = readAccountingState()
+  const accounts = state.accounts ?? mockAccounts
+  const currentIndex = accounts.findIndex((account) => account.id === String(id) || account.code === String(id))
+  if (currentIndex < 0) throw new Error('Akun yang akan diubah tidak ditemukan.')
+
+  const current = accounts[currentIndex]
+  const updated = accountFromWrite({
+    kode: input.kode ?? current.code,
+    nama: input.nama ?? current.name,
+    kategori: input.kategori ?? categoryValues[current.category],
+    saldo_normal: input.saldo_normal ?? (current.normalBalance === 'Debit' ? 'debit' : 'kredit'),
+    aktif: input.aktif ?? current.active ?? true,
+  }, current.id ?? current.code)
+  if (accounts.some((account, index) => index !== currentIndex && account.code === updated.code)) {
+    throw new Error(`Kode akun ${updated.code} sudah digunakan.`)
+  }
+  const nextAccounts = [...accounts]
+  nextAccounts[currentIndex] = updated
+  writeAccountingState({ ...state, accounts: nextAccounts })
+  return updated
+}
+
+export async function deleteAccount(id: string | number): Promise<void> {
+  const state = readAccountingState()
+  const accounts = state.accounts ?? mockAccounts
+  const account = accounts.find((item) => item.id === String(id) || item.code === String(id))
+  if (!account) throw new Error('Akun yang akan dihapus tidak ditemukan.')
+  if (state.entries.some((entry) => entry.lines.some((line) => line.accountCode === account.code))) {
+    throw new Error('Akun yang sudah digunakan pada jurnal tidak dapat dihapus.')
+  }
+  writeAccountingState({
+    ...state,
+    accounts: accounts.filter((item) => item.code !== account.code),
+  })
+}
+
 export async function getAccountLedger(accountCode: string, period: string): Promise<LedgerReport> {
-  const account = mockAccounts.find((item) => item.code === accountCode)
+  const account = (await listAccounts()).find((item) => item.code === accountCode)
   if (!account) throw new Error('Akun yang dipilih tidak ditemukan.')
   validatePeriod(period)
 
@@ -112,7 +189,7 @@ export async function getAccountLedger(accountCode: string, period: string): Pro
 
 export async function getTrialBalance(period: string): Promise<TrialBalanceReport> {
   validatePeriod(period)
-  const entries = await listJournalEntries()
+  const [entries, accounts] = await Promise.all([listJournalEntries(), listAccounts()])
   const periodEntries = entries.filter((entry) => entry.date.slice(0, 7) === period)
   const totals = new Map<string, { debit: number; credit: number }>()
 
@@ -125,7 +202,7 @@ export async function getTrialBalance(period: string): Promise<TrialBalanceRepor
     }
   }
 
-  const rows = mockAccounts.map((account) => ({
+  const rows = accounts.map((account) => ({
     account,
     debit: Math.round((totals.get(account.code)?.debit ?? 0) * 100) / 100,
     credit: Math.round((totals.get(account.code)?.credit ?? 0) * 100) / 100,

@@ -11,14 +11,17 @@ import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
+import { config } from '@/lib/config'
 import type { PayrollComponent, PayrollComponentCategory, PayrollComponentMethod } from '@/lib/mock/payroll'
 import {
   deletePayrollComponent,
   listPayrollComponents,
   savePayrollComponent,
-} from '@/lib/services/payroll-service'
+  updatePayrollComponentStatus,
+} from '@/lib/services/penggajian.service'
 
 type FormValue = {
+  code: string
   name: string
   category: PayrollComponentCategory
   method: PayrollComponentMethod
@@ -27,6 +30,7 @@ type FormValue = {
 }
 
 const blankForm: FormValue = {
+  code: '',
   name: '',
   category: 'pendapatan',
   method: 'nominal tetap',
@@ -76,10 +80,11 @@ export function PayrollComponentsPage() {
     setEditing(component ?? null)
     setForm(component
       ? {
+          code: component.code ?? '',
           name: component.name,
           category: component.category,
           method: component.method,
-          amount: String(component.amount),
+          amount: component.amount === null ? '' : String(component.amount),
           active: component.active,
         }
       : blankForm)
@@ -88,8 +93,13 @@ export function PayrollComponentsPage() {
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const amount = Number(form.amount)
-    if (!form.name.trim() || !Number.isFinite(amount) || amount < 0) {
+    const keepsAutomaticValue = editing?.amount === null && form.amount === '' && form.method === editing.method
+    const amount = keepsAutomaticValue ? null : Number(form.amount)
+    if (
+      !form.name.trim() ||
+      (!config.mock.penggajian && !form.code.trim()) ||
+      (!keepsAutomaticValue && (amount === null || !Number.isFinite(amount) || amount < 0))
+    ) {
       toast.error('Isi nama dan nilai komponen dengan benar.')
       return
     }
@@ -98,6 +108,7 @@ export function PayrollComponentsPage() {
     try {
       const updated = await savePayrollComponent({
         id: editing?.id ?? `komponen-${crypto.randomUUID()}`,
+        code: editing ? form.code : form.code.trim(),
         name: form.name.trim(),
         category: form.category,
         method: form.method,
@@ -126,6 +137,15 @@ export function PayrollComponentsPage() {
     }
   }
 
+  async function handleStatus(component: PayrollComponent) {
+    try {
+      setComponents(await updatePayrollComponentStatus(component.id, !component.active))
+      toast.success(`Komponen ${component.active ? 'dinonaktifkan' : 'diaktifkan'}.`)
+    } catch (statusError) {
+      toast.error(statusError instanceof Error ? statusError.message : 'Status komponen gagal diubah.')
+    }
+  }
+
   if (!roleReady || loading) return <PageLoadingSkeleton label="komponen gaji" />
   if (role !== 'admin') {
     return (
@@ -138,6 +158,8 @@ export function PayrollComponentsPage() {
     )
   }
   if (error) return <ErrorState message={error} onRetry={() => void load()} />
+
+  const keepsAutomaticValue = editing?.amount === null && form.amount === '' && form.method === editing.method
 
   return (
     <div className="flex flex-col gap-6">
@@ -167,10 +189,11 @@ export function PayrollComponentsPage() {
           />
         ) : (
           <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[660px] border-collapse text-left text-sm">
+            <table className={`w-full ${config.mock.penggajian ? 'min-w-[660px]' : 'min-w-[760px]'} border-collapse text-left text-sm`}>
               <caption className="sr-only">Daftar komponen gaji contoh</caption>
               <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
                 <tr>
+                  {!config.mock.penggajian && <th scope="col" className="px-4 py-3">Kode</th>}
                   <th scope="col" className="px-4 py-3">Nama komponen</th>
                   <th scope="col" className="px-4 py-3">Tipe</th>
                   <th scope="col" className="px-4 py-3">Metode</th>
@@ -182,17 +205,25 @@ export function PayrollComponentsPage() {
               <tbody className="divide-y divide-border">
                 {components.map((component) => (
                   <tr key={component.id} className="hover:bg-surface/70">
+                    {!config.mock.penggajian && <td className="px-4 py-3 font-medium tabular-nums">{component.code}</td>}
                     <td className="px-4 py-3 font-semibold text-heading">{component.name}</td>
                     <td className="px-4 py-3 capitalize">{component.category}</td>
                     <td className="px-4 py-3 capitalize">{component.method}</td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {component.method === 'persen' ? `${component.amount}%` : component.amount.toLocaleString('id-ID')}
+                      {component.amount === null
+                        ? component.description || 'Dihitung otomatis'
+                        : component.method === 'persen'
+                          ? `${component.amount}%`
+                          : component.amount.toLocaleString('id-ID')}
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={component.active ? 'Aktif' : 'Nonaktif'} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button type="button" variant="outline" size="icon-lg" className="min-h-11 min-w-11" aria-label={`Ubah ${component.name}`} onClick={() => openForm(component)}>
                           <Pencil aria-hidden="true" />
+                        </Button>
+                        <Button type="button" variant="outline" size="action" disabled={saving} onClick={() => void handleStatus(component)}>
+                          {component.active ? 'Nonaktifkan' : 'Aktifkan'}
                         </Button>
                         <Button
                           type="button"
@@ -225,6 +256,12 @@ export function PayrollComponentsPage() {
             onClose={() => setFormOpen(false)}
           />
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+            {!config.mock.penggajian && (
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
+                Kode komponen
+                <input className={inputClass} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required />
+              </label>
+            )}
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
               Nama komponen
               <input className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
@@ -246,7 +283,7 @@ export function PayrollComponentsPage() {
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
               Nilai {form.method === 'persen' ? '(persen)' : '(rupiah)'}
-              <input className={inputClass} type="number" min="0" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
+              <input className={inputClass} type="number" min="0" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required={!keepsAutomaticValue} />
             </label>
             <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-heading sm:col-span-2">
               <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="size-5 accent-primary" />

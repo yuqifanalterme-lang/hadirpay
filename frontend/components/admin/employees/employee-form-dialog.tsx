@@ -2,17 +2,24 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { TextField } from '@/components/auth/fields'
+import { PasswordField, TextField } from '@/components/auth/fields'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { SelectField } from '@/components/ui/select-field'
+import { ApiError } from '@/lib/api/client'
+import { config } from '@/lib/config'
+import type { Role } from '@/lib/types/common'
 import type { MasterRecord } from '@/lib/mock/master-data'
 import type { Employee, EmployeeStatus, PayrollType } from '@/lib/mock/employees'
-import { createEmployee, updateEmployee } from '@/lib/services/employee-service'
+import { createEmployee, updateEmployee } from '@/lib/services/karyawan.service'
 
 type FormValues = {
   id: string
   name: string
+  email: string
+  phone: string
+  role: Role | ''
+  password: string
   position: string
   department: string
   startedAt: string
@@ -20,8 +27,7 @@ type FormValues = {
   baseSalary: string
   fixedAllowance: string
   npwp: string
-  bpjsKesehatan: string
-  bpjsKetenagakerjaan: string
+  noBpjs: string
   status: EmployeeStatus
 }
 
@@ -30,8 +36,12 @@ type FieldErrors = Partial<Record<keyof FormValues, string>>
 function valuesFromEmployee(employee: Employee | null): FormValues {
   return employee
     ? {
-        id: employee.id,
+        id: employee.code ?? employee.id,
         name: employee.name,
+        email: '',
+        phone: '',
+        role: '',
+        password: '',
         position: employee.position,
         department: employee.department,
         startedAt: employee.startedAt,
@@ -39,13 +49,16 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: String(employee.baseSalary),
         fixedAllowance: String(employee.fixedAllowance),
         npwp: employee.npwp ?? '',
-        bpjsKesehatan: employee.bpjsKesehatan ?? '',
-        bpjsKetenagakerjaan: employee.bpjsKetenagakerjaan ?? '',
+        noBpjs: employee.noBpjs ?? employee.bpjsKesehatan ?? employee.bpjsKetenagakerjaan ?? '',
         status: employee.status,
       }
     : {
         id: '',
         name: '',
+        email: '',
+        phone: '',
+        role: '',
+        password: '',
         position: '',
         department: '',
         startedAt: '',
@@ -53,8 +66,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: '',
         fixedAllowance: '0',
         npwp: '',
-        bpjsKesehatan: '',
-        bpjsKetenagakerjaan: '',
+        noBpjs: '',
         status: 'Aktif',
       }
 }
@@ -97,12 +109,19 @@ export function EmployeeFormDialog({
     const nextErrors: FieldErrors = {}
     const id = values.id.trim()
     const name = values.name.trim()
+    const email = values.email.trim()
+    const phone = values.phone.trim()
+    const password = values.password
     const baseSalary = Number(values.baseSalary)
     const fixedAllowance = Number(values.fixedAllowance)
 
-    if (!id) nextErrors.id = 'ID karyawan wajib diisi.'
-    else if (!/^[A-Za-z0-9._-]+$/.test(id)) nextErrors.id = 'Gunakan huruf, angka, titik, garis bawah, atau tanda hubung.'
+    if (config.mock.karyawan && !id) nextErrors.id = 'ID karyawan wajib diisi.'
+    else if (id && !/^[A-Za-z0-9._-]+$/.test(id)) nextErrors.id = 'Gunakan huruf, angka, titik, garis bawah, atau tanda hubung.'
     if (!name) nextErrors.name = 'Nama karyawan wajib diisi.'
+    if (!employee && !email) nextErrors.email = 'Email wajib diisi.'
+    else if (!employee && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) nextErrors.email = 'Masukkan alamat email yang valid.'
+    if (!employee && !values.role) nextErrors.role = 'Pilih role karyawan.'
+    if (!employee && !password) nextErrors.password = 'Password awal wajib diisi.'
     if (!values.position) nextErrors.position = 'Pilih jabatan karyawan.'
     if (!values.department) nextErrors.department = 'Pilih departemen karyawan.'
     if (!values.startedAt) nextErrors.startedAt = 'Tanggal mulai bekerja wajib diisi.'
@@ -117,7 +136,7 @@ export function EmployeeFormDialog({
       setErrors(nextErrors)
       return
     }
-    if (!values.payrollType) return
+    if (!values.payrollType || (!employee && values.role === '')) return
 
     const saved: Employee = {
       id,
@@ -129,20 +148,70 @@ export function EmployeeFormDialog({
       baseSalary,
       fixedAllowance,
       npwp: values.npwp.trim() || undefined,
-      bpjsKesehatan: values.bpjsKesehatan.trim() || undefined,
-      bpjsKetenagakerjaan: values.bpjsKetenagakerjaan.trim() || undefined,
+      noBpjs: values.noBpjs.trim() || undefined,
       status: values.status,
       isMock: true,
     }
 
     setSubmitting(true)
     try {
-      const result = employee ? await updateEmployee(employee.id, saved) : await createEmployee(saved)
-      toast.success(employee ? 'Data karyawan berhasil diperbarui.' : 'Karyawan contoh berhasil ditambahkan.')
+      let result: Employee
+      if (employee) {
+        result = await updateEmployee(employee.id, saved)
+      } else {
+        const role = values.role
+        if (role === '') throw new Error('Pilih role karyawan.')
+        result = await createEmployee(saved, {
+            email,
+            no_hp: phone || null,
+            no_bpjs: values.noBpjs.trim() || null,
+            role,
+            password,
+          })
+      }
+      toast.success(
+        employee
+          ? 'Data karyawan berhasil diperbarui.'
+          : config.mock.karyawan
+            ? 'Karyawan contoh berhasil ditambahkan.'
+            : 'Karyawan berhasil ditambahkan.',
+      )
       onSaved(result, employee?.id)
       onOpenChange(false)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Data karyawan gagal disimpan.')
+      if (error instanceof ApiError && error.status === 409) toast.error(error.message)
+      if (error instanceof ApiError && error.errors) {
+        const fieldMap: Partial<Record<string, keyof FormValues>> = {
+          nama: 'name',
+          email: 'email',
+          no_hp: 'phone',
+          jabatan_id: 'position',
+          departemen_id: 'department',
+          tanggal_mulai: 'startedAt',
+          jenis_penggajian: 'payrollType',
+          gaji_pokok: 'baseSalary',
+          tunjangan_tetap: 'fixedAllowance',
+          npwp: 'npwp',
+          no_bpjs: 'noBpjs',
+          role: 'role',
+          password: 'password',
+          status: 'status',
+        }
+        const fieldErrors: FieldErrors = {}
+        let hasUnmappedError = false
+        for (const [field, messages] of Object.entries(error.errors)) {
+          const formField = fieldMap[field]
+          if (!formField || !messages[0]) {
+            hasUnmappedError = true
+            continue
+          }
+          fieldErrors[formField] = messages[0]
+        }
+        setErrors((current) => ({ ...current, ...fieldErrors }))
+        setFormError(hasUnmappedError ? error.message : '')
+      } else {
+        setFormError(error instanceof Error ? error.message : 'Data karyawan gagal disimpan.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -160,7 +229,7 @@ export function EmployeeFormDialog({
       <form noValidate onSubmit={handleSubmit}>
         <DialogHeader
           title={employee ? 'Ubah data karyawan' : 'Tambah karyawan'}
-          description="Data yang disimpan di sini hanya berlaku untuk mode demo."
+          description={config.mock.karyawan ? 'Data yang disimpan di sini hanya berlaku untuk mode demo.' : 'Masukkan data sesuai kontrak layanan karyawan.'}
           onClose={() => onOpenChange(false)}
         />
         <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
@@ -170,6 +239,7 @@ export function EmployeeFormDialog({
               label="ID karyawan"
               value={values.id}
               onChange={(event) => update('id', event.target.value)}
+              readOnly={!config.mock.karyawan}
               aria-invalid={Boolean(errors.id)}
               aria-describedby={errors.id ? 'employee-id-error' : undefined}
               autoComplete="off"
@@ -188,6 +258,68 @@ export function EmployeeFormDialog({
             />
             {fieldError('name', 'employee-name-error')}
           </div>
+          {!employee && (
+            <>
+              <div>
+                <TextField
+                  id="employee-email"
+                  label="Email"
+                  type="email"
+                  value={values.email}
+                  onChange={(event) => update('email', event.target.value)}
+                  required
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'employee-email-error' : undefined}
+                  autoComplete="email"
+                />
+                {fieldError('email', 'employee-email-error')}
+              </div>
+              <div>
+                <TextField
+                  id="employee-phone"
+                  label="Nomor HP (opsional)"
+                  type="tel"
+                  value={values.phone}
+                  onChange={(event) => update('phone', event.target.value)}
+                  aria-invalid={Boolean(errors.phone)}
+                  aria-describedby={errors.phone ? 'employee-phone-error' : undefined}
+                  autoComplete="tel"
+                />
+                {fieldError('phone', 'employee-phone-error')}
+              </div>
+              <div>
+                <SelectField
+                  id="employee-role"
+                  label="Role"
+                  value={values.role}
+                  onChange={(value) => {
+                    if (value === '' || value === 'admin_hrd' || value === 'karyawan' || value === 'keuangan' || value === 'pemilik') {
+                      update('role', value)
+                    }
+                  }}
+                  options={['admin_hrd', 'karyawan', 'keuangan', 'pemilik']}
+                  placeholder="Pilih role"
+                  required
+                  aria-invalid={Boolean(errors.role)}
+                  aria-describedby={errors.role ? 'employee-role-error' : undefined}
+                />
+                {fieldError('role', 'employee-role-error')}
+              </div>
+              <div>
+                <PasswordField
+                  id="employee-password"
+                  label="Password awal"
+                  value={values.password}
+                  onChange={(event) => update('password', event.target.value)}
+                  required
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? 'employee-password-error' : undefined}
+                  autoComplete="new-password"
+                />
+                {fieldError('password', 'employee-password-error')}
+              </div>
+            </>
+          )}
           <div>
             <SelectField
               id="employee-position"
@@ -291,17 +423,9 @@ export function EmployeeFormDialog({
           </div>
           <div>
             <TextField
-              label="BPJS Kesehatan (opsional)"
-              value={values.bpjsKesehatan}
-              onChange={(event) => update('bpjsKesehatan', event.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <TextField
-              label="BPJS Ketenagakerjaan (opsional)"
-              value={values.bpjsKetenagakerjaan}
-              onChange={(event) => update('bpjsKetenagakerjaan', event.target.value)}
+              label="Nomor BPJS (opsional)"
+              value={values.noBpjs}
+              onChange={(event) => update('noBpjs', event.target.value)}
               autoComplete="off"
             />
           </div>

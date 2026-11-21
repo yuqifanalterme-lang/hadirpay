@@ -1,4 +1,5 @@
 import {
+  mockAccounts,
   mockAccountingState,
   type AccountingState,
 } from '@/lib/mock/accounting'
@@ -33,7 +34,18 @@ function isAccountingState(value: unknown): value is AccountingState {
           Number.isFinite(line.debit) &&
           Number.isFinite(line.credit),
         )
-    })
+    }) &&
+    (state.accounts === undefined || (
+      Array.isArray(state.accounts) &&
+      state.accounts.every((account) =>
+        account &&
+        typeof account.code === 'string' &&
+        typeof account.name === 'string' &&
+        typeof account.category === 'string' &&
+        typeof account.normalBalance === 'string' &&
+        typeof account.isMock === 'boolean',
+      )
+    ))
 }
 
 export function readAccountingState(): AccountingState {
@@ -43,14 +55,14 @@ export function readAccountingState(): AccountingState {
   if (storedState) {
     const parsed: unknown = JSON.parse(storedState)
     if (!isAccountingState(parsed)) throw new Error('Data status penggajian dan jurnal demo tidak valid.')
-    return parsed
+    return { ...parsed, accounts: parsed.accounts ?? mockAccounts }
   }
 
   const legacyStatus = window.localStorage.getItem(LEGACY_PAYROLL_STATUS_KEY)
   const payrollStatus = payrollStatuses.includes(legacyStatus as PayrollPeriodStatus)
     ? legacyStatus as PayrollPeriodStatus
     : mockAccountingState.payrollStatus
-  return { ...mockAccountingState, payrollStatus }
+  return { ...mockAccountingState, payrollStatus, accounts: mockAccounts }
 }
 
 export function writeAccountingState(state: AccountingState) {

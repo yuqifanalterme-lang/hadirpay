@@ -6,9 +6,9 @@ export function WeekChips({ days, size = 'md' }: { days: WeekDay[]; size?: 'sm' 
   const sm = size === 'sm'
   return (
     <ol className={cn('grid grid-cols-5', sm ? 'gap-1' : 'gap-2 sm:gap-3')}>
-      {days.map((d) => (
+      {days.map((d, index) => (
         <li
-          key={d.short}
+          key={`${d.date}-${d.short}-${index}`}
           className={cn(
             'flex flex-col items-center rounded-2xl border bg-white text-center',
             d.state === 'today' ? 'border-primary ring-2 ring-primary/15' : 'border-border',

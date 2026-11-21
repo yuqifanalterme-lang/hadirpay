@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 534 467" width="534" height="467" fill="none">
+  <!-- Clean, Realistic Accounting Ledger Book (Wide Proportions, Soft Borders, No Harsh Blue Outline) -->
   <!-- Clean Modern Accounting Ledger Book (Predominantly White, Soft Borders, Harmonic Blue Accents) -->
   <g transform="translate(124, 40)">
     <!-- 3D Base Thickness / Soft Edge -->
@@ -14,47 +15,78 @@
     <line x1="42" y1="356" x2="265" y2="356" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="3 3" />
 
     <!-- Satin Bookmark Ribbon Hanging Out from Bottom -->
+    <path d="M152 334 L152 396 L168 380 L184 396 L184 334 Z" fill="#0ea5e9" stroke="#0284c7" stroke-width="1" />
+    <path d="M152 334 L168 334 L168 380 L152 396 Z" fill="#38bdf8" opacity="0.4" />
     <path d="M152 334 L152 396 L168 380 L184 396 L184 334 Z" fill="#2563eb" stroke="#1d4ed8" stroke-width="1" />
     <path d="M152 334 L168 334 L168 380 L152 396 Z" fill="#3b82f6" opacity="0.4" />
 
+    <!-- Front Hardcover (Royal Blue #2563eb, Soft Edges, No Harsh Outer Stroke) -->
     <!-- Front Hardcover (Predominantly White #ffffff, Soft Light Border #e2e8f0) -->
     <g transform="translate(0, 0)">
+      <!-- Main Blue Cover Body -->
+      <path d="M0 22 C0 10 10 0 22 0 L268 0 C274.6 0 280 5.4 280 12 L280 354 C280 360.6 274.6 366 268 366 L22 366 C10 366 0 356 0 344 Z" fill="#2563eb" />
       <!-- Main Clean White Cover Surface -->
       <path d="M0 22 C0 10 10 0 22 0 L268 0 C274.6 0 280 5.4 280 12 L280 354 C280 360.6 274.6 366 268 366 L22 366 C10 366 0 356 0 344 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
 
+      <!-- Left Spine (Deep Navy #1e3a8a) -->
+      <path d="M0 22 C0 10 10 0 22 0 L42 0 L42 366 L22 366 C10 366 0 356 0 344 Z" fill="#1e3a8a" />
+      <line x1="42" y1="0" x2="42" y2="366" stroke="#1d4ed8" stroke-width="2.5" />
+      <line x1="45" y1="0" x2="45" y2="366" stroke="#3b82f6" stroke-width="1" opacity="0.3" />
       <!-- Left Spine Binding Tape (Royal Blue #2563eb Accent) -->
       <path d="M0 22 C0 10 10 0 22 0 L36 0 L36 366 L22 366 C10 366 0 356 0 344 Z" fill="#2563eb" />
       <line x1="36" y1="0" x2="36" y2="366" stroke="#1d4ed8" stroke-width="2" />
 
       <!-- Minimal Spine Accent Bands -->
+      <line x1="10" y1="56" x2="34" y2="56" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
+      <line x1="10" y1="183" x2="34" y2="183" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
+      <line x1="10" y1="310" x2="34" y2="310" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
       <line x1="8" y1="56" x2="28" y2="56" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
       <line x1="8" y1="183" x2="28" y2="183" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
       <line x1="8" y1="310" x2="28" y2="310" stroke="#93c5fd" stroke-width="3" stroke-linecap="round" />
 
+      <!-- Clean Embossed Frame on Cover -->
+      <rect x="62" y="24" width="198" height="318" rx="14" fill="none" stroke="#93c5fd" stroke-width="1.5" opacity="0.45" />
+      <rect x="68" y="30" width="186" height="306" rx="10" fill="none" stroke="#bfdbfe" stroke-width="1" stroke-dasharray="4 4" opacity="0.3" />
       <!-- Soft Blue Inner Cover Panel (Matches Phone & Payslip Cards) -->
       <rect x="56" y="24" width="206" height="318" rx="16" fill="#eff6ff" stroke="#dbeafe" stroke-width="1.2" />
 
+      <!-- Accounting Balance Scale Emblem (Clean Medallion) -->
+      <g transform="translate(161, 154)">
+        <circle cx="0" cy="0" r="46" fill="#1e3a8a" stroke="#93c5fd" stroke-width="2" />
       <!-- Accounting Balance Scale Emblem (Clean Royal Blue Medallion) -->
       <g transform="translate(159, 144)">
         <circle cx="0" cy="0" r="44" fill="#2563eb" stroke="#bfdbfe" stroke-width="2" />
         <!-- Central Post & Base -->
+        <line x1="0" y1="-22" x2="0" y2="20" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+        <line x1="-14" y1="20" x2="14" y2="20" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+        <circle cx="0" cy="-20" r="3.5" fill="#ffffff" />
         <line x1="0" y1="-20" x2="0" y2="18" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
         <line x1="-12" y1="18" x2="12" y2="18" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
         <circle cx="0" cy="-18" r="3" fill="#ffffff" />
         <!-- Balance Beam -->
+        <line x1="-24" y1="-10" x2="24" y2="-10" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
         <line x1="-22" y1="-8" x2="22" y2="-8" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
         <!-- Left Pan Ropes & Pan -->
+        <path d="M-24 -10 L-31 7 H-17 Z" stroke="#ffffff" stroke-width="2.2" fill="none" stroke-linejoin="round" />
         <path d="M-22 -8 L-28 7 H-16 Z" stroke="#ffffff" stroke-width="2" fill="none" stroke-linejoin="round" />
         <!-- Right Pan Ropes & Pan -->
+        <path d="M24 -10 L17 7 H31 Z" stroke="#ffffff" stroke-width="2.2" fill="none" stroke-linejoin="round" />
         <path d="M22 -8 L16 7 H28 Z" stroke="#ffffff" stroke-width="2" fill="none" stroke-linejoin="round" />
       </g>
 
+      <!-- Ledger Plaque -->
+      <g transform="translate(115, 226)">
+        <rect x="0" y="0" width="92" height="26" rx="6" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.5" />
+        <text x="46" y="17" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="2">JURNAL</text>
       <!-- Clean White Journal Label Plaque -->
       <g transform="translate(113, 212)">
         <rect x="0" y="0" width="92" height="26" rx="13" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.2" />
         <text x="46" y="17" text-anchor="middle" fill="#1e3a8a" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="2">JURNAL</text>
       </g>
 
+      <!-- Minimal Subtitle Placeholder Lines -->
+      <rect x="131" y="264" width="60" height="5" rx="2.5" fill="#93c5fd" opacity="0.8" />
+      <rect x="143" y="275" width="36" height="4" rx="2" fill="#bfdbfe" opacity="0.5" />
       <!-- Minimal Subtitle / Entry Placeholder Lines -->
       <rect x="127" y="254" width="64" height="5" rx="2.5" fill="#93c5fd" opacity="0.8" />
       <rect x="139" y="265" width="40" height="4" rx="2" fill="#cbd5e1" opacity="0.7" />

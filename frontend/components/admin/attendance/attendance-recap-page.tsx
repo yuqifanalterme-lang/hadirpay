@@ -10,9 +10,20 @@ import { buttonVariants } from '@/components/ui/button'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
-import { getMonthlyAttendanceSummary, type MonthlyAttendanceSummaryRow } from '@/lib/services/admin-attendance-service'
+import { SelectField } from '@/components/ui/select-field'
+import { TextField } from '@/components/auth/fields'
+import { Button } from '@/components/ui/button'
+import type { MasterRecord } from '@/lib/mock/master-data'
+import { config } from '@/lib/config'
+import { listMasterRecords } from '@/lib/services/karyawan.service'
+import {
+  getMonthlyAttendanceSummary,
+  type MonthlyAttendanceSummaryRow,
+  type MonthlyAttendancePage,
+} from '@/lib/services/absensi.service'
 
 const defaultPeriod = '2026-11'
+const pageSize = 20
 
 function formatMonth(period: string) {
   const [year, month] = period.split('-').map(Number)
@@ -26,6 +37,13 @@ function formatMinutes(minutes: number) {
 export function AttendanceRecapPage() {
   const [period, setPeriod] = useState(defaultPeriod)
   const [records, setRecords] = useState<MonthlyAttendanceSummaryRow[]>([])
+  const [departments, setDepartments] = useState<MasterRecord[]>([])
+  const [department, setDepartment] = useState('Semua')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [summary, setSummary] = useState<MonthlyAttendancePage['summary'] | null>(null)
+  const [meta, setMeta] = useState<MonthlyAttendancePage['meta']>(undefined)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -33,7 +51,24 @@ export function AttendanceRecapPage() {
     setLoading(true)
     setLoadError('')
     try {
-      setRecords(await getMonthlyAttendanceSummary(period))
+      const departmentData = await listMasterRecords('departemen')
+      const departmentId = department === 'Semua'
+        ? undefined
+        : Number(departmentData.find((item) => item.name === department)?.id)
+      if (department !== 'Semua' && (!Number.isSafeInteger(departmentId) || Number(departmentId) < 1)) {
+        throw new Error(`ID departemen untuk "${department}" tidak valid.`)
+      }
+      const result = await getMonthlyAttendanceSummary({
+        periode: period,
+        departemen_id: departmentId,
+        search: debouncedSearch.trim() || undefined,
+        page,
+        per_page: pageSize,
+      })
+      setDepartments(departmentData)
+      setRecords(result.items)
+      setSummary(result.summary)
+      setMeta(result.meta)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Rekap kehadiran gagal dimuat.')
     } finally {
@@ -43,19 +78,28 @@ export function AttendanceRecapPage() {
 
   useEffect(() => {
     void load()
-  }, [period])
+  }, [period, department, debouncedSearch, page])
 
-  const totals = useMemo(
-    () => records.reduce(
-      (sum, record) => ({
-        present: sum.present + record.present,
-        late: sum.late + record.late,
-        lateMinutes: sum.lateMinutes + record.lateMinutes,
-      }),
-      { present: 0, late: 0, lateMinutes: 0 },
-    ),
-    [records],
-  )
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
+  const filteredRecords = useMemo(() => {
+    if (!config.mock.absensi) return records
+    const query = search.trim().toLocaleLowerCase('id-ID')
+    return records.filter((record) =>
+      (department === 'Semua' || record.department === department) &&
+      (!query || `${record.name} ${record.employeeId} ${record.department}`.toLocaleLowerCase('id-ID').includes(query)),
+    )
+  }, [department, records, search])
+  const visibleRecords = config.mock.absensi
+    ? filteredRecords.slice((page - 1) * pageSize, page * pageSize)
+    : records
+  const totalCount = config.mock.absensi ? filteredRecords.length : meta?.total ?? records.length
+  const pageCount = config.mock.absensi
+    ? Math.max(1, Math.ceil(totalCount / pageSize))
+    : meta?.total_pages ?? 1
 
   if (loading) return <PageLoadingSkeleton label="rekap kehadiran bulanan" />
   if (loadError) return <ErrorState message={loadError} onRetry={() => void load()} />
@@ -80,7 +124,8 @@ export function AttendanceRecapPage() {
         </Link>
       </div>
 
-      <div className="max-w-sm">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
         <label htmlFor="attendance-recap-period" className="mb-2 block text-sm font-semibold text-heading">Periode</label>
         <input
           id="attendance-recap-period"
@@ -88,21 +133,44 @@ export function AttendanceRecapPage() {
           required
           value={period}
           onChange={(event) => {
-            if (event.target.value) setPeriod(event.target.value)
+            if (event.target.value) {
+              setPeriod(event.target.value)
+              setPage(1)
+            }
           }}
           className="min-h-12 w-full rounded-xl border border-border bg-white px-3 text-sm text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+        />
+        </div>
+        <SelectField
+          label="Departemen"
+          value={department}
+          onChange={(value) => {
+            setDepartment(value || 'Semua')
+            setPage(1)
+          }}
+          options={['Semua', ...departments.map((item) => item.name)]}
+          placeholder="Pilih departemen"
+        />
+        <TextField
+          label="Cari karyawan"
+          type="search"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value)
+            setPage(1)
+          }}
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Karyawan aktif" value={String(records.length)} hint="Tersedia di direktori demo" icon={Users} tone="blue" />
-        <StatCard label="Total hari hadir" value={String(totals.present)} hint={`Akumulasi ${formatMonth(period)}`} icon={UserCheck} tone="green" />
-        <StatCard label="Keterlambatan" value={String(totals.late)} hint="Kejadian tercatat" icon={Clock3} tone="amber" />
-        <StatCard label="Menit terlambat" value={String(totals.lateMinutes)} hint="Akumulasi seluruh karyawan" icon={CalendarDays} tone="red" />
+        <StatCard label="Karyawan" value={String(summary?.total_karyawan ?? 0)} hint={`Periode ${formatMonth(period)}`} icon={Users} tone="blue" />
+        <StatCard label="Rata-rata hadir" value={`${summary?.rata_rata_hadir_persen ?? 0}%`} hint={`Periode ${formatMonth(period)}`} icon={UserCheck} tone="green" />
+        <StatCard label="Keterlambatan" value={String(summary?.total_terlambat ?? 0)} hint="Kejadian tercatat" icon={Clock3} tone="amber" />
+        <StatCard label="Total alpha" value={String(summary?.total_alpha ?? 0)} hint="Periode terpilih" icon={CalendarDays} tone="red" />
       </div>
 
       <Panel title={`Rincian ${formatMonth(period)}`} description="Jumlah status, jam lembur, dan akumulasi menit terlambat per karyawan.">
-        {records.length === 0 ? (
+        {totalCount === 0 ? (
           <EmptyState
             title="Rekap periode ini belum tersedia"
             description="Pilih November 2026 untuk melihat rekap contoh yang tersedia."
@@ -128,7 +196,7 @@ export function AttendanceRecapPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {records.map((record) => (
+                  {visibleRecords.map((record) => (
                     <tr key={record.employeeId} className="hover:bg-surface/70">
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
@@ -154,7 +222,7 @@ export function AttendanceRecapPage() {
               </table>
             </div>
             <ul className="flex flex-col gap-3 xl:hidden" aria-label="Daftar rekap kehadiran karyawan">
-              {records.map((record) => (
+              {visibleRecords.map((record) => (
                 <li key={record.employeeId} className="rounded-xl border border-border bg-white p-4">
                   <div className="flex items-start gap-3">
                     <Avatar initials={record.initials} tone="outlined" />
@@ -177,6 +245,19 @@ export function AttendanceRecapPage() {
               ))}
             </ul>
           </>
+        )}
+        {pageCount > 1 && (
+          <div className="flex items-center justify-between border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Halaman {page} dari {pageCount}</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="action" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
+                Sebelumnya
+              </Button>
+              <Button type="button" variant="outline" size="action" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>
+                Berikutnya
+              </Button>
+            </div>
+          </div>
         )}
       </Panel>
     </div>

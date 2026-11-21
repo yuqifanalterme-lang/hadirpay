@@ -10,7 +10,9 @@ import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { workingDayOptions, type DemoSettings } from '@/lib/mock/settings'
-import { getDemoSettings, saveDemoSettings } from '@/lib/services/settings-service'
+import { getDemoSettings, resetUserPasswordForSettings, saveDemoSettings, updateUserStatusForSettings } from '@/lib/services/pengaturan.service'
+import { config } from '@/lib/config'
+import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 
 const tabs = [
   { id: 'company', label: 'Perusahaan', icon: Building2 },
@@ -34,14 +36,17 @@ const fieldClass = 'min-h-12 w-full rounded-xl border border-border bg-white px-
 function Field({
   label,
   children,
+  error,
 }: {
   label: string
   children: React.ReactNode
+  error?: string
 }) {
   return (
     <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-heading">
       {label}
       {children}
+      {error && <span className="text-sm font-medium text-destructive" role="alert">{error}</span>}
     </label>
   )
 }
@@ -56,13 +61,24 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<ApiErrorFields>({})
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
+  const [userStatusBusy, setUserStatusBusy] = useState<string | null>(null)
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  function fieldError(...keys: string[]) {
+    for (const key of keys) {
+      const value = fieldErrors[key]?.find((message) => message.trim())
+      if (value) return value
+    }
+    return undefined
+  }
 
   async function loadSettings() {
     setLoading(true)
     setError('')
+    setFieldErrors({})
     try {
       setSettings(await getDemoSettings())
     } catch (loadError) {
@@ -80,6 +96,7 @@ export function SettingsPage() {
     key: K,
     value: DemoSettings['company'][K],
   ) {
+    setFieldErrors({})
     setSettings((current) => current
       ? { ...current, company: { ...current.company, [key]: value } }
       : current)
@@ -89,6 +106,7 @@ export function SettingsPage() {
     key: K,
     value: DemoSettings['workSchedule'][K],
   ) {
+    setFieldErrors({})
     setSettings((current) => current
       ? { ...current, workSchedule: { ...current.workSchedule, [key]: value } }
       : current)
@@ -98,6 +116,7 @@ export function SettingsPage() {
     key: K,
     value: DemoSettings['payrollPolicy'][K],
   ) {
+    setFieldErrors({})
     setSettings((current) => current
       ? { ...current, payrollPolicy: { ...current.payrollPolicy, [key]: value } }
       : current)
@@ -107,6 +126,7 @@ export function SettingsPage() {
     key: K,
     value: DemoSettings['attendanceLocation'][K],
   ) {
+    setFieldErrors({})
     setSettings((current) => current
       ? { ...current, attendanceLocation: { ...current.attendanceLocation, [key]: value } }
       : current)
@@ -119,6 +139,19 @@ export function SettingsPage() {
           users: current.users.map((user) => user.id === userId ? { ...user, role } : user),
         }
       : current)
+  }
+
+  async function toggleUserStatus(userId: string, active: boolean) {
+    setUserStatusBusy(userId)
+    try {
+      await updateUserStatusForSettings(userId, !active)
+      setSettings(await getDemoSettings())
+      toast.success(`Status pengguna berhasil diubah menjadi ${active ? 'nonaktif' : 'aktif'}.`)
+    } catch (statusError) {
+      toast.error(statusError instanceof Error ? statusError.message : 'Status pengguna gagal diubah.')
+    } finally {
+      setUserStatusBusy(null)
+    }
   }
 
   function handleLogo(event: ChangeEvent<HTMLInputElement>) {
@@ -175,14 +208,17 @@ export function SettingsPage() {
     event.preventDefault()
     if (!settings) return
     setSaving(true)
+    setError('')
+    setFieldErrors({})
     try {
       const saved = await saveDemoSettings(settings)
       setSettings(saved)
-      toast.success('Pengaturan demo berhasil disimpan di browser ini.')
+      toast.success(config.mock.pengaturan ? 'Pengaturan demo berhasil disimpan di browser ini.' : 'Pengaturan berhasil disimpan.')
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Pengaturan gagal disimpan.'
       toast.error(message)
       setError(message)
+      if (saveError instanceof ApiError && saveError.errors) setFieldErrors(saveError.errors)
     } finally {
       setSaving(false)
     }
@@ -213,9 +249,11 @@ export function SettingsPage() {
 
   return (
     <form onSubmit={handleSave} className="flex min-w-0 flex-col gap-6">
-      <DemoDataNotice>
-        Pengaturan ini hanya tersimpan di browser untuk mode demo. Data backend belum terhubung.
-      </DemoDataNotice>
+      {config.mock.pengaturan && (
+        <DemoDataNotice>
+          Pengaturan ini hanya tersimpan di browser untuk mode demo. Data backend belum terhubung.
+        </DemoDataNotice>
+      )}
 
       <div
         className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto border-b border-border"
@@ -252,7 +290,7 @@ export function SettingsPage() {
 
       <Panel
         title={tabs.find((item) => item.id === tab)?.label ?? 'Pengaturan'}
-        description="Perubahan disimpan sebagai konfigurasi demo pada perangkat ini."
+        description={config.mock.pengaturan ? 'Perubahan disimpan sebagai konfigurasi demo pada perangkat ini.' : 'Perubahan disimpan ke pengaturan perusahaan.'}
       >
         <div
           id={`settings-panel-${tab}`}
@@ -263,11 +301,14 @@ export function SettingsPage() {
         >
           {tab === 'company' && (
             <div className="grid min-w-0 gap-5 md:grid-cols-2">
-              <Field label="Nama perusahaan">
+              <Field label="Nama perusahaan" error={fieldError('perusahaan.nama', 'nama')}>
                 <input className={fieldClass} value={settings.company.name} maxLength={100} required onChange={(event) => updateCompany('name', event.target.value)} />
               </Field>
-              <Field label="Alamat perusahaan">
+              <Field label="Alamat perusahaan" error={fieldError('perusahaan.alamat', 'alamat')}>
                 <input className={fieldClass} value={settings.company.address} maxLength={200} required onChange={(event) => updateCompany('address', event.target.value)} />
+              </Field>
+              <Field label="NPWP perusahaan" error={fieldError('perusahaan.npwp', 'npwp')}>
+                <input className={fieldClass} value={settings.company.npwp} onChange={(event) => updateCompany('npwp', event.target.value)} />
               </Field>
               <div className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-heading">
                 <label htmlFor="company-logo">Logo perusahaan</label>
@@ -279,11 +320,13 @@ export function SettingsPage() {
                   className="min-h-12 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold file:text-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   aria-describedby="logo-help"
                 />
-                <span id="logo-help" className="text-xs font-normal text-muted-foreground">Gambar maksimal 512 KB. Disimpan di browser demo.</span>
-                {settings.company.logoDataUrl ? (
+                <span id="logo-help" className="text-xs font-normal text-muted-foreground">
+                  {config.mock.pengaturan ? 'Gambar maksimal 512 KB. Disimpan di browser demo.' : 'Gambar maksimal 512 KB. Diunggah ke server saat pengaturan disimpan.'}
+                </span>
+                {settings.company.logoDataUrl || settings.company.logoUrl ? (
                   <div className="flex items-center gap-3">
-                    <img src={settings.company.logoDataUrl} alt="Pratinjau logo perusahaan" className="size-12 rounded-lg border border-border object-contain p-1" />
-                    <Button type="button" variant="outline" size="action" onClick={() => updateCompany('logoDataUrl', undefined)}>Hapus logo</Button>
+                    <img src={settings.company.logoDataUrl ?? settings.company.logoUrl} alt="Pratinjau logo perusahaan" className="size-12 rounded-lg border border-border object-contain p-1" />
+                    {settings.company.logoDataUrl && <Button type="button" variant="outline" size="action" onClick={() => updateCompany('logoDataUrl', undefined)}>Hapus logo</Button>}
                   </div>
                 ) : (
                   <div className="flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface px-3">
@@ -298,14 +341,17 @@ export function SettingsPage() {
           {tab === 'schedule' && (
             <div className="flex flex-col gap-6">
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Jam masuk">
+                <Field label="Jam masuk" error={fieldError('jadwal_kerja.jam_masuk', 'jam_masuk')}>
                   <input type="time" className={fieldClass} value={settings.workSchedule.startTime} required onChange={(event) => updateSchedule('startTime', event.target.value)} />
                 </Field>
-                <Field label="Jam pulang">
+                <Field label="Jam pulang" error={fieldError('jadwal_kerja.jam_pulang', 'jam_pulang')}>
                   <input type="time" className={fieldClass} value={settings.workSchedule.endTime} required onChange={(event) => updateSchedule('endTime', event.target.value)} />
                 </Field>
-                <Field label="Toleransi terlambat (menit)">
+                <Field label="Toleransi terlambat (menit)" error={fieldError('jadwal_kerja.toleransi_menit', 'toleransi_menit')}>
                   <input type="number" min={0} max={180} className={fieldClass} value={settings.workSchedule.lateToleranceMinutes} required onChange={(event) => updateSchedule('lateToleranceMinutes', Number(event.target.value))} />
+                </Field>
+                <Field label="Kuota cuti tahunan (hari)" error={fieldError('kuota_cuti_tahunan')}>
+                  <input type="number" min={0} step={1} className={fieldClass} value={settings.workSchedule.annualLeaveQuota} required onChange={(event) => updateSchedule('annualLeaveQuota', Number(event.target.value))} />
                 </Field>
               </div>
               <fieldset className="flex flex-col gap-3">
@@ -329,6 +375,7 @@ export function SettingsPage() {
                   ))}
                 </div>
               </fieldset>
+              {fieldError('jadwal_kerja.hari_kerja', 'hari_kerja') && <p className="text-sm font-medium text-destructive" role="alert">{fieldError('jadwal_kerja.hari_kerja', 'hari_kerja')}</p>}
               <div className="flex flex-col gap-3">
                 <h3 className="font-semibold text-heading">Hari libur perusahaan</h3>
                 {settings.workSchedule.holidays.length ? (
@@ -366,25 +413,53 @@ export function SettingsPage() {
 
           {tab === 'payroll' && (
             <div className="grid gap-5 md:grid-cols-2">
-              <Field label="Metode potongan alpha">
-                <select
-                  className={fieldClass}
-                  value={settings.payrollPolicy.absenceDeductionMethod}
-                  onChange={(event) => updatePayroll('absenceDeductionMethod', event.target.value as DemoSettings['payrollPolicy']['absenceDeductionMethod'])}
-                >
-                  <option value="per_day">Per hari kerja</option>
-                  <option value="fixed">Nominal tetap</option>
-                </select>
-              </Field>
-              <Field label="Nominal potongan alpha (rupiah)">
-                <input type="number" min={0} className={fieldClass} value={settings.payrollPolicy.absenceDeductionAmount} onChange={(event) => updatePayroll('absenceDeductionAmount', Number(event.target.value))} />
-              </Field>
-              <Field label="Tarif lembur per jam (rupiah)">
+              {config.mock.pengaturan ? (
+                <>
+                  <Field label="Metode potongan alpha">
+                    <select
+                      className={fieldClass}
+                      value={settings.payrollPolicy.absenceDeductionMethod}
+                      onChange={(event) => updatePayroll('absenceDeductionMethod', event.target.value as DemoSettings['payrollPolicy']['absenceDeductionMethod'])}
+                    >
+                      <option value="per_day">Per hari kerja</option>
+                      <option value="fixed">Nominal tetap</option>
+                    </select>
+                  </Field>
+                  <Field label="Nominal potongan alpha (rupiah)">
+                    <input type="number" min={0} className={fieldClass} value={settings.payrollPolicy.absenceDeductionAmount} onChange={(event) => updatePayroll('absenceDeductionAmount', Number(event.target.value))} />
+                  </Field>
+                </>
+              ) : (
+                <Field label="Metode potongan alpha">
+                  <input className={fieldClass} value={settings.payrollPolicy.apiAbsenceDeductionMethod ?? ''} readOnly />
+                </Field>
+              )}
+              <Field label="Tarif lembur per jam (rupiah)" error={fieldError('kebijakan_gaji.tarif_lembur_per_jam', 'tarif_lembur_per_jam')}>
                 <input type="number" min={0} className={fieldClass} value={settings.payrollPolicy.overtimeRatePerHour} onChange={(event) => updatePayroll('overtimeRatePerHour', Number(event.target.value))} />
               </Field>
-              <Field label="Tanggal tutup periode">
+              <Field label="Tanggal tutup periode" error={fieldError('kebijakan_gaji.tanggal_tutup_periode', 'tanggal_tutup_periode')}>
                 <input type="number" min={1} max={28} className={fieldClass} value={settings.payrollPolicy.cutoffDay} onChange={(event) => updatePayroll('cutoffDay', Number(event.target.value))} />
               </Field>
+              <Field label="Pembagi hari kerja" error={fieldError('kebijakan_gaji.pembagi_hari_kerja', 'pembagi_hari_kerja')}>
+                <input
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  className={fieldClass}
+                  value={settings.payrollPolicy.workDayDivisor}
+                  required={!config.mock.pengaturan}
+                  onChange={(event) => updatePayroll('workDayDivisor', event.target.value)}
+                />
+              </Field>
+              <label className="flex min-h-12 cursor-pointer items-center gap-3 text-sm font-semibold text-heading">
+                <input
+                  type="checkbox"
+                  checked={settings.payrollPolicy.deductPermitWithoutLetter}
+                  onChange={(event) => updatePayroll('deductPermitWithoutLetter', event.target.checked)}
+                  className="size-4 accent-primary"
+                />
+                Potongan izin tanpa surat
+              </label>
               <p className="text-sm text-muted-foreground md:col-span-2">Perubahan kebijakan tersimpan untuk demo. Snapshot penggajian November 2026 tidak dihitung ulang.</p>
             </div>
           )}
@@ -393,12 +468,13 @@ export function SettingsPage() {
             settings.users.length ? (
               <div className="no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[620px] text-left text-sm">
-                  <caption className="sr-only">Pengguna demo dan hak aksesnya</caption>
+                  <caption className="sr-only">Pengguna dan hak aksesnya</caption>
                   <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th scope="col" className="px-3 py-3">Pengguna</th>
                       <th scope="col" className="px-3 py-3">Email</th>
                       <th scope="col" className="px-3 py-3">Hak akses</th>
+                      {!config.mock.pengaturan && <><th scope="col" className="px-3 py-3">Status</th><th scope="col" className="px-3 py-3">Aksi</th></>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -417,6 +493,27 @@ export function SettingsPage() {
                             {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                           </select>
                         </td>
+                        {!config.mock.pengaturan && (
+                          <td className="px-3 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <span className="self-center">{user.active ? 'Aktif' : 'Nonaktif'}</span>
+                              <Button type="button" variant="outline" size="action" disabled={userStatusBusy === user.id} onClick={() => void toggleUserStatus(user.id, user.active ?? true)}>{userStatusBusy === user.id ? 'Memproses…' : user.active ? 'Nonaktifkan' : 'Aktifkan'}</Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="action"
+                                onClick={() => {
+                                  if (!window.confirm(`Reset password untuk ${user.name}?`)) return
+                                  void resetUserPasswordForSettings(user.id)
+                                    .then((result) => toast.success(`Password sementara: ${result.password_sementara}`))
+                                    .catch((resetError: unknown) => toast.error(resetError instanceof Error ? resetError.message : 'Reset password gagal.'))
+                                }}
+                              >
+                                Reset password
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -435,13 +532,13 @@ export function SettingsPage() {
                 Aktifkan pemeriksaan lokasi saat absensi
               </label>
               <div className="grid gap-5 md:grid-cols-2">
-                <Field label="Nama lokasi">
+                <Field label="Nama lokasi" error={fieldError('lokasi_absensi.0.nama', 'lokasi_absensi', 'nama')}>
                   <input className={fieldClass} value={settings.attendanceLocation.name} maxLength={100} required onChange={(event) => updateLocation('name', event.target.value)} />
                 </Field>
-                <Field label="Alamat lokasi">
+                <Field label="Alamat lokasi" error={fieldError('lokasi_absensi.0.alamat', 'alamat')}>
                   <input className={fieldClass} value={settings.attendanceLocation.address} maxLength={200} required onChange={(event) => updateLocation('address', event.target.value)} />
                 </Field>
-                <Field label="Radius absensi (meter)">
+                <Field label="Radius absensi (meter)" error={fieldError('lokasi_absensi.0.radius_meter', 'radius_meter')}>
                   <input type="number" min={50} max={10000} className={fieldClass} value={settings.attendanceLocation.radiusMeters} required onChange={(event) => updateLocation('radiusMeters', Number(event.target.value))} />
                 </Field>
               </div>

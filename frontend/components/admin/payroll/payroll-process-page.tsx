@@ -16,8 +16,23 @@ import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import { payrollPeriodId, type PayrollLine, type PayrollPeriod } from '@/lib/mock/payroll'
-import { getPayrollPeriod, listPayrollLines, updatePayrollStatus } from '@/lib/services/payroll-service'
+import { config } from '@/lib/config'
+import { listPayrollCashAccounts } from '@/lib/services/akuntansi.service'
+import {
+  calculatePayrollPeriod,
+  createPayrollPeriod,
+  getPayrollAttendanceReview,
+  getPayrollPeriod,
+  getPayrollPeriodDetail,
+  listPayrollLines,
+  listPayrollPeriods,
+  returnPayrollPeriod,
+  updatePayrollStatus,
+} from '@/lib/services/penggajian.service'
+import type { PeriodeBayarRequest, PeriodeGaji, PeriodeRekapAbsensi } from '@/lib/types/penggajian'
+import type { Akun } from '@/lib/types/akuntansi'
 
+const payrollPageSize = 10
 const steps = ['Pilih periode', 'Tinjau absensi', 'Hasil perhitungan', 'Persetujuan']
 type PayrollAction = 'submit' | 'approve' | 'pay'
 
@@ -27,7 +42,17 @@ function actionLabel(action: PayrollAction) {
   return 'Tandai sebagai dibayar'
 }
 
+function periodStatusLabel(status: PeriodeGaji['status']): PayrollPeriod['status'] {
+  if (status === 'draft') return 'Draft'
+  if (status === 'menunggu_validasi') return 'Menunggu validasi keuangan'
+  return status === 'disetujui' ? 'Disetujui' : 'Dibayar'
+}
+
 export function PayrollProcessPage() {
+  return <DemoPayrollProcessPage />
+}
+
+function DemoPayrollProcessPage() {
   const [role, setRole] = useState<Role | null>(null)
   const [period, setPeriod] = useState<PayrollPeriod | null>(null)
   const [periodInput, setPeriodInput] = useState(payrollPeriodId)
@@ -44,7 +69,7 @@ export function PayrollProcessPage() {
     try {
       const [nextPeriod, nextLines] = await Promise.all([getPayrollPeriod(), listPayrollLines()])
       setPeriod(nextPeriod)
-      setLines(nextLines)
+      setLines(nextLines.items)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Proses penggajian gagal dimuat.')
     } finally {
@@ -58,13 +83,15 @@ export function PayrollProcessPage() {
   }, [])
 
   useEffect(() => {
-    if (role === 'admin' || role === 'keuangan') void load()
+    if (config.mock.penggajian && (role === 'admin' || role === 'keuangan')) void load()
     else setLoading(false)
   }, [role])
 
+  if (!config.mock.penggajian) return <LivePayrollProcessPage />
+
   const detailedLines = lines.filter((line) => !line.isAggregate)
   const totals = useMemo(() => ({
-    net: lines.reduce((sum, line) => sum + line.netPay, 0),
+    net: period?.totalNetPay ?? 0,
     late: detailedLines.reduce((sum, line) => sum + line.lateCount, 0),
     absent: detailedLines.reduce((sum, line) => sum + line.absenceDays, 0),
     present: detailedLines.reduce((sum, line) => sum + line.presentDays, 0),
@@ -94,6 +121,350 @@ export function PayrollProcessPage() {
         icon={FileCheck2}
         action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
       />
+    )
+  }
+
+  function LivePayrollProcessPage() {
+    const [role, setRole] = useState<Role | null>(null)
+    const [periods, setPeriods] = useState<PeriodeGaji[]>([])
+    const [selectedId, setSelectedId] = useState('')
+    const [detail, setDetail] = useState<Awaited<ReturnType<typeof getPayrollPeriodDetail>> | null>(null)
+    const [attendance, setAttendance] = useState<PeriodeRekapAbsensi | null>(null)
+    const [calculation, setCalculation] = useState<Awaited<ReturnType<typeof calculatePayrollPeriod>> | null>(null)
+    const [lines, setLines] = useState<PayrollLine[]>([])
+    const [linesMeta, setLinesMeta] = useState<{ total: number; total_pages: number } | null>(null)
+    const [linePage, setLinePage] = useState(1)
+    const [linePageLoading, setLinePageLoading] = useState(false)
+    const [cashAccounts, setCashAccounts] = useState<Akun[]>([])
+    const [step, setStep] = useState(0)
+    const [periodValue, setPeriodValue] = useState('')
+    const [cutoffDate, setCutoffDate] = useState('')
+    const [paymentDate, setPaymentDate] = useState('')
+    const [cashAccountId, setCashAccountId] = useState('')
+    const [returnNote, setReturnNote] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState('')
+
+    async function loadSelected(id: string) {
+      const [nextDetail, nextAttendance] = await Promise.all([
+        getPayrollPeriodDetail(id),
+        getPayrollAttendanceReview(id),
+      ])
+      setDetail(nextDetail)
+      setAttendance(nextAttendance)
+      setCalculation(null)
+      setLines([])
+      setLinesMeta(null)
+      setLinePage(1)
+    }
+
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const [nextPeriods, nextCashAccounts] = await Promise.all([
+          listPayrollPeriods(),
+          listPayrollCashAccounts(),
+        ])
+        setPeriods(nextPeriods)
+        setCashAccounts(nextCashAccounts)
+        const nextSelected = nextPeriods.find((item) => String(item.id) === selectedId) ?? nextPeriods[0]
+        if (nextSelected) {
+          setSelectedId(String(nextSelected.id))
+          await loadSelected(String(nextSelected.id))
+        } else {
+          setSelectedId('')
+          setDetail(null)
+          setAttendance(null)
+        }
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Proses penggajian gagal dimuat.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    useEffect(() => {
+      const storedRole = localStorage.getItem(ROLE_STORAGE_KEY)
+      setRole(storedRole === 'admin' || storedRole === 'keuangan' ? storedRole : null)
+    }, [])
+
+    useEffect(() => {
+      if (role === 'admin' || role === 'keuangan') void load()
+      else if (role !== null) setLoading(false)
+    }, [role])
+
+    async function handleSelectPeriod(id: string) {
+      setSelectedId(id)
+      setLinePage(1)
+      setStep(0)
+      setLoading(true)
+      setError('')
+      try {
+        await loadSelected(id)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Periode penggajian gagal dimuat.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    async function handleCreatePeriod(event: React.FormEvent<HTMLFormElement>) {
+      event.preventDefault()
+      setBusy(true)
+      try {
+        const created = await createPayrollPeriod({ periode: periodValue, tanggal_tutup: cutoffDate })
+        const nextPeriods = await listPayrollPeriods()
+        setPeriods(nextPeriods)
+        setSelectedId(String(created.id))
+        await loadSelected(String(created.id))
+        setPeriodValue('')
+        setCutoffDate('')
+        toast.success('Periode penggajian berhasil dibuat.')
+      } catch (createError) {
+        toast.error(createError instanceof Error ? createError.message : 'Periode penggajian gagal dibuat.')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    async function handleCalculate() {
+      if (!selectedId) return
+      setBusy(true)
+      try {
+        const result = await calculatePayrollPeriod(selectedId)
+        const nextLines = await listPayrollLines({ page: 1, per_page: payrollPageSize }, selectedId)
+        setCalculation(result)
+        setLines(nextLines.items)
+        setLinesMeta({ total: nextLines.meta.total, total_pages: nextLines.meta.total_pages })
+        setLinePage(1)
+        toast.success('Penggajian berhasil dihitung oleh server.')
+      } catch (calculateError) {
+        toast.error(calculateError instanceof Error ? calculateError.message : 'Penggajian gagal dihitung.')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    async function handlePayrollPageChange(nextPage: number) {
+      if (!selectedId) return
+      setLinePageLoading(true)
+      try {
+        const result = await listPayrollLines({ page: nextPage, per_page: payrollPageSize }, selectedId)
+        setLines(result.items)
+        setLinesMeta({ total: result.meta.total, total_pages: result.meta.total_pages })
+        setLinePage(nextPage)
+      } catch (pageError) {
+        toast.error(pageError instanceof Error ? pageError.message : 'Daftar penggajian gagal dimuat.')
+      } finally {
+        setLinePageLoading(false)
+      }
+    }
+
+    async function handleTransition(action: PayrollAction) {
+      if (!role || !selectedId) return
+      setBusy(true)
+      try {
+        const payment: PeriodeBayarRequest | undefined = action === 'pay'
+          ? { tanggal_bayar: paymentDate, akun_kas_id: Number(cashAccountId) }
+          : undefined
+        await updatePayrollStatus(role, action, payment, selectedId)
+        await load()
+        toast.success('Status proses penggajian berhasil diperbarui.')
+      } catch (transitionError) {
+        toast.error(transitionError instanceof Error ? transitionError.message : 'Status penggajian gagal diperbarui.')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    async function handleReturn() {
+      if (!selectedId || !returnNote.trim()) return
+      setBusy(true)
+      try {
+        await returnPayrollPeriod(selectedId, { catatan: returnNote.trim() })
+        setReturnNote('')
+        await load()
+        toast.success('Periode dikembalikan untuk diperbaiki.')
+      } catch (returnError) {
+        toast.error(returnError instanceof Error ? returnError.message : 'Periode gagal dikembalikan.')
+      } finally {
+        setBusy(false)
+      }
+    }
+
+    if (loading) return <PageLoadingSkeleton label="proses penggajian" />
+    if (!role) {
+      return <EmptyState title="Proses ini untuk Admin/HRD dan Keuangan" description="Masuk dengan mode Admin/HRD atau Keuangan untuk melanjutkan proses." icon={FileCheck2} />
+    }
+    if (error) return <ErrorState message={error} onRetry={() => void load()} />
+
+    const selected = periods.find((item) => String(item.id) === selectedId) ?? null
+    const canSubmit = role === 'admin' && selected?.status === 'draft'
+    const canReview = role === 'keuangan' && selected?.status === 'menunggu_validasi'
+    const canPay = role === 'keuangan' && selected?.status === 'disetujui'
+    const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
+
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-heading">Proses penggajian</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Tinjau data server dan jalankan setiap tahap sesuai status periode.</p>
+          </div>
+          <Link href="/app/penggajian" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
+            <ArrowLeft aria-hidden="true" />
+            Daftar penggajian
+          </Link>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Langkah proses penggajian">
+          {steps.map((label, index) => (
+            <button
+              type="button"
+              key={label}
+              aria-current={step === index ? 'step' : undefined}
+              onClick={() => setStep(index)}
+              className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${step === index ? 'border-primary bg-blue-50 text-primary' : 'border-border bg-white text-muted-foreground hover:bg-surface'}`}
+            >
+              <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs ${step === index ? 'bg-primary text-white' : 'bg-surface text-heading'}`}>{index + 1}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {step === 0 && (
+          <Panel title="Pilih atau buat periode" description="Periode dan status berasal dari API.">
+            {periods.length > 0 && (
+              <label className="flex max-w-xl flex-col gap-2 text-sm font-semibold text-heading">
+                Periode tersedia
+                <select value={selectedId} onChange={(event) => void handleSelectPeriod(event.target.value)} className={fieldClass}>
+                  {periods.map((item) => <option key={item.id} value={item.id}>{item.label ?? item.periode} · {item.status}</option>)}
+                </select>
+              </label>
+            )}
+            {role === 'admin' && (
+              <form onSubmit={(event) => void handleCreatePeriod(event)} className="grid gap-4 border-t border-border pt-5 sm:grid-cols-3">
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Periode baru
+                  <input type="month" required value={periodValue} onChange={(event) => setPeriodValue(event.target.value)} className={fieldClass} />
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Tanggal tutup
+                  <input type="date" required value={cutoffDate} onChange={(event) => setCutoffDate(event.target.value)} className={fieldClass} />
+                </label>
+                <Button type="submit" variant="outline" size="action" disabled={busy} className="self-end">
+                  Buat periode
+                </Button>
+              </form>
+            )}
+            {!periods.length && role !== 'admin' && <EmptyState title="Belum ada periode penggajian" description="Admin/HRD perlu membuat periode terlebih dahulu." icon={CalendarDays} />}
+            {selected && (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-border p-4"><p className="text-sm text-muted-foreground">Periode</p><p className="mt-1 font-semibold text-heading">{selected.label ?? selected.periode}</p></div>
+                <div className="rounded-xl border border-border p-4"><p className="text-sm text-muted-foreground">Hari kerja</p><p className="mt-1 font-semibold text-heading">{selected.hari_kerja}</p></div>
+                <div className="rounded-xl border border-border p-4"><p className="text-sm text-muted-foreground">Karyawan</p><p className="mt-1 font-semibold text-heading">{selected.jumlah_karyawan}</p></div>
+                <StatusBadge status={periodStatusLabel(selected.status)} />
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {step === 1 && (
+          <Panel title="Tinjau rekap absensi" description="Data kehadiran per karyawan dari periode yang dipilih.">
+            {!attendance?.karyawan.length ? (
+              <EmptyState title="Rekap absensi belum tersedia" description="Pilih periode lain atau muat ulang data." icon={Users} />
+            ) : (
+              <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
+                <table className="w-full min-w-[840px] border-collapse text-left text-sm">
+                  <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
+                    <tr>{['Karyawan', 'Hari kerja', 'Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha'].map((label) => <th key={label} scope="col" className="px-3 py-3">{label}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {attendance.karyawan.map((item) => (
+                      <tr key={item.karyawan_id}>
+                        <td className="px-3 py-3"><span className="font-semibold text-heading">{item.nama}</span><span className="block text-xs text-muted-foreground">{item.kode} · {item.departemen}</span></td>
+                        <td className="px-3 py-3">{item.hari_kerja}</td><td className="px-3 py-3">{item.hadir}</td><td className="px-3 py-3">{item.terlambat}</td><td className="px-3 py-3">{item.izin}</td><td className="px-3 py-3">{item.sakit}</td><td className="px-3 py-3">{item.cuti}</td><td className="px-3 py-3">{item.alpha}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {attendance?.peringatan.map((warning) => <p key={`${warning.karyawan_id}-${warning.jenis}`} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{warning.pesan}</p>)}
+          </Panel>
+        )}
+
+        {step === 2 && (
+          <Panel title="Hasil perhitungan" description="Nilai penggajian dihitung dan dikirim oleh server.">
+            <Button type="button" variant="primary" size="action" disabled={!selected || busy} onClick={() => void handleCalculate()}>
+              {busy ? 'Menghitung…' : 'Hitung penggajian'}
+            </Button>
+            {calculation && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <StatCard label="Jumlah karyawan" value={String(calculation.jumlah_karyawan)} icon={Users} tone="blue" />
+                <StatCard label="Total gaji bersih" value={formatRupiah(calculation.total_gaji_bersih)} icon={BadgeCheck} tone="green" />
+              </div>
+            )}
+            {lines.length > 0 && (
+              <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
+                <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+                  <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground"><tr><th scope="col" className="px-3 py-3">Karyawan</th><th scope="col" className="px-3 py-3 text-right">Pendapatan</th><th scope="col" className="px-3 py-3 text-right">Potongan</th><th scope="col" className="px-3 py-3 text-right">Gaji bersih</th></tr></thead>
+                  <tbody className="divide-y divide-border">{lines.map((line) => <tr key={line.employeeId}><td className="px-3 py-3 font-semibold text-heading">{line.employeeName}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalEarnings ?? line.netPay)}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalDeductions)}</td><td className="px-3 py-3 text-right font-bold tabular-nums">{formatRupiah(line.netPay)}</td></tr>)}</tbody>
+                </table>
+              </div>
+            )}
+            {lines.length > 0 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  Menampilkan {(linePage - 1) * payrollPageSize + 1} sampai {Math.min(linePage * payrollPageSize, linesMeta?.total ?? 0)} dari {linesMeta?.total ?? 0} karyawan.
+                  {' '}Halaman {linePage} dari {Math.max(1, linesMeta?.total_pages ?? 1)}
+                </p>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="action" disabled={linePage <= 1 || linePageLoading} onClick={() => void handlePayrollPageChange(Math.max(1, linePage - 1))}>Sebelumnya</Button>
+                  <Button type="button" variant="outline" size="action" disabled={linePage >= (linesMeta?.total_pages ?? 1) || linePageLoading} onClick={() => void handlePayrollPageChange(Math.min(linesMeta?.total_pages ?? 1, linePage + 1))}>Berikutnya</Button>
+                </div>
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {step === 3 && (
+          <Panel title="Persetujuan dan pembayaran" description="Aksi tersedia mengikuti peran dan status periode dari API.">
+            {selected && detail && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4">
+                  <div><p className="font-semibold text-heading">{selected.label ?? selected.periode}</p><p className="text-sm text-muted-foreground">{detail.ringkasan.jumlah_karyawan} karyawan · total bersih {formatRupiah(detail.ringkasan.total_gaji_bersih)}</p></div>
+                  <StatusBadge status={periodStatusLabel(selected.status)} />
+                </div>
+                {canSubmit && <Button type="button" variant="primary" size="action" disabled={busy} onClick={() => void handleTransition('submit')}>Kirim ke validasi keuangan</Button>}
+                {canReview && (
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button type="button" variant="primary" size="action" disabled={busy} onClick={() => void handleTransition('approve')}>Setujui penggajian</Button>
+                    <label className="flex flex-1 flex-col gap-2 text-sm font-semibold text-heading">Catatan pengembalian<input value={returnNote} onChange={(event) => setReturnNote(event.target.value)} className={fieldClass} /></label>
+                    <Button type="button" variant="outline" size="action" disabled={busy || !returnNote.trim()} onClick={() => void handleReturn()}>Kembalikan</Button>
+                  </div>
+                )}
+                {canPay && (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="flex flex-col gap-2 text-sm font-semibold text-heading">Tanggal bayar<input type="date" required value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className={fieldClass} /></label>
+                    <label className="flex flex-col gap-2 text-sm font-semibold text-heading">Akun kas<select required value={cashAccountId} onChange={(event) => setCashAccountId(event.target.value)} className={fieldClass}><option value="">Pilih akun</option>{cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.kode} · {account.nama}</option>)}</select></label>
+                    <Button type="button" variant="success" size="action" disabled={busy || !paymentDate || !cashAccountId} className="self-end" onClick={() => void handleTransition('pay')}>Tandai dibayar</Button>
+                  </div>
+                )}
+                {!canSubmit && !canReview && !canPay && <p className="text-sm text-muted-foreground">Tidak ada aksi yang tersedia untuk peran dan status periode ini.</p>}
+              </div>
+            )}
+            {!selected && <EmptyState title="Pilih periode terlebih dahulu" description="Pilih atau buat periode pada langkah pertama." icon={FileCheck2} />}
+          </Panel>
+        )}
+
+        <div className="flex flex-col-reverse justify-between gap-3 sm:flex-row">
+          <Button type="button" variant="outline" size="action" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}><ArrowLeft aria-hidden="true" />Langkah sebelumnya</Button>
+          {step < steps.length - 1 && <Button type="button" variant="primary" size="action" onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>Langkah berikutnya<ArrowRight aria-hidden="true" /></Button>}
+        </div>
+      </div>
     )
   }
   if (error) return <ErrorState message={error} onRetry={() => void load()} />

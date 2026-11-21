@@ -3,6 +3,7 @@ export type MasterKind = 'jabatan' | 'departemen'
 export type MasterRecord = {
   id: string
   name: string
+  employeeCount?: number
 }
 
 export const mockDepartments: MasterRecord[] = [

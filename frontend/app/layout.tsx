@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
+import { AuthProvider } from '@/lib/auth/auth-provider'
 import { Toaster } from 'sonner'
 import './globals.css'
 
@@ -38,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="id" data-scroll-behavior="smooth" className={`${jakarta.variable} bg-background`}>
       <body className="font-sans antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <Toaster position="top-center" richColors closeButton />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

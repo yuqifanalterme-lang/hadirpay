@@ -21,7 +21,7 @@ export type ApprovalRequest = {
   status: RequestStatus
   approvedBy?: string
   rejectionReason?: string
-  isMock: true
+  isMock: boolean
 }
 
 export const mockLeaveQuota = {

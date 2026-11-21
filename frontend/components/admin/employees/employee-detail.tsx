@@ -3,25 +3,49 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CalendarCheck, CircleUserRound, FileText, Wallet } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarCheck,
+  CalendarDays,
+  CircleUserRound,
+  CircleX,
+  Clock3,
+  Download,
+  FileCheck2,
+  FileText,
+  HeartPulse,
+  UserCheck,
+  Wallet,
+} from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
+import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { toast } from 'sonner'
+import { TextField } from '@/components/auth/fields'
 import { EmployeeFormDialog } from '@/components/admin/employees/employee-form-dialog'
+import { config } from '@/lib/config'
 import type { Employee, EmployeeHistory } from '@/lib/mock/employees'
 import { mockEmployeeHistory } from '@/lib/mock/employees'
 import type { MasterRecord } from '@/lib/mock/master-data'
 import { formatTanggal } from '@/lib/format'
 import { formatRupiah } from '@/lib/mock-data'
-import { getEmployee } from '@/lib/services/employee-service'
-import { listMasterRecords } from '@/lib/services/master-data-service'
+import { getEmployee, getEmployeeAttendanceSummary, listMasterRecords } from '@/lib/services/karyawan.service'
+import { downloadPayslipPdf, getPayslip, listPayslips } from '@/lib/services/penggajian.service'
+import type { KaryawanKehadiranRingkas } from '@/lib/types/karyawan'
+import type { SlipGajiDetail, SlipGajiItem } from '@/lib/types/penggajian'
 
 const tabs = ['Profil', 'Riwayat Kehadiran', 'Komponen Gaji', 'Riwayat Slip'] as const
 type EmployeeTab = (typeof tabs)[number]
+
+function currentPeriod() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
 
 function DetailValue({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -38,6 +62,11 @@ export function EmployeeDetail({ id }: { id: string }) {
   const [departments, setDepartments] = useState<MasterRecord[]>([])
   const [positions, setPositions] = useState<MasterRecord[]>([])
   const [history, setHistory] = useState<EmployeeHistory | null>(null)
+  const [attendanceSummary, setAttendanceSummary] = useState<KaryawanKehadiranRingkas | null>(null)
+  const [attendancePeriod, setAttendancePeriod] = useState(currentPeriod)
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
+  const [attendanceError, setAttendanceError] = useState('')
+  const [attendanceReload, setAttendanceReload] = useState(0)
   const [activeTab, setActiveTab] = useState<EmployeeTab>('Profil')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -68,6 +97,32 @@ export function EmployeeDetail({ id }: { id: string }) {
     void load()
   }, [id])
 
+  useEffect(() => {
+    if (activeTab !== 'Riwayat Kehadiran') return
+    if (!/^\d{4}-\d{2}$/.test(attendancePeriod)) {
+      setAttendanceLoading(false)
+      setAttendanceSummary(null)
+      return
+    }
+    let active = true
+    setAttendanceLoading(true)
+    setAttendanceError('')
+    setAttendanceSummary(null)
+    getEmployeeAttendanceSummary(id, attendancePeriod)
+      .then((summary) => {
+        if (active) setAttendanceSummary(summary)
+      })
+      .catch((error: unknown) => {
+        if (active) setAttendanceError(error instanceof Error ? error.message : 'Ringkasan kehadiran gagal dimuat.')
+      })
+      .finally(() => {
+        if (active) setAttendanceLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [activeTab, attendancePeriod, attendanceReload, id])
+
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex = index
     if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length
@@ -86,6 +141,7 @@ export function EmployeeDetail({ id }: { id: string }) {
     if (previousId && previousId !== updated.id) {
       router.replace(`/app/karyawan/${encodeURIComponent(updated.id)}`)
     }
+    void load()
   }
 
   if (loading) return <PageLoadingSkeleton label="detail karyawan" />
@@ -105,14 +161,15 @@ export function EmployeeDetail({ id }: { id: string }) {
     )
   }
 
-  const attendance = history?.attendance ?? []
   const payslips = history?.payslips ?? []
   const tabIndex = tabs.indexOf(activeTab)
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DemoDataNotice>Profil ini menggunakan data contoh untuk mode demo.</DemoDataNotice>
+        <DemoDataNotice>
+          {config.mock.karyawan ? 'Profil ini menggunakan data contoh untuk mode demo.' : 'Profil ini memuat data karyawan dari layanan.'}
+        </DemoDataNotice>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/app/karyawan"
@@ -138,7 +195,7 @@ export function EmployeeDetail({ id }: { id: string }) {
             tone="muted"
           />
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-muted-foreground">ID karyawan {employee.id}</p>
+            <p className="text-sm text-muted-foreground">ID karyawan {employee.code ?? employee.id}</p>
             <StatusBadge status={employee.status} />
           </div>
         </div>
@@ -181,52 +238,54 @@ export function EmployeeDetail({ id }: { id: string }) {
           <Panel title="Informasi profil">
             <dl className="grid gap-x-8 sm:grid-cols-2">
               <DetailValue label="Nama lengkap" value={employee.name} />
-              <DetailValue label="ID karyawan" value={employee.id} />
+              <DetailValue label="ID karyawan" value={employee.code ?? employee.id} />
               <DetailValue label="Jabatan" value={employee.position} />
               <DetailValue label="Departemen" value={employee.department} />
               <DetailValue label="Mulai bekerja" value={formatTanggal(employee.startedAt)} />
               <DetailValue label="Jenis penggajian" value={employee.payrollType === 'harian' ? 'Harian' : 'Bulanan'} />
               <DetailValue label="NPWP" value={employee.npwp || 'Belum diisi'} />
-              <DetailValue label="BPJS Kesehatan" value={employee.bpjsKesehatan || 'Belum diisi'} />
-              <DetailValue label="BPJS Ketenagakerjaan" value={employee.bpjsKetenagakerjaan || 'Belum diisi'} />
+              <DetailValue label="BPJS" value={employee.noBpjs || employee.bpjsKesehatan || employee.bpjsKetenagakerjaan || 'Belum diisi'} />
             </dl>
           </Panel>
         )}
 
-        {activeTab === 'Riwayat Kehadiran' &&
-          (attendance.length === 0 ? (
-            <EmptyState
-              title="Belum ada riwayat kehadiran"
-              description="Riwayat akan tampil di sini setelah data absensi tersedia."
-              icon={CalendarCheck}
-            />
-          ) : (
-            <Panel title="Riwayat kehadiran" description="Ringkasan absensi pada data contoh.">
-              <div className="no-scrollbar overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-sm">
-                  <caption className="sr-only">Riwayat kehadiran {employee.name}</caption>
-                  <thead>
-                    <tr className="border-b border-border text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      <th scope="col" className="py-3 pr-4">Tanggal</th>
-                      <th scope="col" className="py-3 pr-4">Masuk</th>
-                      <th scope="col" className="py-3 pr-4">Pulang</th>
-                      <th scope="col" className="py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendance.map((record) => (
-                      <tr key={record.date} className="border-b border-border/70 last:border-0">
-                        <td className="py-3 pr-4">{formatTanggal(record.date)}</td>
-                        <td className="py-3 pr-4 tabular-nums">{record.checkIn}</td>
-                        <td className="py-3 pr-4 tabular-nums">{record.checkOut}</td>
-                        <td className="py-3"><StatusBadge status={record.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {activeTab === 'Riwayat Kehadiran' && (
+          <Panel title="Riwayat kehadiran" description="Ringkasan kehadiran sesuai periode yang dipilih.">
+            <div className="max-w-xs">
+              <TextField
+                label="Periode"
+                type="month"
+                value={attendancePeriod}
+                required
+                onChange={(event) => {
+                  setAttendanceSummary(null)
+                  setAttendancePeriod(event.target.value)
+                }}
+              />
+            </div>
+            {attendanceLoading ? (
+              <PageLoadingSkeleton label="ringkasan kehadiran" />
+            ) : attendanceError ? (
+              <ErrorState message={attendanceError} onRetry={() => setAttendanceReload((value) => value + 1)} />
+            ) : attendanceSummary ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Hari kerja" value={String(attendanceSummary.hari_kerja)} icon={CalendarDays} tone="blue" />
+                <StatCard label="Hadir" value={String(attendanceSummary.hadir)} icon={UserCheck} tone="green" />
+                <StatCard label="Terlambat" value={String(attendanceSummary.terlambat)} icon={Clock3} tone="amber" />
+                <StatCard label="Izin" value={String(attendanceSummary.izin)} icon={FileCheck2} tone="sky" />
+                <StatCard label="Sakit" value={String(attendanceSummary.sakit)} icon={HeartPulse} tone="sky" />
+                <StatCard label="Cuti" value={String(attendanceSummary.cuti)} icon={CalendarCheck} tone="violet" />
+                <StatCard label="Alpha" value={String(attendanceSummary.alpha)} icon={CircleX} tone="red" />
               </div>
-            </Panel>
-          ))}
+            ) : (
+              <EmptyState
+                title={attendancePeriod ? 'Ringkasan belum tersedia' : 'Pilih periode'}
+                description={attendancePeriod ? 'Belum ada ringkasan kehadiran untuk periode ini.' : 'Pilih periode bulan untuk melihat ringkasan kehadiran.'}
+                icon={CalendarCheck}
+              />
+            )}
+          </Panel>
+        )}
 
         {activeTab === 'Komponen Gaji' && (
           <Panel title="Komponen gaji" description="Nilai mengikuti jenis penggajian karyawan.">
@@ -249,7 +308,9 @@ export function EmployeeDetail({ id }: { id: string }) {
           </Panel>
         )}
 
-        {activeTab === 'Riwayat Slip' &&
+        {activeTab === 'Riwayat Slip' && !config.mock.penggajian ? (
+          <EmployeePayslipHistory employeeId={employee.id} />
+        ) : activeTab === 'Riwayat Slip' &&
           (payslips.length === 0 ? (
             <EmptyState
               title="Belum ada riwayat slip"
@@ -291,6 +352,102 @@ export function EmployeeDetail({ id }: { id: string }) {
         onOpenChange={setEditing}
         onSaved={(updated, previousId) => void handleSaved(updated, previousId)}
       />
+    </div>
+  )
+}
+
+function EmployeePayslipHistory({ employeeId }: { employeeId: string }) {
+  const [slips, setSlips] = useState<SlipGajiItem[]>([])
+  const [selected, setSelected] = useState<SlipGajiItem | null>(null)
+  const [detail, setDetail] = useState<SlipGajiDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [detailError, setDetailError] = useState('')
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    const id = Number(employeeId)
+    if (!Number.isSafeInteger(id) || id < 1) {
+      setError('ID karyawan tidak valid untuk memuat riwayat slip.')
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    setSlips([])
+    setSelected(null)
+    setDetail(null)
+    listPayslips({ karyawan_id: id })
+      .then((result) => {
+        if (active) setSlips(result.items)
+      })
+      .catch((loadError: unknown) => {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Riwayat slip gagal dimuat.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [employeeId, reload])
+
+  async function selectSlip(slip: SlipGajiItem) {
+    setSelected(slip)
+    setDetail(null)
+    setDetailError('')
+    setDetailLoading(true)
+    try {
+      setDetail(await getPayslip(slip.id))
+    } catch (loadError) {
+      setDetailError(loadError instanceof Error ? loadError.message : 'Rincian slip gagal dimuat.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  async function download(slip: SlipGajiItem) {
+    try {
+      const blob = await downloadPayslipPdf(slip.id)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `slip-gaji-${employeeId}-${slip.periode}.pdf`
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success('Slip gaji berhasil diunduh.')
+    } catch (downloadError) {
+      toast.error(downloadError instanceof Error ? downloadError.message : 'PDF slip gagal diunduh.')
+    }
+  }
+
+  if (loading) return <PageLoadingSkeleton label="riwayat slip" />
+  if (error) return <ErrorState message={error} onRetry={() => setReload((value) => value + 1)} />
+  if (!slips.length) return <EmptyState title="Belum ada riwayat slip" description="Slip gaji karyawan ini belum diterbitkan." icon={FileText} />
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Panel title="Riwayat slip gaji" description="Daftar slip yang diterbitkan untuk karyawan ini.">
+        <div className="no-scrollbar overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <caption className="sr-only">Riwayat slip karyawan</caption>
+            <thead><tr className="border-b border-border text-xs font-semibold tracking-wide text-muted-foreground uppercase"><th scope="col" className="py-3 pr-4">Periode</th><th scope="col" className="py-3 pr-4">Tanggal terbit</th><th scope="col" className="py-3 pr-4">Gaji bersih</th><th scope="col" className="py-3">Aksi</th></tr></thead>
+            <tbody>{slips.map((slip) => <tr key={slip.id} className="border-b border-border/70 last:border-0"><td className="py-3 pr-4 font-semibold text-heading">{slip.label}</td><td className="py-3 pr-4">{slip.tanggal_terbit}</td><td className="py-3 pr-4 font-semibold tabular-nums text-heading">{formatRupiah(slip.gaji_bersih)}</td><td className="py-3"><Button type="button" variant="outline" size="action" onClick={() => void selectSlip(slip)}>Lihat rincian</Button></td></tr>)}</tbody>
+          </table>
+        </div>
+      </Panel>
+      {selected && (detailLoading ? <PageLoadingSkeleton label="rincian slip" /> : detailError ? <ErrorState message={detailError} onRetry={() => void selectSlip(selected)} /> : detail ? (
+        <Panel title={`Slip ${selected.label}`} description={`${detail.nomor_slip} · terbit ${detail.tanggal_terbit}`}>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border p-3"><dt className="text-sm text-muted-foreground">Pendapatan</dt><dd className="mt-1 font-semibold text-heading">{formatRupiah(detail.total_pendapatan)}</dd></div>
+            <div className="rounded-xl border border-border p-3"><dt className="text-sm text-muted-foreground">Potongan</dt><dd className="mt-1 font-semibold text-heading">{formatRupiah(detail.total_potongan)}</dd></div>
+            <div className="rounded-xl border border-border p-3"><dt className="text-sm text-muted-foreground">Gaji bersih</dt><dd className="mt-1 font-semibold text-heading">{formatRupiah(detail.gaji_bersih)}</dd></div>
+          </dl>
+          <Button type="button" variant="primary" size="action" className="self-start" onClick={() => void download(selected)}><Download aria-hidden="true" />Unduh PDF</Button>
+        </Panel>
+      ) : null)}
     </div>
   )
 }

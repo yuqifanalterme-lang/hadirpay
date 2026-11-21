@@ -14,11 +14,11 @@ import { useAccountingRole } from "@/lib/hooks/use-accounting-role";
 import { formatAccountingDate } from "@/lib/accounting/journal";
 import { formatRupiah } from "@/lib/mock-data";
 import type { AccountingAccount } from "@/lib/mock/accounting";
-import type { LedgerReport } from "@/lib/services/accounting-service";
+import type { LedgerReport } from "@/lib/services/akuntansi.service";
 import {
   getAccountLedger,
   listAccounts,
-} from "@/lib/services/accounting-service";
+} from "@/lib/services/akuntansi.service";
 
 const initialPeriod = "2026-11";
 

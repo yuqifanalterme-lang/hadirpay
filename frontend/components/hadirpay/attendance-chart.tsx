@@ -7,16 +7,18 @@ export function AttendanceChart({
   height = 260,
   compact = false,
   className,
+  data = attendanceTrend,
 }: {
   height?: number | string
   compact?: boolean
   className?: string
+  data?: { day: string; hadir: number; tepatWaktu: number }[]
 }) {
   return (
     <div style={{ height }} className={`w-full ${className ?? ''}`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={attendanceTrend}
+          data={data}
           margin={{ top: 8, right: compact ? 8 : 20, left: compact ? -32 : -16, bottom: 0 }}
         >
           <defs>

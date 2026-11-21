@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import type { Role } from '@/lib/navigation'
 import {
-  listNotifications,
+  listNotificationsWithCount,
   markNotificationRead,
   markNotificationsRead,
   notificationsChangedEvent,
   type AppNotification,
-} from '@/lib/services/notification-service'
-import { updateDemoPassword } from '@/lib/services/auth-service'
+} from '@/lib/services/notifikasi.service'
+import { updatePasswordForRole } from '@/lib/services/auth.service'
 import { requestsChangedEvent } from '@/lib/services/request-events'
 import { cn } from '@/lib/utils'
 
@@ -46,8 +46,13 @@ export function Topbar({
   const router = useRouter()
   const sm = size === 'sm'
   const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [notificationError, setNotificationError] = useState('')
   const [notificationLoading, setNotificationLoading] = useState(true)
+  const [notificationMoreError, setNotificationMoreError] = useState('')
+  const [notificationMoreLoading, setNotificationMoreLoading] = useState(false)
+  const [notificationPage, setNotificationPage] = useState(1)
+  const [notificationHasMore, setNotificationHasMore] = useState(false)
   const [openPanel, setOpenPanel] = useState<'notifications' | 'profile' | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
@@ -57,15 +62,34 @@ export function Topbar({
   const [passwordSaving, setPasswordSaving] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  async function loadNotifications() {
-    setNotificationLoading(true)
-    setNotificationError('')
+  async function loadNotifications(page = 1, append = false) {
+    if (append) {
+      setNotificationMoreLoading(true)
+      setNotificationMoreError('')
+    } else {
+      setNotificationLoading(true)
+      setNotificationError('')
+    }
     try {
-      setNotifications(await listNotifications(role, employeeId))
+      const result = await listNotificationsWithCount(role, employeeId, { page, per_page: 10 })
+      if (append) {
+        setNotifications((current) => {
+          const existingIds = new Set(current.map((item) => item.id))
+          return [...current, ...result.items.filter((item) => !existingIds.has(item.id))]
+        })
+      } else {
+        setNotifications(result.items)
+      }
+      setUnreadCount(result.unreadCount)
+      setNotificationPage(result.meta.page)
+      setNotificationHasMore(result.meta.page < result.meta.total_pages)
     } catch (error) {
-      setNotificationError(error instanceof Error ? error.message : 'Notifikasi gagal dimuat.')
+      const message = error instanceof Error ? error.message : 'Notifikasi gagal dimuat.'
+      if (append) setNotificationMoreError(message)
+      else setNotificationError(message)
     } finally {
-      setNotificationLoading(false)
+      if (append) setNotificationMoreLoading(false)
+      else setNotificationLoading(false)
     }
   }
 
@@ -99,7 +123,6 @@ export function Topbar({
     }
   }, [openPanel])
 
-  const unreadCount = notifications.filter((item) => !item.isRead).length
   const bellInner = (
     <>
       <Bell className={sm ? 'size-2.5' : 'size-5'} aria-hidden="true" />
@@ -143,22 +166,24 @@ export function Topbar({
     router.push('/login')
   }
 
-  function handleNotificationClick(notification: AppNotification) {
+  async function handleNotificationClick(notification: AppNotification) {
     try {
-      markNotificationRead(notification.id)
+      await markNotificationRead(notification.id)
       setNotifications((current) => current.map((item) =>
         item.id === notification.id ? { ...item, isRead: true } : item,
       ))
+      if (!notification.isRead) setUnreadCount((current) => Math.max(0, current - 1))
       setOpenPanel(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Notifikasi gagal diperbarui.')
     }
   }
 
-  function markAllRead() {
+  async function markAllRead() {
     try {
-      markNotificationsRead(notifications)
+      await markNotificationsRead(notifications, role, employeeId)
       setNotifications((current) => current.map((item) => ({ ...item, isRead: true })))
+      setUnreadCount(0)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Notifikasi gagal diperbarui.')
     }
@@ -172,7 +197,7 @@ export function Topbar({
     }
     setPasswordSaving(true)
     try {
-      await updateDemoPassword(role, currentPassword, newPassword)
+      await updatePasswordForRole(role, currentPassword, newPassword)
       toast.success('Kata sandi role demo berhasil diperbarui.')
       setPasswordOpen(false)
     } catch (error) {
@@ -293,6 +318,31 @@ export function Topbar({
                 </ul>
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">Belum ada notifikasi untuk akun ini.</p>
+              )}
+              {notifications.length > 0 && notificationMoreError && (
+                <div className="flex flex-col gap-2 py-3" role="alert">
+                  <p className="text-sm text-destructive">{notificationMoreError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="action"
+                    onClick={() => void loadNotifications(notificationPage + 1, true)}
+                  >
+                    Coba lagi
+                  </Button>
+                </div>
+              )}
+              {notifications.length > 0 && notificationHasMore && !notificationMoreError && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="action"
+                  disabled={notificationMoreLoading}
+                  onClick={() => void loadNotifications(notificationPage + 1, true)}
+                  className="mt-3 self-center"
+                >
+                  {notificationMoreLoading ? 'Memuat…' : 'Muat lebih banyak'}
+                </Button>
               )}
             </section>
           )}

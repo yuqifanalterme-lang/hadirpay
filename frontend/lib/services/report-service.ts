@@ -29,8 +29,9 @@ export type ReportDataset = {
   rows: ReportRow[]
   metrics: ReportMetric[]
   chartTitle: string
-  chart: { label: string; value: number }[]
+  chart: { label: string; value?: number; valueA?: number; valueB?: number }[]
   emptyDescription: string
+  pagination?: { page: number; per_page: number; total: number; total_pages: number }
 }
 
 export const reportOptions = reportCatalog

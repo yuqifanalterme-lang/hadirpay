@@ -11,8 +11,8 @@ import { PageLoadingSkeleton } from "@/components/ui/page-loading-skeleton";
 import { AccountingAccess, AccountingPageTitle } from "./accounting-shared";
 import { useAccountingRole } from "@/lib/hooks/use-accounting-role";
 import { formatRupiah } from "@/lib/mock-data";
-import type { TrialBalanceReport } from "@/lib/services/accounting-service";
-import { getTrialBalance } from "@/lib/services/accounting-service";
+import type { TrialBalanceReport } from "@/lib/services/akuntansi.service";
+import { getTrialBalance } from "@/lib/services/akuntansi.service";
 
 export function TrialBalancePage() {
   const role = useAccountingRole();

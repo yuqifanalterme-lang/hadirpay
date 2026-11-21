@@ -1,4 +1,4 @@
-export const attendanceStatuses = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha'] as const
+export const attendanceStatuses = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Dinas Luar'] as const
 
 export type EmployeeAttendanceStatus = (typeof attendanceStatuses)[number]
 
@@ -7,7 +7,7 @@ export type EmployeeAttendanceRecord = {
   checkIn: string | null
   checkOut: string | null
   status: EmployeeAttendanceStatus
-  isMock: true
+  isMock: boolean
 }
 
 export type AttendanceCorrection = {
@@ -21,7 +21,7 @@ export type AttendanceCorrection = {
   status: 'Menunggu' | 'Disetujui' | 'Ditolak'
   approvedBy?: string
   rejectionReason?: string
-  isMock: true
+  isMock: boolean
 }
 
 export const mockEmployeeAttendance: EmployeeAttendanceRecord[] = [

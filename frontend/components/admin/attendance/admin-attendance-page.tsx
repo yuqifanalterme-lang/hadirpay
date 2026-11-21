@@ -22,19 +22,49 @@ import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { SelectField } from '@/components/ui/select-field'
+import { TextField } from '@/components/auth/fields'
 import { adminAttendanceDemoDate } from '@/lib/mock/admin-attendance'
-import { mockDepartments } from '@/lib/mock/master-data'
+import type { MasterRecord } from '@/lib/mock/master-data'
 import type { ApprovalRequest } from '@/lib/mock/requests'
 import type { EmployeeAttendanceStatus } from '@/lib/mock/attendance'
 import { formatTanggal } from '@/lib/format'
-import { decideRequest, listRequests } from '@/lib/services/request-service'
+import { config } from '@/lib/config'
+import type { AbsensiAdminQuery } from '@/lib/types/absensi'
+import { listMasterRecords } from '@/lib/services/karyawan.service'
+import { decideRequest, listRequests } from '@/lib/services/pengajuan.service'
 import {
+  exportAdminAttendance,
+  getAttendanceToday,
   listAdminDailyAttendance,
   type AdminDailyAttendanceRow,
-} from '@/lib/services/admin-attendance-service'
+} from '@/lib/services/absensi.service'
 
 const adminName = 'Rina Kartika (HRD)'
-const attendanceStatuses: EmployeeAttendanceStatus[] = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha']
+const attendanceStatuses: EmployeeAttendanceStatus[] = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Dinas Luar']
+const statusToApi: Record<EmployeeAttendanceStatus, NonNullable<AbsensiAdminQuery['status']>> = {
+  Hadir: 'hadir',
+  Terlambat: 'terlambat',
+  Izin: 'izin',
+  Sakit: 'sakit',
+  Cuti: 'cuti',
+  Alpha: 'alpha',
+  'Dinas Luar': 'dinas_luar',
+}
+const pageSize = 20
+
+function departmentIdForName(departments: MasterRecord[], name: string) {
+  if (name === 'Semua') return undefined
+  const parsed = Number(departments.find((item) => item.name === name)?.id)
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new Error(`ID departemen untuk "${name}" tidak valid.`)
+  }
+  return parsed
+}
+
+function selectedStatus(value: string) {
+  const status = attendanceStatuses.find((item) => item === value)
+  return status ? statusToApi[status] : undefined
+}
 
 function formatDuration(minutes: number | null) {
   if (minutes === null) return '-'
@@ -58,11 +88,16 @@ function formatDate(date: string) {
 
 export function AdminAttendancePage() {
   const [records, setRecords] = useState<AdminDailyAttendanceRow[]>([])
+  const [departments, setDepartments] = useState<MasterRecord[]>([])
   const [corrections, setCorrections] = useState<ApprovalRequest[]>([])
   const [selectedCorrection, setSelectedCorrection] = useState<ApprovalRequest | null>(null)
-  const [date, setDate] = useState(adminAttendanceDemoDate)
+  const [date, setDate] = useState(config.mock.absensi ? adminAttendanceDemoDate : '')
   const [department, setDepartment] = useState('Semua')
   const [status, setStatus] = useState('Semua')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [meta, setMeta] = useState<{ total: number; total_pages: number } | null>(null)
   const [rejectMode, setRejectMode] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [loading, setLoading] = useState(true)
@@ -73,11 +108,31 @@ export function AdminAttendancePage() {
     setLoading(true)
     setLoadError('')
     try {
-      const [dailyRecords, requests] = await Promise.all([
-        listAdminDailyAttendance(date),
-        listRequests(),
+      if (!date) {
+        if (config.mock.absensi) {
+          setDate(adminAttendanceDemoDate)
+          return
+        }
+        const today = await getAttendanceToday()
+        if (!today) throw new Error('Tanggal hari ini tidak tersedia dari server absensi.')
+        setDate(today.date)
+        return
+      }
+      const departmentData = await listMasterRecords('departemen')
+      const [attendancePage, requests] = await Promise.all([
+        listAdminDailyAttendance({
+          tanggal: date,
+          departemen_id: departmentIdForName(departmentData, department),
+          status: selectedStatus(status),
+          search: debouncedSearch.trim() || undefined,
+          page,
+          per_page: pageSize,
+        }),
+        listRequests({ jenis: 'koreksi_absensi', page: 1, per_page: 100 }),
       ])
-      setRecords(dailyRecords)
+      setDepartments(departmentData)
+      setRecords(attendancePage.items)
+      setMeta(attendancePage.meta ? { total: attendancePage.meta.total, total_pages: attendancePage.meta.total_pages } : null)
       setCorrections(requests.filter((request) => request.type === 'Koreksi Absensi'))
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Data kehadiran gagal dimuat.')
@@ -88,21 +143,54 @@ export function AdminAttendancePage() {
 
   useEffect(() => {
     void load()
-  }, [date])
+  }, [date, department, status, debouncedSearch, page])
 
-  const filteredRecords = useMemo(
-    () => records.filter((record) =>
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
+  const filteredRecords = useMemo(() => {
+    if (!config.mock.absensi) return records
+    const query = search.trim().toLocaleLowerCase('id-ID')
+    return records.filter((record) =>
       (department === 'Semua' || record.department === department) &&
-      (status === 'Semua' || record.status === status),
-    ),
-    [department, records, status],
-  )
+      (status === 'Semua' || record.status === status) &&
+      (!query || `${record.name} ${record.employeeId} ${record.department}`.toLocaleLowerCase('id-ID').includes(query)),
+    )
+  }, [department, records, search, status])
+  const pageCount = config.mock.absensi
+    ? Math.max(1, Math.ceil(filteredRecords.length / pageSize))
+    : meta?.total_pages ?? 1
+  const visibleRecords = config.mock.absensi
+    ? filteredRecords.slice((page - 1) * pageSize, page * pageSize)
+    : filteredRecords
 
   const pendingCorrections = corrections.filter((request) => request.status === 'Menunggu persetujuan')
 
-  function exportCsv() {
-    if (filteredRecords.length === 0) {
+  async function exportCsv() {
+    if (config.mock.absensi && filteredRecords.length === 0) {
       toast.error('Tidak ada data untuk diekspor.')
+      return
+    }
+    if (!config.mock.absensi) {
+      try {
+        const blob = await exportAdminAttendance({
+          tanggal: date,
+          departemen_id: departmentIdForName(departments, department),
+          status: selectedStatus(status),
+          search: debouncedSearch.trim() || undefined,
+        })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `kehadiran-${date}.csv`
+        anchor.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+        toast.success('Data kehadiran berhasil diekspor.')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Ekspor data kehadiran gagal.')
+      }
       return
     }
     const header = ['Tanggal', 'ID karyawan', 'Karyawan', 'Divisi', 'Masuk', 'Pulang', 'Durasi', 'Status', 'Lokasi']
@@ -195,7 +283,10 @@ export function AdminAttendancePage() {
               required
               value={date}
               onChange={(event) => {
-                if (event.target.value) setDate(event.target.value)
+                if (event.target.value) {
+                  setDate(event.target.value)
+                  setPage(1)
+                }
               }}
               className="min-h-12 rounded-xl border border-border bg-white px-3 text-sm text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
             />
@@ -203,16 +294,31 @@ export function AdminAttendancePage() {
           <SelectField
             label="Divisi"
             value={department}
-            onChange={setDepartment}
-            options={['Semua', ...mockDepartments.map((item) => item.name)]}
+            onChange={(value) => {
+              setDepartment(value || 'Semua')
+              setPage(1)
+            }}
+            options={['Semua', ...departments.map((item) => item.name)]}
             placeholder="Pilih divisi"
           />
           <SelectField
             label="Status"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => {
+              setStatus(value || 'Semua')
+              setPage(1)
+            }}
             options={['Semua', ...attendanceStatuses]}
             placeholder="Pilih status"
+          />
+          <TextField
+            label="Cari karyawan"
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
           />
           <div className="flex items-end text-sm text-muted-foreground">
             <p aria-live="polite">{filteredRecords.length} karyawan ditampilkan</p>
@@ -246,7 +352,7 @@ export function AdminAttendancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredRecords.map((record) => (
+                  {visibleRecords.map((record) => (
                     <tr key={record.employeeId} className="hover:bg-surface/70">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -261,7 +367,11 @@ export function AdminAttendancePage() {
                       <td className="px-4 py-3 tabular-nums">{record.checkIn ?? '-'}</td>
                       <td className="px-4 py-3 tabular-nums">{record.checkOut ?? '-'}</td>
                       <td className="px-4 py-3">{formatDuration(record.durationMinutes)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
+                      <td className="px-4 py-3">
+                        {record.status
+                          ? <StatusBadge status={record.status} />
+                          : <span className="text-muted-foreground" role="status">Belum absen</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-1.5">
                           {record.location && <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
@@ -274,14 +384,18 @@ export function AdminAttendancePage() {
               </table>
             </div>
             <ul className="flex flex-col gap-3 xl:hidden" aria-label="Daftar kehadiran karyawan">
-              {filteredRecords.map((record) => (
+              {visibleRecords.map((record) => (
                 <li key={record.employeeId} className="rounded-xl border border-border bg-white p-4">
                   <div className="flex items-start gap-3">
                     <Avatar initials={record.initials} tone="outlined" />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-heading">{record.name}</p>
                       <p className="text-sm text-muted-foreground">{record.employeeId} · {record.department}</p>
-                      <div className="mt-3"><StatusBadge status={record.status} /></div>
+                      <div className="mt-3">
+                        {record.status
+                          ? <StatusBadge status={record.status} />
+                          : <span className="text-sm text-muted-foreground" role="status">Belum absen</span>}
+                      </div>
                     </div>
                   </div>
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -294,6 +408,19 @@ export function AdminAttendancePage() {
               ))}
             </ul>
           </>
+        )}
+        {pageCount > 1 && (
+          <div className="flex items-center justify-between border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Halaman {page} dari {pageCount}</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="action" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
+                Sebelumnya
+              </Button>
+              <Button type="button" variant="outline" size="action" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>
+                Berikutnya
+              </Button>
+            </div>
+          </div>
         )}
       </Panel>
 

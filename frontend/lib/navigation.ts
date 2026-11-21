@@ -147,7 +147,7 @@ export function canRoleAccessPath(role: Role, pathname: string) {
   if (pathname === '/app/pengajuan') return role === 'admin' || role === 'karyawan'
   if (pathname === '/app/pengaturan' || pathname === '/app/penggajian/komponen') return role === 'admin'
   if (pathname === '/app/penggajian/proses' || pathname === '/app/slip-gaji') {
-    return role === 'admin' || role === 'keuangan'
+    return role === 'admin' || role === 'karyawan' || role === 'keuangan'
   }
 
   const isRegisteredRoute = Object.values(navByRole).flat().some((item) =>

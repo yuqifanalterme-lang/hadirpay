@@ -12,6 +12,7 @@ function isDemoSettings(value: unknown): value is DemoSettings {
     settings.company &&
     typeof settings.company.name === 'string' &&
     typeof settings.company.address === 'string' &&
+    (settings.company.npwp === undefined || typeof settings.company.npwp === 'string') &&
     (settings.company.logoDataUrl === undefined || typeof settings.company.logoDataUrl === 'string') &&
     settings.workSchedule &&
     typeof settings.workSchedule.startTime === 'string' &&
@@ -19,10 +20,16 @@ function isDemoSettings(value: unknown): value is DemoSettings {
     typeof settings.workSchedule.lateToleranceMinutes === 'number' &&
     Array.isArray(settings.workSchedule.workDays) &&
     Array.isArray(settings.workSchedule.holidays) &&
+    (settings.workSchedule.annualLeaveQuota === undefined ||
+      typeof settings.workSchedule.annualLeaveQuota === 'number') &&
     settings.payrollPolicy &&
     (settings.payrollPolicy.absenceDeductionMethod === 'per_day' ||
       settings.payrollPolicy.absenceDeductionMethod === 'fixed') &&
     typeof settings.payrollPolicy.absenceDeductionAmount === 'number' &&
+    (settings.payrollPolicy.workDayDivisor === undefined ||
+      typeof settings.payrollPolicy.workDayDivisor === 'string') &&
+    (settings.payrollPolicy.deductPermitWithoutLetter === undefined ||
+      typeof settings.payrollPolicy.deductPermitWithoutLetter === 'boolean') &&
     typeof settings.payrollPolicy.overtimeRatePerHour === 'number' &&
     typeof settings.payrollPolicy.cutoffDay === 'number' &&
     Array.isArray(settings.users) &&
@@ -58,7 +65,14 @@ function readSettings(): DemoSettings {
   if (!isDemoSettings(parsed)) {
     throw new Error('Format pengaturan demo tidak valid. Periksa atau bersihkan data demo sebelum melanjutkan.')
   }
-  return parsed
+  const defaults = copyDefaults()
+  return {
+    ...defaults,
+    ...parsed,
+    company: { ...defaults.company, ...parsed.company },
+    workSchedule: { ...defaults.workSchedule, ...parsed.workSchedule },
+    payrollPolicy: { ...defaults.payrollPolicy, ...parsed.payrollPolicy },
+  }
 }
 
 function validateSettings(settings: DemoSettings) {
@@ -73,6 +87,14 @@ function validateSettings(settings: DemoSettings) {
       settings.workSchedule.lateToleranceMinutes < 0 ||
       settings.workSchedule.lateToleranceMinutes > 180) {
     throw new Error('Toleransi keterlambatan harus antara 0 sampai 180 menit.')
+  }
+  if (!Number.isInteger(settings.workSchedule.annualLeaveQuota) ||
+      settings.workSchedule.annualLeaveQuota < 0) {
+    throw new Error('Kuota cuti tahunan harus berupa bilangan bulat yang tidak negatif.')
+  }
+  const divisor = settings.payrollPolicy.workDayDivisor
+  if (divisor && (!Number.isFinite(Number(divisor)) || Number(divisor) <= 0)) {
+    throw new Error('Pembagi hari kerja harus lebih besar dari nol.')
   }
   if (settings.payrollPolicy.absenceDeductionAmount < 0 ||
       settings.payrollPolicy.overtimeRatePerHour < 0 ||

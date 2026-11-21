@@ -1,6 +1,6 @@
 import type { PayrollPeriodStatus } from './payroll'
 
-export type AccountCategory = 'Aset' | 'Liabilitas' | 'Beban'
+export type AccountCategory = 'Aset' | 'Liabilitas' | 'Ekuitas' | 'Pendapatan' | 'Beban'
 export type NormalBalance = 'Debit' | 'Kredit'
 export type JournalType = 'Otomatis' | 'Manual'
 
@@ -9,7 +9,9 @@ export type AccountingAccount = {
   name: string
   category: AccountCategory
   normalBalance: NormalBalance
-  isMock: true
+  id?: string
+  active?: boolean
+  isMock: boolean
 }
 
 export type JournalLine = {
@@ -27,13 +29,16 @@ export type JournalEntry = {
   type: JournalType
   sourcePeriodId: string | null
   sourcePeriodLabel: string | null
+  totalDebit?: number
+  totalCredit?: number
   lines: JournalLine[]
-  isMock: true
+  isMock: boolean
 }
 
 export type AccountingState = {
   payrollStatus: PayrollPeriodStatus
   entries: JournalEntry[]
+  accounts?: AccountingAccount[]
 }
 
 export const mockAccounts: AccountingAccount[] = [
@@ -47,4 +52,5 @@ export const mockAccounts: AccountingAccount[] = [
 export const mockAccountingState: AccountingState = {
   payrollStatus: 'Draft',
   entries: [],
+  accounts: mockAccounts,
 }

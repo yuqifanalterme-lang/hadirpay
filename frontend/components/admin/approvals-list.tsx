@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/empty-state";
 import type { ApprovalRequest } from "@/lib/mock/requests";
-import { decideRequest, listRequests } from "@/lib/services/request-service";
+import { decideRequest, listRequests } from "@/lib/services/pengajuan.service";
 
 export function ApprovalsList() {
   const [items, setItems] = useState<ApprovalRequest[]>([]);

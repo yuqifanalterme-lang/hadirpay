@@ -12,7 +12,7 @@ export type AdminDailyAttendanceRow = AdminDailyAttendance & {
   position: string
   department: string
   durationMinutes: number | null
-  isMock: true
+  isMock: boolean
 }
 
 export type MonthlyAttendanceSummaryRow = MonthlyAttendanceSummary & {
@@ -20,7 +20,7 @@ export type MonthlyAttendanceSummaryRow = MonthlyAttendanceSummary & {
   initials: string
   position: string
   department: string
-  isMock: true
+  isMock: boolean
 }
 
 function toMinutes(time: string) {

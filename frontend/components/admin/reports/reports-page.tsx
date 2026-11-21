@@ -18,6 +18,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -35,14 +36,16 @@ import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import { formatRupiah } from '@/lib/mock-data'
 import type { ReportId } from '@/lib/mock/reports'
 import type { ReportDataset, ReportRow } from '@/lib/services/report-service'
+import type { ReportQuery } from '@/lib/services/laporan.service'
 import {
   getReportDataset,
   listReportCatalog,
   reportDepartmentOptions,
   reportOptions,
-} from '@/lib/services/report-service'
+} from '@/lib/services/laporan.service'
 
 const initialPeriod = '2026-11'
+const reportPageSize = 20
 
 const reportIcons = {
   kehadiran: CalendarCheck2,
@@ -189,7 +192,13 @@ export function ReportsIndexPage() {
 export function ReportDetailPage({ reportId }: { reportId: string }) {
   const role = useAccountingRole()
   const [period, setPeriod] = useState(initialPeriod)
+  const [filterMode, setFilterMode] = useState<'periode' | 'rentang_periode' | 'rentang_tanggal'>('periode')
+  const [periodFrom, setPeriodFrom] = useState(initialPeriod)
+  const [periodTo, setPeriodTo] = useState(initialPeriod)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [department, setDepartment] = useState('Semua departemen')
+  const [page, setPage] = useState(1)
   const [dataset, setDataset] = useState<ReportDataset | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -204,9 +213,26 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
     let active = true
     setLoading(true)
     setError('')
-    getReportDataset(reportKey, period, department)
+    const query: ReportQuery = {
+      ...(filterMode === 'periode' ? { periode: period || undefined } : {}),
+      ...(filterMode === 'rentang_periode'
+        ? { periode_dari: periodFrom || undefined, periode_sampai: periodTo || undefined }
+        : {}),
+      ...(filterMode === 'rentang_tanggal'
+        ? { tanggal_dari: dateFrom || undefined, tanggal_sampai: dateTo || undefined }
+        : {}),
+      page,
+      per_page: reportPageSize,
+    }
+    getReportDataset(reportKey, query, department)
       .then((result) => {
-        if (active) setDataset(result)
+        if (!active) return
+        const totalPages = Math.max(1, result.pagination?.total_pages ?? 1)
+        if (page > totalPages) {
+          setPage(totalPages)
+          return
+        }
+        setDataset(result)
       })
       .catch((loadError: unknown) => {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Laporan gagal dimuat.')
@@ -217,10 +243,20 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
     return () => {
       active = false
     }
-  }, [reportKey, period, department, retry])
+  }, [reportKey, filterMode, period, periodFrom, periodTo, dateFrom, dateTo, department, page, retry])
 
   const title = reportOptions.find((report) => report.id === reportId)?.title ?? 'Laporan'
   const chartData = useMemo(() => dataset?.chart ?? [], [dataset])
+  const chartValues = chartData.flatMap((point) =>
+    [point.value, point.valueA, point.valueB].filter((value): value is number => typeof value === 'number'),
+  )
+  const hasTwoSeries = chartData.some((point) => point.valueA !== undefined || point.valueB !== undefined)
+  const filterLabel = filterMode === 'periode'
+    ? period
+    : filterMode === 'rentang_periode'
+      ? `${periodFrom} s.d. ${periodTo}`
+      : `${dateFrom || '...'} s.d. ${dateTo || '...'}`
+  const pageCount = Math.max(1, dataset?.pagination?.total_pages ?? 1)
 
   if (!reportKey) {
     return (
@@ -248,7 +284,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           <div>
             <h2 className="text-xl font-bold text-heading">{dataset.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{dataset.description}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Periode {period} · {department}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Periode {filterLabel} · {department}</p>
           </div>
           <div className="report-print-hide flex flex-wrap gap-3">
             <Link href="/app/laporan" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
@@ -256,7 +292,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
             </Link>
             <Button type="button" variant="outline" size="action" onClick={() => {
               try {
-                exportCsv(dataset, period)
+                exportCsv(dataset, filterLabel.replaceAll(' ', '-'))
                 toast.success('File CSV berhasil disiapkan untuk Excel.')
               } catch (exportError) {
                 toast.error(exportError instanceof Error ? exportError.message : 'Ekspor CSV gagal.')
@@ -268,21 +304,62 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           </div>
         </div>
 
-        <div className="report-print-hide grid gap-4 sm:grid-cols-2">
+        <div className="report-print-hide grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
-            Periode
-            <input
-              type="month"
-              value={period}
-              onChange={(event) => setPeriod(event.target.value)}
+            Jenis periode
+            <select
+              value={filterMode}
+              onChange={(event) => {
+                setFilterMode(event.target.value as typeof filterMode)
+                setPage(1)
+              }}
               className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-            />
+            >
+              <option value="periode">Periode</option>
+              <option value="rentang_periode">Rentang periode</option>
+              <option value="rentang_tanggal">Rentang tanggal</option>
+            </select>
           </label>
+          {filterMode === 'periode' && (
+            <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+              Periode
+              <input
+                type="month"
+                value={period}
+                onChange={(event) => { setPeriod(event.target.value); setPage(1) }}
+                className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              />
+            </label>
+          )}
+          {filterMode === 'rentang_periode' && (
+            <>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Periode dari
+                <input type="month" value={periodFrom} onChange={(event) => { setPeriodFrom(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Periode sampai
+                <input type="month" value={periodTo} onChange={(event) => { setPeriodTo(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+              </label>
+            </>
+          )}
+          {filterMode === 'rentang_tanggal' && (
+            <>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Tanggal dari
+                <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Tanggal sampai
+                <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+              </label>
+            </>
+          )}
           <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
             Departemen
             <select
               value={department}
-              onChange={(event) => setDepartment(event.target.value)}
+              onChange={(event) => { setDepartment(event.target.value); setPage(1) }}
               className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
             >
               <option>Semua departemen</option>
@@ -308,7 +385,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
                   <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
                   <YAxis
-                    domain={chartData.some((point) => point.value >= 1_000_000)
+                    domain={chartValues.some((value) => value >= 1_000_000)
                       ? ['dataMin - 1000000', 'dataMax + 1000000']
                       : [0, 'auto']}
                     tickLine={false}
@@ -318,10 +395,21 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
                     width={48}
                   />
                   <Tooltip
-                    formatter={(value) => [typeof value === 'number' && value >= 1_000_000 ? formatRupiah(value) : value, 'Nilai']}
+                    formatter={(value, name) => [
+                      typeof value === 'number' && value >= 1_000_000 ? formatRupiah(value) : value,
+                      name === 'valueA' ? 'Nilai A' : name === 'valueB' ? 'Nilai B' : 'Nilai',
+                    ]}
                     contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', fontSize: 13 }}
                   />
-                  <Bar dataKey="value" fill="var(--primary)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                  {hasTwoSeries ? (
+                    <>
+                      <Legend />
+                      <Bar dataKey="valueA" name="Nilai A" fill="var(--primary)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                      <Bar dataKey="valueB" name="Nilai B" fill="var(--success)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                    </>
+                  ) : (
+                    <Bar dataKey="value" fill="var(--primary)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -330,11 +418,11 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           )}
         </Panel>
 
-        <Panel className="min-w-0" title="Rincian laporan" description={`${dataset.rows.length} baris data untuk periode yang dipilih.`}>
+        <Panel className="min-w-0" title="Rincian laporan" description={`${dataset.pagination?.total ?? dataset.rows.length} baris data untuk filter yang dipilih.`}>
           {dataAvailable && dataset.columns.length ? (
             <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
-                <caption className="sr-only">{dataset.title}, periode {period}</caption>
+                <caption className="sr-only">{dataset.title}, periode {filterLabel}</caption>
                 <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>{dataset.columns.map((column) => <th key={column.key} scope="col" className="px-3 py-3">{column.label}</th>)}</tr>
                 </thead>
@@ -350,6 +438,15 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           ) : (
             <EmptyState title="Belum ada data pada pilihan ini" description={dataset.emptyDescription} icon={FileCheck2} />
           )}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              Halaman {page} dari {pageCount} · {dataset.pagination?.total ?? dataset.rows.length} baris
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="action" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))}>Sebelumnya</Button>
+              <Button type="button" variant="outline" size="action" disabled={page >= pageCount || loading} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>Berikutnya</Button>
+            </div>
+          </div>
         </Panel>
 
         {dataset.title === 'Beban Gaji' && (

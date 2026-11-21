@@ -7,16 +7,18 @@ export type PayrollPeriodStatus =
   | 'Dibayar'
 
 export type PayrollComponentCategory = 'pendapatan' | 'potongan'
-export type PayrollComponentMethod = 'nominal tetap' | 'persen' | 'per hari'
+export type PayrollComponentMethod = 'nominal tetap' | 'persen' | 'per hari' | 'per jam' | 'per menit'
 
 export type PayrollComponent = {
   id: string
+  code?: string
   name: string
   category: PayrollComponentCategory
   method: PayrollComponentMethod
-  amount: number
+  amount: number | null
+  description?: string | null
   active: boolean
-  isMock: true
+  isMock: boolean
 }
 
 export type PayrollPeriod = {
@@ -27,7 +29,7 @@ export type PayrollPeriod = {
   employeeCount: number
   totalNetPay: number
   status: PayrollPeriodStatus
-  isMock: true
+  isMock: boolean
 }
 
 export type PayrollBreakdownItem = {
@@ -46,6 +48,7 @@ export type PayrollLine = {
   baseSalary: number
   fixedAllowance: number
   overtimePay: number
+  totalEarnings?: number
   totalDeductions: number
   netPay: number
   workDays: number
@@ -60,7 +63,7 @@ export type PayrollLine = {
     bpjs: number
   }
   isAggregate: boolean
-  isMock: true
+  isMock: boolean
 }
 
 export const payrollPeriodId = '2026-11'

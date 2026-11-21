@@ -19,9 +19,10 @@ import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { formatRupiah } from '@/lib/mock-data'
-import { getOwnerDashboardData } from '@/lib/services/report-service'
+import { getOwnerDashboardView } from '@/lib/services/dashboard.service'
+import { config } from '@/lib/config'
 
-type OwnerData = Awaited<ReturnType<typeof getOwnerDashboardData>>
+type OwnerData = Awaited<ReturnType<typeof getOwnerDashboardView>>
 
 export function OwnerDashboard() {
   const [data, setData] = useState<OwnerData | null>(null)
@@ -33,7 +34,7 @@ export function OwnerDashboard() {
     let active = true
     setLoading(true)
     setError('')
-    getOwnerDashboardData()
+    getOwnerDashboardView()
       .then((result) => {
         if (active) setData(result)
       })
@@ -54,14 +55,16 @@ export function OwnerDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Ringkasan ini memakai data demo. Total November mengikuti nilai penggajian Rp186.450.000; riwayat enam bulan dan rincian departemen adalah contoh.
-      </DemoDataNotice>
+      {config.useMock && (
+        <DemoDataNotice>
+          Ringkasan ini memakai data demo. Total November mengikuti nilai penggajian Rp186.450.000; riwayat enam bulan dan rincian departemen adalah contoh.
+        </DemoDataNotice>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-heading">Ringkasan Pemilik</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Biaya gaji, kehadiran, dan keterlambatan periode November 2026.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Biaya gaji, kehadiran, dan keterlambatan.</p>
         </div>
         <Link href="/app/laporan" className={buttonVariants({ variant: 'primary', size: 'action' })}>
           Buka laporan
@@ -70,12 +73,12 @@ export function OwnerDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Total biaya gaji" value={formatRupiah(data.payrollTotal)} hint="Periode November 2026" icon={Wallet} highlight />
-        <StatCard label="Karyawan" value={String(data.employeeCount)} hint="Termasuk agregat data demo" icon={Users} tone="blue" />
-        <StatCard label="Status penggajian" value={data.payrollStatus} hint="Periode November 2026" icon={Clock3} tone="amber" />
+        <StatCard label="Total biaya gaji" value={formatRupiah(data.payrollTotal)} hint={config.useMock ? 'Periode November 2026' : 'Periode berjalan'} icon={Wallet} highlight />
+        {data.employeeCount !== null && <StatCard label="Karyawan" value={String(data.employeeCount)} hint="Termasuk agregat data demo" icon={Users} tone="blue" />}
+        {data.payrollStatus !== null && <StatCard label="Status penggajian" value={data.payrollStatus} hint="Periode November 2026" icon={Clock3} tone="amber" />}
       </div>
 
-      <Panel className="min-w-0" title="Tren beban gaji" description="Enam bulan terakhir. Riwayat sebelum November merupakan data contoh.">
+      <Panel className="min-w-0" title="Tren beban gaji" description="Data beban gaji dari periode yang tersedia.">
         {data.payrollTrend.length ? (
           <div className="h-72 min-w-0" role="img" aria-label="Grafik tren beban gaji enam bulan">
             <ResponsiveContainer width="100%" height="100%">
@@ -104,17 +107,29 @@ export function OwnerDashboard() {
       </Panel>
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-2">
-        <Panel className="min-w-0" title="Kehadiran per departemen" description="Jumlah hadir dan terlambat pada 17 Nov 2026, data contoh.">
+        <Panel className="min-w-0" title="Kehadiran per departemen" description={config.useMock ? 'Jumlah hadir dan terlambat pada 17 Nov 2026, data contoh.' : 'Persentase hadir dari respons dashboard.'}>
           {data.attendanceByDepartment.length ? (
             <div className="h-72 min-w-0" role="img" aria-label="Grafik kehadiran per departemen">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.attendanceByDepartment} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} />
                   <XAxis dataKey="department" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} allowDecimals={false} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
+                    allowDecimals={false}
+                    domain={config.useMock ? ['auto', 'auto'] : [0, 100]}
+                  />
                   <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', fontSize: 13 }} />
-                  <Bar dataKey="present" name="Hadir" fill="var(--primary)" radius={[5, 5, 0, 0]} maxBarSize={30} />
-                  <Bar dataKey="late" name="Terlambat" fill="var(--warning)" radius={[5, 5, 0, 0]} maxBarSize={30} />
+                  {config.useMock ? (
+                    <>
+                      <Bar dataKey="present" name="Hadir" fill="var(--primary)" radius={[5, 5, 0, 0]} maxBarSize={30} />
+                      <Bar dataKey="late" name="Terlambat" fill="var(--warning)" radius={[5, 5, 0, 0]} maxBarSize={30} />
+                    </>
+                  ) : (
+                    <Bar dataKey="attendancePercent" name="Hadir (%)" fill="var(--primary)" radius={[5, 5, 0, 0]} maxBarSize={30} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -125,7 +140,7 @@ export function OwnerDashboard() {
 
         <Panel
           title="Keterlambatan terbanyak"
-          description="Rekap menit dari dataset demo November 2026."
+          description="Rekap keterlambatan dari ringkasan dashboard."
           className="min-w-0"
         >
           {data.tardiness.length ? (

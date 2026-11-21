@@ -3,12 +3,14 @@ import { Avatar } from '@/components/ui/avatar'
 import type { AttendanceRow } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 
+type AttendanceTableRow = Omit<AttendanceRow, 'status'> & { status: AttendanceRow['status'] | null }
+
 export function AttendanceTable({
   rows,
   caption,
   className,
 }: {
-  rows: AttendanceRow[]
+  rows: AttendanceTableRow[]
   caption: string
   className?: string
 }) {
@@ -45,7 +47,7 @@ export function AttendanceTable({
               <td className="py-3 pr-4 tabular-nums">{row.checkIn}</td>
               <td className="py-3 pr-4 tabular-nums">{row.checkOut}</td>
               <td className="py-3">
-                <StatusBadge status={row.status} />
+                {row.status ? <StatusBadge status={row.status} /> : <span className="text-muted-foreground">-</span>}
               </td>
             </tr>
           ))}

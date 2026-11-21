@@ -7,7 +7,8 @@ import { ArrowRight, ShieldCheck, UserRound, Wallet, Building2 } from 'lucide-re
 import { PasswordField, submitClass, TextField } from './fields'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
-import { authenticateDemoRole } from '@/lib/services/auth-service'
+import { config } from '@/lib/config'
+import { loginWithCredentials } from '@/lib/services/auth.service'
 import { toast } from 'sonner'
 
 const roles: { value: Role; label: string; hint: string; email: string; icon: typeof ShieldCheck }[] = [
@@ -20,9 +21,9 @@ const roles: { value: Role; label: string; hint: string; email: string; icon: ty
 export function LoginForm() {
   const router = useRouter()
   const [role, setRole] = useState<Role>('admin')
-  const [email, setEmail] = useState(roles[0].email)
+  const [email, setEmail] = useState(config.mock.auth ? roles[0].email : '')
   const [loading, setLoading] = useState(false)
-  const [password, setPassword] = useState('demo12345')
+  const [password, setPassword] = useState(config.mock.auth ? 'demo12345' : '')
 
   function selectRole(r: (typeof roles)[number]) {
     setRole(r.value)
@@ -33,10 +34,10 @@ export function LoginForm() {
     e.preventDefault()
     setLoading(true)
     try {
-      await authenticateDemoRole(role, password)
-      localStorage.setItem(ROLE_STORAGE_KEY, role)
+      const signedInRole = await loginWithCredentials(email, password, role)
+      localStorage.setItem(ROLE_STORAGE_KEY, signedInRole)
       window.dispatchEvent(new Event('hadirpay-role-changed'))
-      router.push(role === 'karyawan' ? '/app/beranda' : '/app')
+      router.push(signedInRole === 'karyawan' ? '/app/beranda' : '/app')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Login demo gagal.')
     } finally {
@@ -46,38 +47,40 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-semibold text-heading">Masuk sebagai (mode demo)</legend>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {roles.map((r) => {
-            const active = role === r.value
-            const Icon = r.icon
-            return (
-              <label
-                key={r.value}
-                className={cn(
-                  'flex min-h-20 cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3.5 transition-colors duration-150 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20',
-                  active ? 'border-primary bg-blue-50' : 'border-border bg-white hover:border-slate-300',
-                )}
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value={r.value}
-                  checked={active}
-                  onChange={() => selectRole(r)}
-                  className="sr-only"
-                />
-                <span className="flex items-center gap-2 font-bold text-heading">
-                  <Icon className={cn('size-5', active ? 'text-primary' : 'text-muted-foreground')} aria-hidden="true" />
-                  {r.label}
-                </span>
-                <span className="text-xs text-muted-foreground">{r.hint}</span>
-              </label>
-            )
-          })}
-        </div>
-      </fieldset>
+      {config.mock.auth && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-semibold text-heading">Masuk sebagai (mode demo)</legend>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {roles.map((r) => {
+              const active = role === r.value
+              const Icon = r.icon
+              return (
+                <label
+                  key={r.value}
+                  className={cn(
+                    'flex min-h-20 cursor-pointer flex-col gap-1 rounded-2xl border-2 p-3.5 transition-colors duration-150 has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-primary/20',
+                    active ? 'border-primary bg-blue-50' : 'border-border bg-white hover:border-slate-300',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value={r.value}
+                    checked={active}
+                    onChange={() => selectRole(r)}
+                    className="sr-only"
+                  />
+                  <span className="flex items-center gap-2 font-bold text-heading">
+                    <Icon className={cn('size-5', active ? 'text-primary' : 'text-muted-foreground')} aria-hidden="true" />
+                    {r.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{r.hint}</span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
+      )}
 
       <TextField
         label="Email"

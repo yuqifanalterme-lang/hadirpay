@@ -2,6 +2,8 @@ export type AttendanceStatus =
   | 'Hadir'
   | 'Terlambat'
   | 'Alpha'
+  | 'Dinas Luar'
+  | 'Sakit'
   | 'Izin'
   | 'Cuti'
   | 'Disetujui'

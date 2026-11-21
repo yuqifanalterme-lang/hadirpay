@@ -1,25 +1,47 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Users } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { SelectField } from '@/components/ui/select-field'
 import { TextField } from '@/components/auth/fields'
+import { toast } from 'sonner'
+import { config } from '@/lib/config'
 import type { Employee } from '@/lib/mock/employees'
 import type { MasterRecord } from '@/lib/mock/master-data'
+import type { KaryawanListQuery } from '@/lib/types/karyawan'
 import { formatRupiah } from '@/lib/mock-data'
-import { listEmployees } from '@/lib/services/employee-service'
-import { listMasterRecords } from '@/lib/services/master-data-service'
+import { listEmployeesPage, listMasterRecords, setEmployeeStatus } from '@/lib/services/karyawan.service'
 import { EmployeeFormDialog } from './employee-form-dialog'
 
 type SortKey = 'id' | 'name' | 'position' | 'department' | 'baseSalary' | 'status'
+const pageSize = 5
+
+const sortFields: Record<SortKey, NonNullable<KaryawanListQuery['sort']>> = {
+  id: 'kode',
+  name: 'nama',
+  position: 'jabatan_id',
+  department: 'departemen_id',
+  baseSalary: 'gaji_pokok',
+  status: 'status',
+}
+
+function selectedMasterId(records: MasterRecord[], name: string): number {
+  const record = records.find((item) => item.name === name)
+  const id = Number(record?.id)
+  if (!Number.isSafeInteger(id) || id < 1) {
+    throw new Error(`ID data untuk "${name}" tidak valid.`)
+  }
+  return id
+}
 
 export function EmployeeList() {
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -28,51 +50,87 @@ export function EmployeeList() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [department, setDepartment] = useState('')
   const [position, setPosition] = useState('')
   const [status, setStatus] = useState('')
+  const [payrollType, setPayrollType] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const [apiMeta, setApiMeta] = useState<{ total: number; total_pages: number } | null>(null)
   const [formEmployee, setFormEmployee] = useState<Employee | null | undefined>(undefined)
+  const [statusEmployee, setStatusEmployee] = useState<Employee | null>(null)
+  const [statusSaving, setStatusSaving] = useState(false)
+  const requestId = useRef(0)
 
-  async function load() {
+  const load = useCallback(async () => {
+    const currentRequestId = ++requestId.current
     setLoading(true)
     setLoadError('')
     try {
-      const [employeeData, departmentData, positionData] = await Promise.all([
-        listEmployees(),
+      const [departmentData, positionData] = await Promise.all([
         listMasterRecords('departemen'),
         listMasterRecords('jabatan'),
       ])
-      setEmployees(employeeData)
+      const query: KaryawanListQuery = config.mock.karyawan
+        ? {}
+        : {
+            search: debouncedSearch.trim() || undefined,
+            departemen_id: department
+              ? selectedMasterId(departmentData, department)
+              : undefined,
+            jabatan_id: position
+              ? selectedMasterId(positionData, position)
+              : undefined,
+            status: status === 'Aktif' ? 'aktif' : status === 'Nonaktif' ? 'nonaktif' : undefined,
+            jenis_penggajian: payrollType === 'bulanan' || payrollType === 'harian' ? payrollType : undefined,
+            page,
+            per_page: pageSize,
+            sort: sortFields[sortKey],
+            order: sortDirection,
+          }
+      const employeePage = await listEmployeesPage(query)
+      if (currentRequestId !== requestId.current) return
+      setEmployees(employeePage.items)
+      setApiMeta(employeePage.meta ?? null)
       setDepartments(departmentData)
       setPositions(positionData)
     } catch (error) {
+      if (currentRequestId !== requestId.current) return
       setLoadError(error instanceof Error ? error.message : 'Data karyawan gagal dimuat.')
     } finally {
-      setLoading(false)
+      if (currentRequestId === requestId.current) setLoading(false)
     }
-  }
+  }, [debouncedSearch, department, page, payrollType, position, sortDirection, sortKey, status])
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timeout)
+  }, [search])
 
   const filtered = useMemo(() => {
+    if (!config.mock.karyawan) return employees
     const query = search.trim().toLocaleLowerCase('id-ID')
     return employees
       .filter((employee) => {
         const matchesSearch =
           !query ||
-          [employee.id, employee.name, employee.position, employee.department].some((value) =>
+          [employee.code, employee.id, employee.name, employee.position, employee.department]
+            .filter((value): value is string => value !== undefined)
+            .some((value) =>
             value.toLocaleLowerCase('id-ID').includes(query),
           )
         return (
           matchesSearch &&
           (!department || employee.department === department) &&
           (!position || employee.position === position) &&
-          (!status || employee.status === status)
+          (!status || employee.status === status) &&
+          (!payrollType || employee.payrollType === payrollType)
         )
       })
       .sort((a, b) => {
@@ -84,21 +142,22 @@ export function EmployeeList() {
             : String(left).localeCompare(String(right), 'id-ID')
         return sortDirection === 'asc' ? comparison : -comparison
       })
-  }, [department, employees, position, search, sortDirection, sortKey, status])
+  }, [department, employees, payrollType, position, search, sortDirection, sortKey, status])
 
-  useEffect(() => {
-    setPage(1)
-  }, [department, position, search, status, sortDirection, sortKey])
-
-  const pageSize = 5
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const visibleEmployees = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pageCount = config.mock.karyawan
+    ? Math.max(1, Math.ceil(filtered.length / pageSize))
+    : apiMeta?.total_pages ?? 1
+  const visibleEmployees = config.mock.karyawan
+    ? filtered.slice((page - 1) * pageSize, page * pageSize)
+    : employees
+  const totalEmployees = config.mock.karyawan ? filtered.length : apiMeta?.total ?? employees.length
 
   useEffect(() => {
     setPage((current) => Math.min(current, pageCount))
   }, [pageCount])
 
   function toggleSort(key: SortKey) {
+    setPage(1)
     if (sortKey === key) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
     else {
       setSortKey(key)
@@ -120,9 +179,26 @@ export function EmployeeList() {
     )
   }
 
-  function handleSaved(employee: Employee, previousId?: string) {
-    setEmployees((current) => [employee, ...current.filter((item) => item.id !== previousId && item.id !== employee.id)])
+  async function confirmEmployeeStatus() {
+    if (!statusEmployee || statusSaving) return
+    const employee = statusEmployee
+    const nextStatus = employee.status === 'Aktif' ? 'nonaktif' : 'aktif'
+    setStatusSaving(true)
+    try {
+      await setEmployeeStatus(employee.id, nextStatus)
+      toast.success(`Status ${employee.name} berhasil diperbarui.`)
+      setStatusEmployee(null)
+      await load()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Status karyawan gagal diperbarui.')
+    } finally {
+      setStatusSaving(false)
+    }
+  }
+
+  function handleSaved() {
     setFormEmployee(undefined)
+    void load()
   }
 
   if (loading) return <PageLoadingSkeleton label="data karyawan" />
@@ -132,7 +208,9 @@ export function EmployeeList() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <DemoDataNotice>
-          Daftar ini berisi 10 karyawan contoh untuk mode demo. Perubahan disimpan di browser ini saja.
+          {config.mock.karyawan
+            ? 'Daftar ini berisi 10 karyawan contoh untuk mode demo. Perubahan disimpan di browser ini saja.'
+            : 'Daftar ini memuat data karyawan dari layanan.'}
         </DemoDataNotice>
         <Button type="button" variant="primary" size="action" onClick={() => setFormEmployee(null)}>
           Tambah karyawan
@@ -145,28 +223,50 @@ export function EmployeeList() {
             type="search"
             placeholder="Nama, ID, jabatan, atau departemen"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
           />
           <SelectField
             label="Departemen"
             value={department}
-            onChange={setDepartment}
+            onChange={(value) => {
+              setDepartment(value)
+              setPage(1)
+            }}
             options={departments.map((item) => item.name)}
             placeholder="Semua departemen"
           />
           <SelectField
             label="Jabatan"
             value={position}
-            onChange={setPosition}
+            onChange={(value) => {
+              setPosition(value)
+              setPage(1)
+            }}
             options={positions.map((item) => item.name)}
             placeholder="Semua jabatan"
           />
           <SelectField
             label="Status"
             value={status}
-            onChange={setStatus}
+            onChange={(value) => {
+              setStatus(value)
+              setPage(1)
+            }}
             options={['Aktif', 'Nonaktif']}
             placeholder="Semua status"
+          />
+          <SelectField
+            label="Jenis penggajian"
+            value={payrollType}
+            onChange={(value) => {
+              setPayrollType(value)
+              setPage(1)
+            }}
+            options={['bulanan', 'harian']}
+            placeholder="Semua jenis"
           />
         </div>
 
@@ -192,6 +292,8 @@ export function EmployeeList() {
                   setDepartment('')
                   setPosition('')
                   setStatus('')
+                  setPayrollType('')
+                  setPage(1)
                 }}
               >
                 Hapus filter
@@ -218,7 +320,7 @@ export function EmployeeList() {
                 <tbody>
                   {visibleEmployees.map((employee) => (
                     <tr key={employee.id} className="border-b border-border/70 last:border-0">
-                      <td className="py-3 pr-4 font-medium tabular-nums">{employee.id}</td>
+                      <td className="py-3 pr-4 font-medium tabular-nums">{employee.code ?? employee.id}</td>
                       <td className="py-3 pr-4">
                         <Link href={`/app/karyawan/${encodeURIComponent(employee.id)}`} className="flex min-h-11 items-center gap-3 font-semibold text-heading hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">
                           <Avatar
@@ -254,6 +356,15 @@ export function EmployeeList() {
                             Ubah
                             <span className="sr-only">{employee.name}</span>
                           </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="action"
+                            onClick={() => setStatusEmployee(employee)}
+                          >
+                            {employee.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+                            <span className="sr-only">{employee.name}</span>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -264,7 +375,7 @@ export function EmployeeList() {
 
             <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                Menampilkan {(page - 1) * pageSize + 1} sampai {Math.min(page * pageSize, filtered.length)} dari {filtered.length} karyawan.
+                Menampilkan {totalEmployees === 0 ? 0 : (page - 1) * pageSize + 1} sampai {Math.min(page * pageSize, totalEmployees)} dari {totalEmployees} karyawan.
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -306,6 +417,31 @@ export function EmployeeList() {
         }}
         onSaved={handleSaved}
       />
+      <Dialog
+        open={statusEmployee !== null}
+        onOpenChange={(open) => {
+          if (!open && !statusSaving) setStatusEmployee(null)
+        }}
+        label="Ubah status karyawan"
+      >
+        {statusEmployee && (
+          <form onSubmit={(event) => { event.preventDefault(); void confirmEmployeeStatus() }}>
+            <DialogHeader
+              title={statusEmployee.status === 'Aktif' ? 'Nonaktifkan karyawan' : 'Aktifkan karyawan'}
+              description={statusEmployee.name}
+              onClose={() => setStatusEmployee(null)}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" size="action" disabled={statusSaving} onClick={() => setStatusEmployee(null)}>
+                Batal
+              </Button>
+              <Button type="submit" variant={statusEmployee.status === 'Aktif' ? 'dangerOutline' : 'primary'} size="action" disabled={statusSaving}>
+                {statusSaving ? 'Menyimpan…' : statusEmployee.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </Dialog>
     </div>
   )
 }

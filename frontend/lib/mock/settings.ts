@@ -7,13 +7,16 @@ export type DemoUser = {
   name: string
   email: string
   role: Role
+  active?: boolean
 }
 
 export type DemoSettings = {
   company: {
     name: string
     address: string
+    npwp: string
     logoDataUrl?: string
+    logoUrl?: string
   }
   workSchedule: {
     startTime: string
@@ -21,10 +24,14 @@ export type DemoSettings = {
     lateToleranceMinutes: number
     workDays: WorkingDay[]
     holidays: { date: string; name: string }[]
+    annualLeaveQuota: number
   }
   payrollPolicy: {
     absenceDeductionMethod: 'per_day' | 'fixed'
     absenceDeductionAmount: number
+    apiAbsenceDeductionMethod?: string
+    workDayDivisor: string
+    deductPermitWithoutLetter: boolean
     overtimeRatePerHour: number
     cutoffDay: number
   }
@@ -35,6 +42,15 @@ export type DemoSettings = {
     address: string
     radiusMeters: number
   }
+  apiAttendanceLocations?: {
+    id: string | number
+    nama: string
+    alamat: string
+    latitude: number
+    longitude: number
+    radius_meter: number
+    wajib_lokasi: boolean
+  }[]
 }
 
 export const workingDayOptions: { value: WorkingDay; label: string }[] = [
@@ -51,6 +67,7 @@ export const mockSettings: DemoSettings = {
   company: {
     name: 'HADIRPAY',
     address: 'Jakarta, Indonesia',
+    npwp: '',
   },
   workSchedule: {
     startTime: '08:00',
@@ -58,10 +75,13 @@ export const mockSettings: DemoSettings = {
     lateToleranceMinutes: 0,
     workDays: ['senin', 'selasa', 'rabu', 'kamis', 'jumat'],
     holidays: [],
+    annualLeaveQuota: 0,
   },
   payrollPolicy: {
     absenceDeductionMethod: 'per_day',
     absenceDeductionAmount: 0,
+    workDayDivisor: '',
+    deductPermitWithoutLetter: false,
     overtimeRatePerHour: 25000,
     cutoffDay: 25,
   },

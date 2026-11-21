@@ -9,8 +9,13 @@ import { Topbar } from './topbar'
 import { canRoleAccessPath, findNavItem, isRole, ROLE_STORAGE_KEY, roleChangedEvent, type Role } from '@/lib/navigation'
 import { adminUser, employeeUser } from '@/lib/mock-data'
 import type { DemoSettings } from '@/lib/mock/settings'
-import { getDemoSettings, settingsChangedEvent } from '@/lib/services/settings-service'
+import { getDemoSettings, settingsChangedEvent } from '@/lib/services/pengaturan.service'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { useAuth } from '@/lib/auth/auth-provider'
+import { config } from '@/lib/config'
+import { logout as logoutService } from '@/lib/services/auth.service'
+import { getAdminDashboard, getEmployeeDashboard } from '@/lib/services/dashboard.service'
+import { formatTanggal } from '@/lib/format'
 
 function subscribeRole(callback: () => void) {
   window.addEventListener('storage', callback)
@@ -47,32 +52,62 @@ function useIsWide() {
 }
 
 const todayLabel = 'Rabu, 18 Nov 2026'
+const serverDateFormat = new Intl.DateTimeFormat('id-ID', {
+  timeZone: 'Asia/Jakarta',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+})
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const role = useStoredRole()
+  const storedRole = useStoredRole()
+  const auth = useAuth()
+  const role = config.mock.auth ? storedRole : auth.role
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mode, setMode] = useState<CollapseMode>('auto')
   const [settings, setSettings] = useState<DemoSettings | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [topbarDate, setTopbarDate] = useState(config.mock.dashboard ? todayLabel : '')
   const isWide = useIsWide()
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
-  const canAccess = role ? canRoleAccessPath(role, pathname) : false
+  const requiredMenu = pathname.startsWith('/app/absensi') || pathname.startsWith('/app/riwayat-kehadiran')
+    ? 'absensi'
+    : pathname.startsWith('/app/pengajuan')
+      ? 'pengajuan'
+      : pathname.startsWith('/app/karyawan') || pathname.startsWith('/app/master')
+        ? 'karyawan'
+        : pathname.startsWith('/app/penggajian') || pathname.startsWith('/app/slip-gaji')
+          ? 'penggajian'
+          : pathname.startsWith('/app/akuntansi')
+            ? 'akuntansi'
+            : pathname.startsWith('/app/laporan')
+              ? 'laporan'
+              : pathname.startsWith('/app/pengaturan')
+                ? 'pengaturan'
+                : pathname === '/app' || pathname === '/app/beranda'
+                  ? 'dashboard'
+                  : null
+  const canAccess = role
+    ? canRoleAccessPath(role, pathname) &&
+      (config.mock.auth || !requiredMenu || auth.menuAccess.includes(requiredMenu))
+    : false
 
   useEffect(() => {
     setHydrated(true)
   }, [])
 
   useEffect(() => {
-    if (!hydrated) return
+    if (!hydrated || (!config.mock.auth && auth.loading)) return
     if (!role) {
       router.replace('/login')
       return
     }
     if (!canAccess) router.replace('/403')
-  }, [hydrated, role, canAccess, router])
+  }, [hydrated, role, canAccess, router, auth.loading])
 
   useEffect(() => {
     if (wasOpen.current && !drawerOpen) menuButtonRef.current?.focus()
@@ -80,6 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [drawerOpen])
 
   useEffect(() => {
+    if (!config.mock.pengaturan) return
     let active = true
     async function loadSettings() {
       try {
@@ -100,6 +136,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (config.mock.dashboard) {
+      setTopbarDate(todayLabel)
+      return
+    }
+    setTopbarDate('')
+    if (config.mock.auth || !role) return
+
+    let active = true
+    async function loadServerDate() {
+      try {
+        let label = ''
+        if (role === 'admin') {
+          const dashboard = await getAdminDashboard()
+          label = formatTanggal(dashboard.tanggal)
+        } else if (role === 'karyawan') {
+          const dashboard = await getEmployeeDashboard()
+          label = serverDateFormat.format(new Date(dashboard.server_time))
+        }
+        if (active) setTopbarDate(label)
+      } catch (error) {
+        if (active) toast.error(error instanceof Error ? error.message : 'Tanggal server gagal dimuat.')
+      }
+    }
+    void loadServerDate()
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  useEffect(() => {
     if (!drawerOpen) return
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setDrawerOpen(false)
     document.addEventListener('keydown', onKey)
@@ -111,12 +177,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [drawerOpen])
 
   function handleLogout() {
+    if (!config.mock.auth) {
+      void logoutService().catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : 'Keluar dari akun gagal.')
+      })
+    }
     localStorage.removeItem(ROLE_STORAGE_KEY)
     window.dispatchEvent(new Event(roleChangedEvent))
     router.push('/login')
   }
 
-  if (!hydrated || !role || !canAccess) {
+  if (!hydrated || (!config.mock.auth && auth.loading) || !role || !canAccess) {
     return <PageLoadingSkeleton label={!hydrated || !role ? 'sesi demo' : 'hak akses'} />
   }
 
@@ -126,13 +197,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       : role === 'karyawan' ? employeeUser.name
         : role === 'keuangan' ? 'Andi Wijaya' : 'Pemilik Demo'
   )
-  const user = {
-    name: accountName,
-    role: role === 'admin' ? 'Admin HRD'
-      : role === 'karyawan' ? 'Staf Keuangan'
-        : role === 'keuangan' ? 'Tim Keuangan' : 'Akses pemilik',
-    initials: accountName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
-  }
+  const user = config.mock.auth
+    ? {
+        name: accountName,
+        role: role === 'admin' ? 'Admin HRD'
+          : role === 'karyawan' ? 'Staf Keuangan'
+            : role === 'keuangan' ? 'Tim Keuangan' : 'Akses pemilik',
+        initials: accountName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+      }
+    : {
+        name: auth.user?.nama ?? accountName,
+        role: auth.user?.jabatan ?? accountName,
+        initials: auth.user?.inisial ?? accountName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+      }
   const title =
     pathname === '/app/penggajian/komponen'
       ? 'Komponen Gaji'
@@ -171,7 +248,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="sticky top-0 z-20 border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
             <Topbar
               title={title}
-              subtitle={todayLabel}
+              subtitle={topbarDate || undefined}
               user={user}
               role={role}
               employeeId={role === 'karyawan' ? 'HP-0001' : undefined}

@@ -5,6 +5,7 @@ export type EmployeeStatus = 'Aktif' | 'Nonaktif'
 
 export type Employee = {
   id: string
+  code?: string
   name: string
   position: string
   department: string
@@ -13,10 +14,11 @@ export type Employee = {
   baseSalary: number
   fixedAllowance: number
   npwp?: string
+  noBpjs?: string
   bpjsKesehatan?: string
   bpjsKetenagakerjaan?: string
   status: EmployeeStatus
-  isMock: true
+  isMock: boolean
 }
 
 export type AttendanceRecord = {

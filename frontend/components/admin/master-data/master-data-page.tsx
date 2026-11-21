@@ -10,6 +10,7 @@ import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { TextField } from '@/components/auth/fields'
+import { ApiError } from '@/lib/api/client'
 import type { MasterKind, MasterRecord } from '@/lib/mock/master-data'
 import type { Employee } from '@/lib/mock/employees'
 import {
@@ -17,8 +18,8 @@ import {
   deleteMasterRecord,
   listMasterRecords,
   updateMasterRecord,
-} from '@/lib/services/master-data-service'
-import { listEmployees } from '@/lib/services/employee-service'
+} from '@/lib/services/karyawan.service'
+import { listEmployees } from '@/lib/services/karyawan.service'
 
 const pageSize = 7
 
@@ -89,6 +90,7 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
   }, [pageCount])
 
   function usageCount(record: MasterRecord) {
+    if (record.employeeCount !== undefined) return record.employeeCount
     return employees.filter((employee) =>
       kind === 'jabatan' ? employee.position === record.name : employee.department === record.name,
     ).length
@@ -109,20 +111,15 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
     setSaving(true)
     setFormError('')
     try {
-      const saved = formRecord
-        ? await updateMasterRecord(kind, formRecord.id, name)
-        : await createMasterRecord(kind, name)
-      setRecords((current) =>
-        formRecord
-          ? current.map((record) => (record.id === saved.id ? saved : record))
-          : [saved, ...current],
-      )
+      if (formRecord) await updateMasterRecord(kind, formRecord.id, name)
+      else await createMasterRecord(kind, name)
       setFormRecord(undefined)
       toast.success(`${kindLabel(kind)} berhasil disimpan.`)
+      await load()
     } catch (error) {
       const message = error instanceof Error ? error.message : `${kindLabel(kind)} gagal disimpan.`
       setFormError(message)
-      toast.error(message)
+      if (!(error instanceof ApiError && error.status === 403)) toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -133,13 +130,13 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
     setDeleteError('')
     try {
       await deleteMasterRecord(kind, deleteRecord.id)
-      setRecords((current) => current.filter((record) => record.id !== deleteRecord.id))
       toast.success(`${kindLabel(kind)} berhasil dihapus.`)
       setDeleteRecord(null)
+      await load()
     } catch (error) {
       const message = error instanceof Error ? error.message : `${kindLabel(kind)} gagal dihapus.`
       setDeleteError(message)
-      toast.error(message)
+      if (!(error instanceof ApiError && error.status === 403)) toast.error(message)
     }
   }
 

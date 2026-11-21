@@ -12,9 +12,10 @@ import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { StatIcon } from '@/components/ui/stat-icon'
 import { formatRupiah } from '@/lib/mock-data'
-import { getFinanceDashboardData } from '@/lib/services/report-service'
+import { getFinanceDashboardView } from '@/lib/services/dashboard.service'
+import { config } from '@/lib/config'
 
-type FinanceData = Awaited<ReturnType<typeof getFinanceDashboardData>>
+type FinanceData = Awaited<ReturnType<typeof getFinanceDashboardView>>
 
 export function FinanceDashboard() {
   const [data, setData] = useState<FinanceData | null>(null)
@@ -26,7 +27,7 @@ export function FinanceDashboard() {
     let active = true
     setLoading(true)
     setError('')
-    getFinanceDashboardData()
+    getFinanceDashboardView()
       .then((result) => {
         if (active) setData(result)
       })
@@ -47,9 +48,11 @@ export function FinanceDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Ringkasan menggunakan data penggajian demo. Jadwal pembayaran adalah tanggal contoh, saldo utang mengikuti jurnal yang tersimpan.
-      </DemoDataNotice>
+      {config.useMock && (
+        <DemoDataNotice>
+          Ringkasan menggunakan data penggajian demo. Jadwal pembayaran adalah tanggal contoh, saldo utang mengikuti jurnal yang tersimpan.
+        </DemoDataNotice>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -65,15 +68,15 @@ export function FinanceDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label="Gaji menunggu validasi"
-          value={data.pendingValidation ? '1 periode' : '0 periode'}
-          hint={data.pendingValidation ? 'Perlu persetujuan Keuangan' : `Status periode: ${data.period.status}`}
+          value={`${data.pendingCount} periode`}
+          hint={data.pendingCount ? 'Perlu persetujuan Keuangan' : 'Tidak ada periode menunggu validasi'}
           icon={FileCheck2}
-          tone={data.pendingValidation ? 'amber' : 'green'}
+          tone={data.pendingCount ? 'amber' : 'green'}
         />
         <StatCard
           label="Jadwal pembayaran"
-          value={data.paymentDate}
-          hint="Jadwal contoh periode November 2026"
+          value={data.paymentDateLabel ?? '—'}
+          hint={data.period ? `Periode ${data.period}` : 'Belum ada jadwal pembayaran'}
           icon={CalendarDays}
           tone="blue"
         />
@@ -86,22 +89,29 @@ export function FinanceDashboard() {
         />
       </div>
 
-      <Panel title="Periode November 2026" description="Status penggajian dan ringkasan pembayaran yang diproses.">
-        <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <StatIcon icon={Wallet} tone="primary" size="md" />
-            <div className="min-w-0">
-              <p className="font-semibold text-heading">{data.employeeCount} karyawan</p>
-              <p className="text-sm text-muted-foreground">Total gaji bersih {formatRupiah(data.totalNetPay)}</p>
+      <Panel
+        title={data.period ? `Periode ${data.period}` : 'Periode penggajian'}
+        description="Status penggajian dan ringkasan pembayaran yang diproses."
+      >
+        {data.period ? (
+          <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <StatIcon icon={Wallet} tone="primary" size="md" />
+              <div className="min-w-0">
+                {data.employeeCount !== null && <p className="font-semibold text-heading">{data.employeeCount} karyawan</p>}
+                {data.pendingNetPay !== null && <p className="text-sm text-muted-foreground">Total gaji bersih {formatRupiah(data.pendingNetPay)}</p>}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {data.periodStatus && <StatusBadge status={data.periodStatus} />}
+              <Link href="/app/penggajian/proses" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
+                Tinjau proses
+              </Link>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge status={data.period.status} />
-            <Link href="/app/penggajian/proses" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
-              Tinjau proses
-            </Link>
-          </div>
-        </div>
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">Belum ada informasi periode penggajian.</p>
+        )}
       </Panel>
 
       <Panel title="Tindak lanjut" description="Buka data yang diperlukan untuk validasi dan pencatatan akuntansi.">

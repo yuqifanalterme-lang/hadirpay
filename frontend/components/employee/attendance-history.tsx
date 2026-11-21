@@ -21,11 +21,14 @@ import { SelectField } from '@/components/ui/select-field'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import type { AttendanceCorrection, EmployeeAttendanceRecord } from '@/lib/mock/attendance'
 import { formatTanggal } from '@/lib/format'
+import { config } from '@/lib/config'
 import {
+  getAttendanceHistory,
+  getAttendanceToday,
   getLocalDateKey,
-  listAttendanceRecords,
   submitAttendanceCorrection,
-} from '@/lib/services/attendance-service'
+  type AttendanceHistoryPage,
+} from '@/lib/services/absensi.service'
 
 const weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 const statusDot: Record<EmployeeAttendanceRecord['status'], string> = {
@@ -35,6 +38,7 @@ const statusDot: Record<EmployeeAttendanceRecord['status'], string> = {
   Sakit: 'bg-info',
   Cuti: 'bg-leave',
   Alpha: 'bg-destructive',
+  'Dinas Luar': 'bg-info',
 }
 
 type CorrectionField = 'Masuk' | 'Pulang'
@@ -47,11 +51,13 @@ function formatMonthLabel(value: string) {
   )
 }
 
-function monthOptions() {
-  const today = new Date()
+function monthOptions(referencePeriod: string) {
+  const [year, month] = referencePeriod.split('-').map(Number)
+  const today = new Date(year, month - 1, 1)
   return Array.from({ length: 6 }, (_, index) => {
     const date = new Date(today.getFullYear(), today.getMonth() - index, 1)
-    return getLocalDateKey(date).slice(0, 7)
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    return { value, label: formatMonthLabel(value) }
   })
 }
 
@@ -78,26 +84,14 @@ function getDuration(record: EmployeeAttendanceRecord) {
   return `${hours} jam ${remainingMinutes} menit`
 }
 
-function getSummary(records: EmployeeAttendanceRecord[]) {
-  return {
-    Hadir: records.filter((record) => record.status === 'Hadir').length,
-    Terlambat: records.filter((record) => record.status === 'Terlambat').length,
-    Izin: records.filter((record) => record.status === 'Izin').length,
-    Sakit: records.filter((record) => record.status === 'Sakit').length,
-    Cuti: records.filter((record) => record.status === 'Cuti').length,
-    Alpha: records.filter((record) => record.status === 'Alpha').length,
-  }
-}
-
 export function AttendanceHistory() {
-  const availableMonths = useMemo(
-    () => monthOptions().map((value) => ({ value, label: formatMonthLabel(value) })),
-    [],
-  )
-  const [records, setRecords] = useState<EmployeeAttendanceRecord[]>([])
-  const [selectedMonth, setSelectedMonth] = useState(availableMonths[0])
+  const [availableMonths, setAvailableMonths] = useState<{ value: string; label: string }[]>([])
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [history, setHistory] = useState<AttendanceHistoryPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [page, setPage] = useState(1)
+  const [reload, setReload] = useState(0)
   const [correctionRecord, setCorrectionRecord] = useState<EmployeeAttendanceRecord | null>(null)
   const [correction, setCorrection] = useState<CorrectionForm>({ field: 'Masuk', time: '', reason: '' })
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CorrectionForm, string>>>({})
@@ -108,7 +102,20 @@ export function AttendanceHistory() {
     setLoading(true)
     setLoadError('')
     try {
-      setRecords(await listAttendanceRecords())
+      if (!selectedMonth) {
+        const today = config.mock.absensi
+          ? getLocalDateKey().slice(0, 7)
+          : (await getAttendanceToday())?.date.slice(0, 7) ?? ''
+        if (!today) throw new Error('Tanggal server untuk absensi belum tersedia.')
+        const options = monthOptions(today)
+        setAvailableMonths(options)
+        setSelectedMonth(options[0].label)
+        setPage(1)
+        return
+      }
+      const period = availableMonths.find((option) => option.label === selectedMonth)?.value
+      if (!period) throw new Error('Periode kehadiran tidak valid.')
+      setHistory(await getAttendanceHistory(period, page, 20))
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Riwayat kehadiran gagal dimuat.')
     } finally {
@@ -118,18 +125,16 @@ export function AttendanceHistory() {
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [availableMonths, selectedMonth, page, reload])
 
-  const monthRecords = useMemo(
-    () =>
-      records
-        .filter((record) => record.date.startsWith(selectedMonth.value))
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [records, selectedMonth],
-  )
-  const summary = useMemo(() => getSummary(monthRecords), [monthRecords])
-  const dates = useMemo(() => getMonthDates(selectedMonth.value), [selectedMonth])
+  const period = availableMonths.find((option) => option.label === selectedMonth)?.value ?? ''
+  const monthRecords = history?.records ?? []
+  const summary = history?.summary
+  const calendar = history?.calendar ?? []
+  const calendarByDate = useMemo(() => new Map(calendar.map((record) => [record.date, record.status])), [calendar])
+  const dates = useMemo(() => period ? getMonthDates(period) : [], [period])
   const todayKey = getLocalDateKey()
+  const totalPages = history?.meta?.total_pages ?? 1
 
   function openCorrection(record: EmployeeAttendanceRecord) {
     setCorrectionRecord(record)
@@ -164,6 +169,7 @@ export function AttendanceHistory() {
         reason: correction.reason.trim(),
       }
       await submitAttendanceCorrection(request)
+      setReload((current) => current + 1)
       toast.success('Pengajuan koreksi berhasil disimpan.', {
         description: `Tanggal ${formatTanggal(correctionRecord.date)}.`,
       })
@@ -176,7 +182,7 @@ export function AttendanceHistory() {
   }
 
   if (loading) return <PageLoadingSkeleton label="riwayat kehadiran" />
-  if (loadError) return <ErrorState message={loadError} onRetry={() => void load()} />
+  if (loadError) return <ErrorState message={loadError} onRetry={() => setReload((current) => current + 1)} />
 
   return (
     <div className="flex flex-col gap-6">
@@ -185,31 +191,33 @@ export function AttendanceHistory() {
       </DemoDataNotice>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Hadir" value={String(summary.Hadir)} icon={CalendarCheck} tone="green" />
-        <StatCard label="Terlambat" value={String(summary.Terlambat)} icon={Clock3} tone="amber" />
-        <StatCard label="Izin" value={String(summary.Izin)} icon={FileCheck2} tone="sky" />
-        <StatCard label="Sakit" value={String(summary.Sakit)} icon={HeartPulse} tone="sky" />
-        <StatCard label="Cuti" value={String(summary.Cuti)} icon={CalendarDays} tone="violet" />
-        <StatCard label="Alpha" value={String(summary.Alpha)} icon={CircleX} tone="red" />
+        <StatCard label="Hadir" value={String(summary?.present ?? 0)} icon={CalendarCheck} tone="green" />
+        <StatCard label="Terlambat" value={String(summary?.late ?? 0)} icon={Clock3} tone="amber" />
+        <StatCard label="Izin" value={String(summary?.permission ?? 0)} icon={FileCheck2} tone="sky" />
+        <StatCard label="Sakit" value={String(summary?.sick ?? 0)} icon={HeartPulse} tone="sky" />
+        <StatCard label="Cuti" value={String(summary?.leave ?? 0)} icon={CalendarDays} tone="violet" />
+        <StatCard label="Alpha" value={String(summary?.absent ?? 0)} icon={CircleX} tone="red" />
       </div>
 
       <Panel title="Kalender kehadiran" description="Warna penanda mengikuti status kehadiran.">
         <SelectField
           label="Bulan"
-          value={selectedMonth.label}
+          value={selectedMonth}
           onChange={(label) => {
-            const month = availableMonths.find((option) => option.label === label)
-            if (month) setSelectedMonth(month)
+            if (availableMonths.some((option) => option.label === label)) {
+              setSelectedMonth(label)
+              setPage(1)
+            }
           }}
           options={availableMonths.map((month) => month.label)}
           placeholder="Pilih bulan"
         />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Keterangan status kalender">
-          {(['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha'] as const).map((status) => (
+          {(['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Cuti', 'Alpha', 'Dinas Luar'] as const).map((status) => (
             <StatusBadge key={status} status={status} />
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2" role="group" aria-label={`Kalender ${selectedMonth.label}`}>
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2" role="group" aria-label={`Kalender ${selectedMonth}`}>
           {weekdays.map((day) => (
             <div key={day} aria-hidden="true" className="py-1 text-center text-xs font-semibold text-muted-foreground">
               {day}
@@ -217,36 +225,36 @@ export function AttendanceHistory() {
           ))}
           {dates.map((date, index) => {
             if (!date) return <div key={`kosong-${index}`} aria-hidden="true" />
-            const record = monthRecords.find((item) => item.date === date)
+            const status = calendarByDate.get(date)
             const dayNumber = Number(date.slice(-2))
             const today = date === todayKey
             return (
               <div
                 key={date}
                 role="group"
-                aria-label={`${formatTanggal(date)}${record ? `, ${record.status}` : ', belum ada catatan'}`}
-                title={record ? `${dayNumber}: ${record.status}` : `${dayNumber}`}
+                aria-label={`${formatTanggal(date)}${status ? `, ${status}` : ', belum ada catatan'}`}
+                title={status ? `${dayNumber}: ${status}` : `${dayNumber}`}
                 className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border text-sm ${
                   today ? 'border-primary ring-2 ring-primary/15' : 'border-border'
-                } ${record ? 'bg-white' : 'bg-surface'}`}
+                } ${status ? 'bg-white' : 'bg-surface'}`}
               >
                 <span className="font-semibold text-heading">{dayNumber}</span>
-                {record ? (
-                  <span className={`size-2 rounded-full ${statusDot[record.status]}`} aria-hidden="true" />
+                {status ? (
+                  <span className={`size-2 rounded-full ${statusDot[status]}`} aria-hidden="true" />
                 ) : (
                   <span className="size-2" aria-hidden="true" />
                 )}
-                {record && <span className="sr-only">{record.status}</span>}
+                {status && <span className="sr-only">{status}</span>}
               </div>
             )
           })}
         </div>
       </Panel>
 
-      <Panel title="Rincian kehadiran" description={`Catatan untuk ${selectedMonth.label}.`}>
-        {monthRecords.length === 0 ? (
+      <Panel title="Rincian kehadiran" description={`Catatan untuk ${selectedMonth}.`}>
+        {(history?.meta?.total ?? monthRecords.length) === 0 ? (
           <EmptyState
-            title={`Belum ada catatan untuk ${selectedMonth.label}`}
+            title={`Belum ada catatan untuk ${selectedMonth}`}
             description="Pilih bulan lain untuk melihat riwayat yang tersedia."
             icon={CalendarDays}
           />
@@ -288,6 +296,21 @@ export function AttendanceHistory() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {history && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">
+              Halaman {page} dari {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="action" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
+                Sebelumnya
+              </Button>
+              <Button type="button" variant="outline" size="action" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)}>
+                Berikutnya
+              </Button>
+            </div>
           </div>
         )}
       </Panel>

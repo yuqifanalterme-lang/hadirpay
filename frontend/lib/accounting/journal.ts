@@ -6,20 +6,23 @@ import {
 } from '../mock/accounting'
 import type { PayrollLine, PayrollPeriod } from '../mock/payroll'
 
-const accountByCode = new Map(mockAccounts.map((account) => [account.code, account]))
-
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-function getAccount(code: string): AccountingAccount {
-  const account = accountByCode.get(code)
+function getAccount(code: string, accounts: AccountingAccount[] = mockAccounts): AccountingAccount {
+  const account = accounts.find((item) => item.code === code)
   if (!account) throw new Error(`Akun ${code} tidak ditemukan.`)
   return account
 }
 
-function makeLine(accountCode: string, debit: number, credit: number): JournalLine {
-  const account = getAccount(accountCode)
+function makeLine(
+  accountCode: string,
+  debit: number,
+  credit: number,
+  accounts: AccountingAccount[] = mockAccounts,
+): JournalLine {
+  const account = getAccount(accountCode, accounts)
   return {
     accountCode,
     accountName: account.name,
@@ -161,6 +164,7 @@ export function createManualJournal({
   debitAccountCode,
   creditAccountCode,
   amount,
+  accounts,
 }: {
   id: string
   date: string
@@ -169,6 +173,7 @@ export function createManualJournal({
   debitAccountCode: string
   creditAccountCode: string
   amount: number
+  accounts?: AccountingAccount[]
 }): JournalEntry {
   if (!description.trim()) throw new Error('Keterangan jurnal wajib diisi.')
   if (!Number.isFinite(amount) || amount <= 0) throw new RangeError('Nominal jurnal harus lebih dari nol.')
@@ -184,8 +189,8 @@ export function createManualJournal({
     type: 'Manual',
     sourcePeriod: null,
     lines: [
-      makeLine(debitAccountCode, amount, 0),
-      makeLine(creditAccountCode, 0, amount),
+      makeLine(debitAccountCode, amount, 0, accounts),
+      makeLine(creditAccountCode, 0, amount, accounts),
     ],
   })
 }

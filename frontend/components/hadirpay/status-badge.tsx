@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 
 export type StatusBadgeStatus =
   | AttendanceStatus
+  | 'Dinas Luar'
   | 'Menunggu persetujuan'
   | 'Menunggu validasi keuangan'
   | 'Draft'
@@ -35,6 +36,7 @@ const styles: Record<StatusBadgeStatus, string> = {
   Izin: 'bg-sky-700 text-white',
   Sakit: 'bg-sky-700 text-white',
   Cuti: 'bg-violet-700 text-white',
+  'Dinas Luar': 'bg-sky-700 text-white',
 }
 
 export function StatusBadge({

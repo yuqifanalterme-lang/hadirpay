@@ -139,3 +139,13 @@ export async function decideRequest(
   writeRequests(requests)
   return updated
 }
+
+export async function cancelRequest(id: string): Promise<void> {
+  const requests = readRequests()
+  const request = requests.find((item) => item.id === id)
+  if (!request) throw new Error('Pengajuan tidak ditemukan atau tidak dapat dibatalkan.')
+  if (request.status !== 'Menunggu persetujuan') {
+    throw new Error('Hanya pengajuan yang masih menunggu persetujuan yang dapat dibatalkan.')
+  }
+  writeRequests(requests.filter((item) => item.id !== id))
+}

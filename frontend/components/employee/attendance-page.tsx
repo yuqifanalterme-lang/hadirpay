@@ -13,18 +13,24 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { Panel } from '@/components/hadirpay/panel'
 import type { EmployeeAttendanceRecord } from '@/lib/mock/attendance'
 import { formatTanggal } from '@/lib/format'
+import { ApiError } from '@/lib/api/client'
+import { config } from '@/lib/config'
 import {
   formatAttendanceTime,
+  getAttendanceToday,
+  getServerTime,
   getLocalDateKey,
   listAttendanceRecords,
   recordCheckIn,
   recordCheckOut,
-} from '@/lib/services/attendance-service'
+  type AttendanceToday,
+} from '@/lib/services/absensi.service'
 
 const clockFormat = new Intl.DateTimeFormat('id-ID', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
+  ...(config.mock.absensi ? {} : { timeZone: 'Asia/Jakarta' }),
 })
 
 type LocationState = 'Belum diperiksa' | 'Memeriksa lokasi' | 'Lokasi perangkat tersedia'
@@ -37,11 +43,13 @@ function getTodayRecord(records: EmployeeAttendanceRecord[], date: Date) {
 
 export function AttendancePage() {
   const [records, setRecords] = useState<EmployeeAttendanceRecord[]>([])
+  const [todayData, setTodayData] = useState<AttendanceToday | null>(null)
   const [now, setNow] = useState<Date | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [locationState, setLocationState] = useState<LocationState>('Belum diperiksa')
   const [checkingLocation, setCheckingLocation] = useState(false)
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | undefined>()
   const [confirmAction, setConfirmAction] = useState<AttendanceAction | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -49,7 +57,17 @@ export function AttendancePage() {
     setLoading(true)
     setLoadError('')
     try {
-      setRecords(await listAttendanceRecords())
+      if (config.mock.absensi) {
+        setTodayData(null)
+        setRecords(await listAttendanceRecords())
+        setNow(new Date())
+      } else {
+        const data = await getAttendanceToday()
+        if (!data) throw new Error('Data absensi hari ini tidak tersedia.')
+        setTodayData(data)
+        setRecords(data.attendance ? [data.attendance] : [])
+        setNow(getServerTime())
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Data absensi gagal dimuat.')
     } finally {
@@ -59,8 +77,9 @@ export function AttendancePage() {
 
   useEffect(() => {
     void load()
-    setNow(new Date())
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    const timer = window.setInterval(() => {
+      setNow(config.mock.absensi ? new Date() : getServerTime())
+    }, 1000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -72,21 +91,26 @@ export function AttendancePage() {
       let record: EmployeeAttendanceRecord
       let recordedTime: string
       if (confirmAction === 'Masuk') {
-        const checkedInRecord = await recordCheckIn(currentTime)
+        const checkedInRecord = await recordCheckIn(currentTime, coordinates)
         record = checkedInRecord
         recordedTime = checkedInRecord.checkIn
       } else {
-        const checkedOutRecord = await recordCheckOut(currentTime)
+        const checkedOutRecord = await recordCheckOut(currentTime, coordinates)
         record = checkedOutRecord
         recordedTime = checkedOutRecord.checkOut
       }
-      setRecords((current) => [record, ...current.filter((item) => item.date !== record.date)])
+      await load()
       setConfirmAction(null)
       toast.success(`Absen ${confirmAction.toLowerCase()} berhasil dicatat.`, {
         description: `Pukul ${recordedTime}.`,
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Absensi gagal disimpan.')
+      const message = error instanceof ApiError && error.code === 'ALREADY_CHECKED_IN'
+        ? 'Anda sudah melakukan absen masuk hari ini.'
+        : error instanceof ApiError && error.code === 'OUTSIDE_RADIUS'
+          ? 'Lokasi Anda berada di luar area kantor.'
+          : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -100,9 +124,13 @@ export function AttendancePage() {
     setCheckingLocation(true)
     setLocationState('Memeriksa lokasi')
     navigator.geolocation.getCurrentPosition(
-      () => {
+      (position) => {
         setCheckingLocation(false)
         setLocationState('Lokasi perangkat tersedia')
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        })
         toast.success('Lokasi perangkat tersedia.', {
           description: 'Pemeriksaan lokasi bersifat opsional dan tidak menentukan keberhasilan absen.',
         })
@@ -131,15 +159,32 @@ export function AttendancePage() {
 
   const today = now ?? new Date()
   const todayRecord = getTodayRecord(records, today)
-  const action: AttendanceAction | null = !todayRecord
-    ? 'Masuk'
-    : todayRecord.checkIn && !todayRecord.checkOut
-      ? 'Pulang'
-      : null
+  const action: AttendanceAction | null = todayData
+    ? todayData.canCheckIn
+      ? 'Masuk'
+      : todayData.canCheckOut
+        ? 'Pulang'
+        : null
+    : !todayRecord
+      ? 'Masuk'
+      : todayRecord.checkIn && !todayRecord.checkOut
+        ? 'Pulang'
+        : null
   const currentTime = now ? clockFormat.format(now) : '--.--.--'
-  const dateKey = getLocalDateKey(today)
-  const pastStartTime = today.getHours() * 60 + today.getMinutes() > 8 * 60
+  const dateKey = todayData?.date ?? getLocalDateKey(today)
+  const attendanceTime = config.mock.absensi
+    ? { hour: today.getHours(), minute: today.getMinutes() }
+    : Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(today).map((part) => [part.type, Number(part.value)])) as { hour: number; minute: number }
+  const pastStartTime = config.mock.absensi && attendanceTime.hour * 60 + attendanceTime.minute > 8 * 60
   const isLate = todayRecord?.status === 'Terlambat' || (!todayRecord && pastStartTime)
+  const workStart = todayData?.workHours.checkIn.replace(':', '.') ?? '08.00'
+  const officeName = todayData?.office.name ?? 'Kantor Pusat'
+  const officeAddress = todayData?.office.address ?? 'Jl. Sudirman No. 21, Jakarta'
   const statusText = !todayRecord
     ? 'Belum ada catatan absensi hari ini. Pilih Absen Masuk untuk memulai.'
     : !todayRecord.checkIn
@@ -169,7 +214,7 @@ export function AttendancePage() {
             <p className="text-base text-blue-100 sm:text-lg">{formatTanggal(dateKey)}</p>
             <p className="flex items-center gap-2 text-sm text-blue-100">
               <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              Kantor Pusat, Jl. Sudirman No. 21, Jakarta
+              {officeName}, {officeAddress}
             </p>
           </div>
 
@@ -184,8 +229,8 @@ export function AttendancePage() {
             {isLate && (
               <p className="text-sm font-semibold text-amber-200" role="status">
                 {todayRecord
-                  ? 'Absen masuk setelah pukul 08.00'
-                  : 'Anda belum absen dan sudah melewati pukul 08.00'}
+                  ? `Absen masuk setelah pukul ${workStart}`
+                  : `Anda belum absen dan sudah melewati pukul ${workStart}`}
               </p>
             )}
             <Button
@@ -214,13 +259,13 @@ export function AttendancePage() {
         {todayRecord?.status === 'Terlambat' && (
           <p className="mt-5 flex items-center gap-2 text-sm text-amber-200">
             <Clock3 className="size-4" aria-hidden="true" />
-            Jam kerja dimulai pukul 08.00. Waktu masuk tercatat {todayRecord.checkIn}.
+            Jam kerja dimulai pukul {workStart}. Waktu masuk tercatat {todayRecord.checkIn}.
           </p>
         )}
         {!todayRecord && pastStartTime && (
           <p className="mt-5 flex items-center gap-2 text-sm text-amber-200">
             <Clock3 className="size-4" aria-hidden="true" />
-            Absen masuk setelah pukul 08.00 akan ditandai terlambat.
+            Absen masuk setelah pukul {workStart} akan ditandai terlambat.
           </p>
         )}
         {todayRecord?.checkOut && (
@@ -237,8 +282,12 @@ export function AttendancePage() {
           <div className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4">
             <StatIcon icon={Clock3} tone="primary" size="md" />
             <div>
-              <p className="font-semibold text-heading">Senin sampai Jumat</p>
-              <p className="text-sm text-muted-foreground">08.00 sampai 17.00</p>
+              <p className="font-semibold text-heading">{todayData ? 'Jadwal kerja' : 'Senin sampai Jumat'}</p>
+              <p className="text-sm text-muted-foreground">
+                {todayData
+                  ? `${todayData.workHours.checkIn.replace(':', '.')} sampai ${todayData.workHours.checkOut.replace(':', '.')}`
+                  : '08.00 sampai 17.00'}
+              </p>
             </div>
           </div>
         </Panel>
