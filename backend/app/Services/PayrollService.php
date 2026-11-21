@@ -180,7 +180,7 @@ class PayrollService
 
     // ------------------------------------------------------------------
 
-    private function hitungKaryawan(
+    public function hitungKaryawan(
         array $k, array $hariKerjaPeriode, array $komponen, array $byKode,
         array $assigned, array $absensi, array $izin, string $today
     ): array {
