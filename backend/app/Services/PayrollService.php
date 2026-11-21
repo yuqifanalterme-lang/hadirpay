@@ -28,10 +28,15 @@ class PayrollService
     {
         foreach (self::FIELD_UANG as $f) {
             if (array_key_exists($f, $r) && $r[$f] !== null) {
-                $r[$f] = (float) $r[$f];
+                $r[$f] = self::roundMoney($r[$f]);
             }
         }
         return $r;
+    }
+
+    public static function roundMoney($value): float
+    {
+        return round((float) $value, 2);
     }
 
     /** Daftar tanggal hari kerja (jadwal default, tanpa hari libur). */

@@ -26,7 +26,9 @@ class Laporan extends BaseController
                 }
                 unset($child);
             } elseif (is_string($value) && preg_match('/^-?\d+\.\d{2}$/', $value)) {
-                $value = (float) $value;
+                $value = round((float) $value, 2);
+            } elseif (is_float($value)) {
+                $value = round($value, 2);
             }
         };
         $cast($data);
@@ -81,7 +83,26 @@ class Laporan extends BaseController
         $dept = (int) $this->request->getGet('departemen_id');
         if ($dept > 0) $karyawan->where('departemen_id', $dept);
         $total = $karyawan->countAllResults();
-        $ringkasan['rata_rata_hadir_persen'] = $total > 0 ? (int) round($ringkasan['total_hadir'] * 100 / ($total * max(1, count((new PayrollService())->hariKerja($dari, $sampai))))) : 0;
+        $today = date('Y-m-d');
+        $sampaiDipakai = min($sampai, $today);
+        $hariDipakai = $sampaiDipakai >= $dari
+            ? (new PayrollService())->hariKerja($dari, $sampaiDipakai)
+            : [];
+        $hadirHinggaHariIni = 0;
+        if ($hariDipakai) {
+            $q = $db->table('absensi a')
+                ->join('karyawan k', 'k.id = a.karyawan_id')
+                ->where('a.tanggal >=', $dari)
+                ->where('a.tanggal <=', end($hariDipakai))
+                ->whereIn('a.status', ['hadir', 'terlambat']);
+            if ($dept > 0) {
+                $q->where('k.departemen_id', $dept);
+            }
+            $hadirHinggaHariIni = (int) $q->countAllResults();
+        }
+        $ringkasan['rata_rata_hadir_persen'] = $total > 0 && $hariDipakai
+            ? (int) min(100, round(100 * $hadirHinggaHariIni / ($total * count($hariDipakai))))
+            : 0;
 
         $grafik = [];
         foreach ((new PayrollService())->hariKerja($dari, $sampai) as $tanggal) {
@@ -95,6 +116,15 @@ class Laporan extends BaseController
             ->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai)
             ->groupBy('k.id')->orderBy('k.nama', 'ASC')->get()->getResultArray();
+        $tabel = array_map(static fn ($r) => [
+            'karyawan_id' => (int) $r['karyawan_id'],
+            'kode' => $r['kode'],
+            'nama' => $r['nama'],
+            'departemen' => $r['departemen'],
+            'hadir' => (int) $r['hadir'],
+            'terlambat' => (int) $r['terlambat'],
+            'alpha' => (int) $r['alpha'],
+        ], $tabel);
 
         return $this->hasil(['filter' => ['periode' => $periode, 'departemen_id' => $dept ?: null], 'ringkasan' => $ringkasan, 'grafik' => $grafik, 'tabel' => $tabel]);
     }
@@ -184,9 +214,9 @@ class Laporan extends BaseController
             ->join('periode_gaji p', 'p.id = g.periode_gaji_id')->join('karyawan k', 'k.id = g.karyawan_id')
             ->join('departemen d', 'd.id = k.departemen_id', 'left')->where('p.periode', $periode)
             ->orderBy('k.nama', 'ASC')->get()->getResultArray();
-        $pendapatan = array_sum(array_column($rows, 'total_pendapatan'));
-        $potongan = array_sum(array_column($rows, 'total_potongan'));
-        $bersih = array_sum(array_column($rows, 'gaji_bersih'));
+        $pendapatan = round(array_sum(array_column($rows, 'total_pendapatan')), 2);
+        $potongan = round(array_sum(array_column($rows, 'total_potongan')), 2);
+        $bersih = round(array_sum(array_column($rows, 'gaji_bersih')), 2);
         $tabel = array_map(static fn ($r) => [
             'penggajian_id' => (int) $r['id'],
             'periode' => $r['periode'],
@@ -226,7 +256,7 @@ class Laporan extends BaseController
                 return $row && $r['departemen'] === $row['nama'];
             }));
         }
-        $total = array_sum(array_column($rows, 'total_gaji_bersih'));
+        $total = round(array_sum(array_column($rows, 'total_gaji_bersih')), 2);
         $periode = [];
         foreach ($rows as $r) {
             $periode[$r['periode']] = ($periode[$r['periode']] ?? 0) + (float) $r['total_gaji_bersih'];
@@ -244,7 +274,7 @@ class Laporan extends BaseController
         ], $rows);
         return $this->hasil([
             'filter' => ['periode_dari' => $dari, 'periode_sampai' => $sampai, 'departemen_id' => (int) $this->request->getGet('departemen_id') ?: null],
-            'ringkasan' => ['total_beban_gaji' => (float) $total, 'rata_rata_per_bulan' => $months ? (float) $total / $months : 0.0, 'periode_tertinggi' => $highest],
+            'ringkasan' => ['total_beban_gaji' => (float) $total, 'rata_rata_per_bulan' => $months ? round((float) $total / $months, 2) : 0.0, 'periode_tertinggi' => $highest],
             'grafik' => array_map(fn ($ym, $nilai) => ['label' => $ym, 'nilai' => (float) $nilai], array_keys($periode), array_values($periode)),
             'tabel' => $tabel,
         ]);
@@ -257,8 +287,8 @@ class Laporan extends BaseController
         $rows = $db->table('jurnal j')->select('j.*, p.periode', false)->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
             ->where('j.jenis !=', 'manual')->where('p.periode', $periode)
             ->orderBy('j.tanggal', 'DESC')->get()->getResultArray();
-        $debit = array_sum(array_column($rows, 'total_debit'));
-        $kredit = array_sum(array_column($rows, 'total_kredit'));
+        $debit = round(array_sum(array_column($rows, 'total_debit')), 2);
+        $kredit = round(array_sum(array_column($rows, 'total_kredit')), 2);
         $tabel = array_map(static fn ($r) => [
             'id' => (int) $r['id'],
             'nomor_bukti' => $r['nomor_bukti'],
