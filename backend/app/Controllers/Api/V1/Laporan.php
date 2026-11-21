@@ -11,6 +11,35 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class Laporan extends BaseController
 {
+    private function hasil(array $data): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $tabel = $data['tabel'] ?? [];
+        $page = max(1, (int) ($this->request->getGet('page') ?? 1));
+        $perPage = min(500, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
+        $total = count($tabel);
+        $tabel = array_slice($tabel, ($page - 1) * $perPage, $perPage);
+
+        $cast = static function (&$value) use (&$cast): void {
+            if (is_array($value)) {
+                foreach ($value as &$child) {
+                    $cast($child);
+                }
+                unset($child);
+            } elseif (is_string($value) && preg_match('/^-?\d+\.\d{2}$/', $value)) {
+                $value = (float) $value;
+            }
+        };
+        $cast($data);
+        $data['tabel'] = $tabel;
+
+        return ApiResponse::success($data, 'OK', [
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]);
+    }
+
     private function periode(): array
     {
         $periode = (string) ($this->request->getGet('periode') ?: date('Y-m'));
@@ -67,7 +96,7 @@ class Laporan extends BaseController
             ->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai)
             ->groupBy('k.id')->orderBy('k.nama', 'ASC')->get()->getResultArray();
 
-        return ApiResponse::success(['filter' => ['periode' => $periode, 'departemen_id' => $dept ?: null], 'ringkasan' => $ringkasan, 'grafik' => $grafik, 'tabel' => $tabel]);
+        return $this->hasil(['filter' => ['periode' => $periode, 'departemen_id' => $dept ?: null], 'ringkasan' => $ringkasan, 'grafik' => $grafik, 'tabel' => $tabel]);
     }
 
     public function keterlambatan()
@@ -84,7 +113,7 @@ class Laporan extends BaseController
         }
         $totalMenit = array_sum(array_column($rows, 'menit_terlambat'));
         $terbanyak = $rows ? $rows[0]['nama'] : null;
-        return ApiResponse::success([
+        return $this->hasil([
             'filter' => ['periode' => $periode],
             'ringkasan' => ['total_kejadian' => count($rows), 'total_menit' => (int) $totalMenit, 'karyawan_terbanyak' => $terbanyak],
             'grafik' => $grafik,
@@ -107,11 +136,21 @@ class Laporan extends BaseController
             $counts[$r['jenis']]++;
             $totalHari += (float) $r['jumlah_hari'];
         }
-        return ApiResponse::success([
+        $tabel = array_map(static fn ($r) => [
+            'id' => (int) $r['id'],
+            'jenis' => $r['jenis'],
+            'karyawan' => $r['karyawan_nama'],
+            'departemen' => $r['departemen'],
+            'tanggal_mulai' => $r['tanggal_mulai'],
+            'tanggal_selesai' => $r['tanggal_selesai'],
+            'jumlah_hari' => (float) $r['jumlah_hari'],
+            'alasan' => $r['alasan'],
+        ], $rows);
+        return $this->hasil([
             'filter' => ['periode' => $periode],
             'ringkasan' => ['total_izin' => $counts['izin'], 'total_sakit' => $counts['sakit'], 'total_cuti' => $counts['cuti'], 'total_hari' => $totalHari],
             'grafik' => [['label' => 'Izin', 'nilai' => $counts['izin']], ['label' => 'Sakit', 'nilai' => $counts['sakit']], ['label' => 'Cuti', 'nilai' => $counts['cuti']]],
-            'tabel' => $rows,
+            'tabel' => $tabel,
         ]);
     }
 
@@ -129,7 +168,7 @@ class Laporan extends BaseController
             ->join('komponen_gaji k', 'k.id = d.komponen_id')
             ->where('p.periode', $periode)->where('k.kode', 'LEMBUR')->get()->getRowArray();
         $totalUpah = (float) ($upah['total'] ?? 0);
-        return ApiResponse::success([
+        return $this->hasil([
             'filter' => ['periode' => $periode],
             'ringkasan' => ['total_jam' => round($menit / 60, 2), 'total_upah' => $totalUpah, 'jumlah_karyawan' => count(array_unique(array_column($rows, 'karyawan_id')))],
             'grafik' => [['label' => $periode, 'nilai' => $menit]],
@@ -148,11 +187,25 @@ class Laporan extends BaseController
         $pendapatan = array_sum(array_column($rows, 'total_pendapatan'));
         $potongan = array_sum(array_column($rows, 'total_potongan'));
         $bersih = array_sum(array_column($rows, 'gaji_bersih'));
-        return ApiResponse::success([
+        $tabel = array_map(static fn ($r) => [
+            'penggajian_id' => (int) $r['id'],
+            'periode' => $r['periode'],
+            'karyawan_id' => (int) $r['karyawan_id'],
+            'karyawan' => $r['karyawan_nama'],
+            'kode' => $r['kode'],
+            'departemen' => $r['departemen'],
+            'gaji_pokok' => (float) $r['gaji_pokok'],
+            'tunjangan' => (float) $r['tunjangan'],
+            'upah_lembur' => (float) $r['upah_lembur'],
+            'total_pendapatan' => (float) $r['total_pendapatan'],
+            'total_potongan' => (float) $r['total_potongan'],
+            'gaji_bersih' => (float) $r['gaji_bersih'],
+        ], $rows);
+        return $this->hasil([
             'filter' => ['periode' => $periode],
             'ringkasan' => ['total_pendapatan' => (float) $pendapatan, 'total_potongan' => (float) $potongan, 'total_gaji_bersih' => (float) $bersih],
             'grafik' => [['label' => $periode, 'nilai' => (float) $bersih]],
-            'tabel' => $rows,
+            'tabel' => $tabel,
         ]);
     }
 
@@ -161,11 +214,18 @@ class Laporan extends BaseController
         $db = db_connect();
         $dari = (string) ($this->request->getGet('periode_dari') ?: date('Y-m', strtotime('-5 months')));
         $sampai = (string) ($this->request->getGet('periode_sampai') ?: date('Y-m'));
+        $dept = (int) $this->request->getGet('departemen_id');
         $rows = $db->table('penggajian g')->select('p.periode, d.nama AS departemen, COUNT(*) AS jumlah_karyawan, SUM(g.total_pendapatan) AS total_pendapatan, SUM(g.total_potongan) AS total_potongan, SUM(g.gaji_bersih) AS total_gaji_bersih', false)
             ->join('periode_gaji p', 'p.id = g.periode_gaji_id')->join('karyawan k', 'k.id = g.karyawan_id')
             ->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('p.periode >=', $dari)->where('p.periode <=', $sampai)
             ->groupBy('p.periode, d.id')->orderBy('p.periode', 'ASC')->get()->getResultArray();
+        if ($dept > 0) {
+            $rows = array_values(array_filter($rows, static function ($r) use ($db, $dept) {
+                $row = $db->table('departemen')->where('id', $dept)->get()->getRowArray();
+                return $row && $r['departemen'] === $row['nama'];
+            }));
+        }
         $total = array_sum(array_column($rows, 'total_gaji_bersih'));
         $periode = [];
         foreach ($rows as $r) {
@@ -174,11 +234,19 @@ class Laporan extends BaseController
         arsort($periode);
         $highest = $periode ? array_key_first($periode) : null;
         $months = count($periode);
-        return ApiResponse::success([
+        $tabel = array_map(static fn ($r) => [
+            'periode' => $r['periode'],
+            'departemen' => $r['departemen'],
+            'jumlah_karyawan' => (int) $r['jumlah_karyawan'],
+            'total_pendapatan' => (float) $r['total_pendapatan'],
+            'total_potongan' => (float) $r['total_potongan'],
+            'total_gaji_bersih' => (float) $r['total_gaji_bersih'],
+        ], $rows);
+        return $this->hasil([
             'filter' => ['periode_dari' => $dari, 'periode_sampai' => $sampai, 'departemen_id' => (int) $this->request->getGet('departemen_id') ?: null],
             'ringkasan' => ['total_beban_gaji' => (float) $total, 'rata_rata_per_bulan' => $months ? (float) $total / $months : 0.0, 'periode_tertinggi' => $highest],
             'grafik' => array_map(fn ($ym, $nilai) => ['label' => $ym, 'nilai' => (float) $nilai], array_keys($periode), array_values($periode)),
-            'tabel' => $rows,
+            'tabel' => $tabel,
         ]);
     }
 
@@ -191,11 +259,20 @@ class Laporan extends BaseController
             ->orderBy('j.tanggal', 'DESC')->get()->getResultArray();
         $debit = array_sum(array_column($rows, 'total_debit'));
         $kredit = array_sum(array_column($rows, 'total_kredit'));
-        return ApiResponse::success([
+        $tabel = array_map(static fn ($r) => [
+            'id' => (int) $r['id'],
+            'nomor_bukti' => $r['nomor_bukti'],
+            'tanggal' => $r['tanggal'],
+            'keterangan' => $r['keterangan'],
+            'jenis' => $r['jenis'],
+            'total_debit' => (float) $r['total_debit'],
+            'total_kredit' => (float) $r['total_kredit'],
+        ], $rows);
+        return $this->hasil([
             'filter' => ['periode' => $periode],
             'ringkasan' => ['total_debit' => (float) $debit, 'total_kredit' => (float) $kredit, 'jumlah_jurnal' => count($rows)],
             'grafik' => [['label' => $periode, 'nilai' => (float) $debit]],
-            'tabel' => $rows,
+            'tabel' => $tabel,
         ]);
     }
 
@@ -211,6 +288,8 @@ class Laporan extends BaseController
             'izin-cuti' => 'izinCuti', 'lembur' => 'lembur', 'penggajian' => 'penggajian',
             'beban-gaji' => 'bebanGaji', 'jurnal-penggajian' => 'jurnalPenggajian',
         ];
+        $_GET['page'] = '1';
+        $_GET['per_page'] = '500';
         $response = $this->{$methods[$jenis]}();
         $body = $response->getJSON();
         $json = json_decode($body, true);

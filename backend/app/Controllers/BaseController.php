@@ -43,6 +43,12 @@ abstract class BaseController extends Controller
         // Caution: Do not edit this line.
         parent::initController($request, $response, $logger);
 
+        try {
+            db_connect()->query("SET time_zone = '+07:00'");
+        } catch (\Throwable $e) {
+            log_message('error', 'Gagal mengatur zona waktu database: ' . $e->getMessage());
+        }
+
         // Preload any models, libraries, etc, here.
         // $this->session = service('session');
     }

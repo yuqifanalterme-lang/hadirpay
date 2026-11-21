@@ -350,16 +350,71 @@ class AbsensiAdmin extends BaseController
             return [];
         }
 
-        $rows = db_connect()->table('absensi')
-            ->select("karyawan_id, SUM(status IN ('hadir','terlambat')) AS hadir, SUM(status = 'terlambat') AS terlambat, SUM(status = 'izin') AS izin, SUM(status = 'sakit') AS sakit, SUM(status = 'cuti') AS cuti, SUM(status = 'alpha') AS alpha, COALESCE(SUM(lembur_menit), 0) AS lembur, COALESCE(SUM(menit_terlambat), 0) AS telat", false)
+        $db = db_connect();
+        $payroll = new PayrollService();
+        $hariKerja = $payroll->hariKerja($mulai, $akhir);
+        $today = date('Y-m-d');
+        $out = [];
+
+        $absensiRows = $db->table('absensi')
+            ->select('karyawan_id, tanggal, status, lembur_menit, menit_terlambat')
             ->whereIn('karyawan_id', $ids)
             ->where('tanggal >=', $mulai)->where('tanggal <=', $akhir)
-            ->groupBy('karyawan_id')
             ->get()->getResultArray();
+        $absensi = [];
+        foreach ($absensiRows as $r) {
+            $absensi[(int) $r['karyawan_id']][$r['tanggal']] = $r;
+        }
 
-        $out = [];
-        foreach ($rows as $r) {
-            $out[(int) $r['karyawan_id']] = array_map('intval', $r);
+        $izinRows = $db->table('pengajuan_izin')
+            ->select('karyawan_id, jenis, tanggal_mulai, tanggal_selesai')
+            ->whereIn('karyawan_id', $ids)
+            ->where('status', 'disetujui')
+            ->whereIn('jenis', ['izin', 'sakit', 'cuti'])
+            ->where('tanggal_mulai <=', $akhir)->where('tanggal_selesai >=', $mulai)
+            ->get()->getResultArray();
+        $izin = [];
+        foreach ($izinRows as $r) {
+            $izin[(int) $r['karyawan_id']][] = $r;
+        }
+
+        foreach ($ids as $kid) {
+            $a = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0, 'lembur' => 0, 'telat' => 0];
+            foreach ($hariKerja as $tanggal) {
+                $status = null;
+                if (isset($absensi[$kid][$tanggal])) {
+                    $status = $absensi[$kid][$tanggal]['status'];
+                } else {
+                    foreach ($izin[$kid] ?? [] as $z) {
+                        if ($tanggal >= $z['tanggal_mulai'] && $tanggal <= $z['tanggal_selesai']) {
+                            $status = $z['jenis'];
+                            break;
+                        }
+                    }
+                    if ($status === null && $tanggal < $today) {
+                        $status = 'alpha';
+                    }
+                }
+                if (isset($a[$status])) {
+                    $a[$status]++;
+                } elseif ($status === 'dinas_luar') {
+                    $a['hadir']++;
+                }
+                if ($status === 'hadir' || $status === 'terlambat' || $status === 'dinas_luar') {
+                    if ($status === 'terlambat') {
+                        $a['hadir']++;
+                    }
+                }
+            }
+
+            foreach ($absensi[$kid] ?? [] as $tanggal => $r) {
+                if (! in_array($tanggal, $hariKerja, true)) {
+                    continue;
+                }
+                $a['lembur'] += (int) $r['lembur_menit'];
+                $a['telat'] += (int) $r['menit_terlambat'];
+            }
+            $out[$kid] = $a;
         }
         return $out;
     }

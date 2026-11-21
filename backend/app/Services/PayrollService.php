@@ -151,9 +151,9 @@ class PayrollService
                 }
 
                 $total['jumlah_karyawan']++;
-                $total['total_pendapatan']  += $h['penggajian']['total_pendapatan'];
-                $total['total_potongan']    += $h['penggajian']['total_potongan'];
-                $total['total_gaji_bersih'] += $h['penggajian']['gaji_bersih'];
+                $total['total_pendapatan']  = round($total['total_pendapatan'] + $h['penggajian']['total_pendapatan'], 2);
+                $total['total_potongan']    = round($total['total_potongan'] + $h['penggajian']['total_potongan'], 2);
+                $total['total_gaji_bersih'] = round($total['total_gaji_bersih'] + $h['penggajian']['gaji_bersih'], 2);
             }
 
             $db->table('periode_gaji')->where('id', $periode['id'])->update([

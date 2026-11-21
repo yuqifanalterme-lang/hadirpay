@@ -144,6 +144,14 @@ class AttendanceService
         $tanggal = $now->format('Y-m-d');
         $jam     = $now->format('H:i:s');
 
+        $jadwal = $this->jadwal();
+        $hariNama = self::HARI[(int) $now->format('N')];
+        $hariKerja = array_map('trim', explode(',', strtolower((string) ($jadwal['hari_kerja'] ?? 'senin,selasa,rabu,kamis,jumat'))));
+        $libur = $this->db->table('hari_libur')->where('tanggal', $tanggal)->countAllResults();
+        if (! in_array($hariNama, $hariKerja, true) || $libur > 0) {
+            return ['error' => ['NOT_WORKING_DAY', 'Hari ini bukan hari kerja', 409, null]];
+        }
+
         $abs = $this->absensi($karyawanId, $tanggal);
         if ($abs) {
             return $abs['jam_masuk'] !== null

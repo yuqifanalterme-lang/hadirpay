@@ -30,6 +30,7 @@ class Filters extends BaseFilters
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
         'apicors'       => CorsFilter::class, // filter CORS buatan HADIRPAY
+        'jsonrequest'   => \App\Filters\JsonRequestFilter::class,
         'auth'          => \App\Filters\AuthFilter::class,
         'role'          => \App\Filters\RoleFilter::class,
     ];
@@ -58,6 +59,7 @@ class Filters extends BaseFilters
     public array $globals = [
         'before' => [
             'apicors',
+            'jsonrequest',
             // 'honeypot',
             // 'csrf',
             // 'invalidchars',
