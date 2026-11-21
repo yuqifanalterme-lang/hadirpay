@@ -20,7 +20,7 @@ class KomponenGaji extends BaseController
     {
         $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
         $perPage = min(100, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
-        $q       = trim((string) $this->request->getGet('q'));
+        $q       = trim((string) ($this->request->getGet('search') ?? $this->request->getGet('q')));
         $tipe    = (string) $this->request->getGet('tipe');
         $aktif   = $this->request->getGet('aktif');
 
@@ -161,6 +161,28 @@ class KomponenGaji extends BaseController
 
         $this->model->delete($id);
         return ApiResponse::success(null, 'Komponen gaji dihapus');
+    }
+
+    // PATCH /api/v1/komponen-gaji/(:num)/status   body: {"aktif": true|false}
+    public function status($id = null)
+    {
+        $row = $this->model->find($id);
+        if (! $row) {
+            return ApiResponse::error('NOT_FOUND', 'Komponen gaji tidak ditemukan', null, 404);
+        }
+
+        $in = $this->request->getJSON(true) ?? [];
+        if (! array_key_exists('aktif', $in)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['aktif' => 'Aktif wajib diisi (true atau false)'], 422);
+        }
+        $v = filter_var($in['aktif'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($v === null) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['aktif' => 'Nilai aktif harus true atau false'], 422);
+        }
+
+        $this->model->update($id, ['aktif' => (int) $v]);
+
+        return ApiResponse::success(KomponenGajiModel::format($this->model->find($id)), 'Status komponen diperbarui');
     }
 
     // ---------- helper ----------

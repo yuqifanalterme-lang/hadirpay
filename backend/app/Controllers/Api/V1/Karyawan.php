@@ -4,10 +4,20 @@ namespace App\Controllers\Api\V1;
 
 use App\Controllers\BaseController;
 use App\Libraries\ApiResponse;
+use App\Libraries\JwtService;
 use App\Models\KaryawanModel;
+use App\Models\KuotaCutiModel;
+use App\Services\PayrollService;
 
 class Karyawan extends BaseController
 {
+    private const SORT = [
+        'nama'          => 'karyawan.nama',
+        'kode'          => 'karyawan.kode',
+        'tanggal_mulai' => 'karyawan.tanggal_mulai',
+        'status'        => 'karyawan.status',
+    ];
+
     private KaryawanModel $model;
 
     public function __construct()
@@ -15,31 +25,97 @@ class Karyawan extends BaseController
         $this->model = new KaryawanModel();
     }
 
-    private function withRelasi(): KaryawanModel
+    private function relasi(): KaryawanModel
     {
         return $this->model
-            ->select('karyawan.*, departemen.nama AS departemen_nama, jabatan.nama AS jabatan_nama, users.role AS akun_role, users.aktif AS akun_aktif')
+            ->select('karyawan.*, departemen.nama AS departemen_nama, jabatan.nama AS jabatan_nama, users.role AS akun_role')
             ->join('departemen', 'departemen.id = karyawan.departemen_id', 'left')
             ->join('jabatan', 'jabatan.id = karyawan.jabatan_id', 'left')
             ->join('users', 'users.karyawan_id = karyawan.id', 'left');
     }
 
-    private function detail($id): ?array
+    private static function inisial(string $nama): string
     {
-        return $this->withRelasi()->where('karyawan.id', $id)->first();
+        $kata = preg_split('/\s+/', trim($nama));
+        return strtoupper(mb_substr($kata[0], 0, 1) . (isset($kata[1]) ? mb_substr($kata[1], 0, 1) : ''));
     }
 
-    // GET /api/v1/karyawan?page=1&per_page=10&q=rina&status=aktif&departemen_id=1&jabatan_id=3
+    /** bentuk item list (kontrak bagian 4) */
+    private function ringkas(array $r): array
+    {
+        return [
+            'id'               => (int) $r['id'],
+            'kode'             => $r['kode'],
+            'nama'             => $r['nama'],
+            'inisial'          => self::inisial($r['nama']),
+            'jabatan'          => ['id' => (int) $r['jabatan_id'], 'nama' => $r['jabatan_nama']],
+            'departemen'       => ['id' => (int) $r['departemen_id'], 'nama' => $r['departemen_nama']],
+            'jenis_penggajian' => $r['jenis_penggajian'],
+            'status'           => $r['status'],
+            'tanggal_mulai'    => $r['tanggal_mulai'],
+        ];
+    }
+
+    /** bentuk detail (kontrak bagian 4) */
+    private function detail($id): ?array
+    {
+        $r = $this->relasi()->where('karyawan.id', $id)->first();
+        if (! $r) {
+            return null;
+        }
+
+        $komp = db_connect()->table('karyawan_komponen kk')
+            ->select('kk.komponen_id, kg.nama, kg.tipe, kk.nilai')
+            ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
+            ->where('kk.karyawan_id', (int) $r['id'])
+            ->orderBy('kg.tipe', 'ASC')->orderBy('kg.nama', 'ASC')
+            ->get()->getResultArray();
+
+        $kuota = (new KuotaCutiModel())->ambilAtauBuat((int) $r['id'], (int) date('Y'));
+
+        return [
+            'id'               => (int) $r['id'],
+            'kode'             => $r['kode'],
+            'nama'             => $r['nama'],
+            'inisial'          => self::inisial($r['nama']),
+            'email'            => $r['email'],
+            'no_hp'            => $r['no_hp'],
+            'jabatan_id'       => (int) $r['jabatan_id'],
+            'departemen_id'    => (int) $r['departemen_id'],
+            'jabatan'          => ['id' => (int) $r['jabatan_id'], 'nama' => $r['jabatan_nama']],
+            'departemen'       => ['id' => (int) $r['departemen_id'], 'nama' => $r['departemen_nama']],
+            'tanggal_mulai'    => $r['tanggal_mulai'],
+            'jenis_penggajian' => $r['jenis_penggajian'],
+            'gaji_pokok'       => (float) $r['gaji_pokok'],
+            'tunjangan_tetap'  => (float) $r['tunjangan_tetap'],
+            'npwp'             => $r['npwp'],
+            'no_bpjs'          => $r['no_bpjs'],
+            'status'           => $r['status'],
+            'role'             => $r['akun_role'],
+            'komponen_gaji'    => array_map(static fn ($k) => [
+                'komponen_id' => (int) $k['komponen_id'],
+                'nama'        => $k['nama'],
+                'tipe'        => $k['tipe'],
+                'nilai'       => (float) $k['nilai'],
+            ], $komp),
+            'sisa_cuti'        => (float) $kuota['total'] - (float) $kuota['terpakai'],
+        ];
+    }
+
+    // GET /api/v1/karyawan?search=&departemen_id=&jabatan_id=&status=&jenis_penggajian=&page=&per_page=&sort=&order=
     public function index()
     {
         $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
         $perPage = min(100, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
-        $q       = trim((string) $this->request->getGet('q'));
+        $q       = trim((string) ($this->request->getGet('search') ?? $this->request->getGet('q')));
         $status  = (string) $this->request->getGet('status');
+        $jenis   = (string) $this->request->getGet('jenis_penggajian');
         $deptId  = (int) ($this->request->getGet('departemen_id') ?? 0);
         $jabId   = (int) ($this->request->getGet('jabatan_id') ?? 0);
+        $sort    = self::SORT[(string) $this->request->getGet('sort')] ?? 'karyawan.nama';
+        $order   = strtolower((string) $this->request->getGet('order')) === 'desc' ? 'DESC' : 'ASC';
 
-        $this->withRelasi();
+        $this->relasi();
 
         if ($q !== '') {
             $this->model->groupStart()
@@ -51,6 +127,9 @@ class Karyawan extends BaseController
         if (in_array($status, ['aktif', 'nonaktif'], true)) {
             $this->model->where('karyawan.status', $status);
         }
+        if (in_array($jenis, ['bulanan', 'harian'], true)) {
+            $this->model->where('karyawan.jenis_penggajian', $jenis);
+        }
         if ($deptId > 0) {
             $this->model->where('karyawan.departemen_id', $deptId);
         }
@@ -59,9 +138,10 @@ class Karyawan extends BaseController
         }
 
         $total = $this->model->countAllResults(false);
-        $rows  = $this->model->orderBy('karyawan.nama', 'ASC')->findAll($perPage, ($page - 1) * $perPage);
+        $rows  = $this->model->orderBy($sort, $order)->orderBy('karyawan.id', 'ASC')
+            ->findAll($perPage, ($page - 1) * $perPage);
 
-        return ApiResponse::success($rows, 'OK', [
+        return ApiResponse::success(array_map(fn ($r) => $this->ringkas($r), $rows), 'OK', [
             'page'        => $page,
             'per_page'    => $perPage,
             'total'       => $total,
@@ -78,64 +158,55 @@ class Karyawan extends BaseController
         return ApiResponse::success($row);
     }
 
+    // POST /api/v1/karyawan
     public function create()
     {
         $input = $this->request->getJSON(true) ?? [];
 
         $validation = service('validation');
         $validation->setRules($this->rules(null), $this->messages());
-
         if (! $validation->run($input)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
         }
-
         if ($err = $this->cekJabatan($input)) {
             return $err;
         }
 
         $data = $this->payload($input);
-
-        $db = db_connect();
+        $db   = db_connect();
 
         if (empty($data['kode'])) {
             $max          = (int) $db->table('karyawan')->selectMax('id')->get()->getRow()->id;
             $data['kode'] = sprintf('KRY-%04d', $max + 1);
         }
 
-        $role     = $input['role'] ?? 'karyawan';
-        $password = $input['password'];
+        $role = $input['role'] ?? 'karyawan';
 
         $db->transBegin();
         try {
-            $id = $this->model->insert($data, true);
-
+            $id  = $this->model->insert($data, true);
             $now = date('Y-m-d H:i:s');
             $db->table('users')->insert([
                 'karyawan_id'   => $id,
                 'nama'          => $data['nama'],
                 'email'         => $data['email'],
-                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                'password_hash' => password_hash($input['password'], PASSWORD_DEFAULT),
                 'role'          => $role,
                 'aktif'         => $data['status'] === 'aktif' ? 1 : 0,
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]);
-
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
+            log_message('error', 'Gagal simpan karyawan: ' . $e->getMessage());
             return ApiResponse::error('SERVER_ERROR', 'Gagal menyimpan karyawan dan akun', null, 500);
         }
 
-        $row         = $this->detail($id);
-        $row['akun'] = [
-            'email' => $data['email'],
-            'role'  => $role,
-        ];
-
-        return ApiResponse::success($row, 'Karyawan dan akun dibuat', null, 201);
+        return ApiResponse::success($this->detail($id), 'Karyawan dan akun dibuat', null, 201);
     }
 
+    // PUT /api/v1/karyawan/(:num)   semua field opsional (kontrak bagian 4)
     public function update($id = null)
     {
         $lama = $this->model->find($id);
@@ -145,18 +216,32 @@ class Karyawan extends BaseController
 
         $input = $this->request->getJSON(true) ?? [];
 
+        $gabung = array_merge([
+            'kode'             => $lama['kode'],
+            'nama'             => $lama['nama'],
+            'email'            => $lama['email'],
+            'no_hp'            => $lama['no_hp'],
+            'departemen_id'    => $lama['departemen_id'],
+            'jabatan_id'       => $lama['jabatan_id'],
+            'tanggal_mulai'    => $lama['tanggal_mulai'],
+            'jenis_penggajian' => $lama['jenis_penggajian'],
+            'gaji_pokok'       => $lama['gaji_pokok'],
+            'tunjangan_tetap'  => $lama['tunjangan_tetap'],
+            'npwp'             => $lama['npwp'],
+            'no_bpjs'          => $lama['no_bpjs'],
+            'status'           => $lama['status'],
+        ], $input);
+
         $validation = service('validation');
         $validation->setRules($this->rules((int) $id), $this->messages());
-
-        if (! $validation->run($input)) {
+        if (! $validation->run($gabung)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
         }
-
-        if ($err = $this->cekJabatan($input)) {
+        if ($err = $this->cekJabatan($gabung)) {
             return $err;
         }
 
-        $data = $this->payload($input);
+        $data = $this->payload($gabung);
         if (empty($data['kode'])) {
             $data['kode'] = $lama['kode'];
         }
@@ -175,39 +260,89 @@ class Karyawan extends BaseController
             if (! empty($input['role'])) {
                 $akun['role'] = $input['role'];
             }
+            if (! empty($input['password'])) {
+                $akun['password_hash'] = password_hash($input['password'], PASSWORD_DEFAULT);
+            }
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
 
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
+            log_message('error', 'Gagal update karyawan: ' . $e->getMessage());
             return ApiResponse::error('SERVER_ERROR', 'Gagal memperbarui karyawan', null, 500);
         }
 
         return ApiResponse::success($this->detail($id), 'Karyawan diperbarui');
     }
 
-    // Tidak dihapus permanen: karyawan dan akunnya dinonaktifkan
-    public function delete($id = null)
+    // PATCH /api/v1/karyawan/(:num)/status   body: {"status":"nonaktif"}
+    public function status($id = null)
     {
         if (! $this->model->find($id)) {
             return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
         }
 
+        $in = $this->request->getJSON(true) ?? [];
+        $st = (string) ($in['status'] ?? '');
+        if (! in_array($st, ['aktif', 'nonaktif'], true)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['status' => 'Pilih aktif atau nonaktif'], 422);
+        }
+
+        $sendiri = (int) ((JwtService::$user ?? [])['karyawan_id'] ?? 0);
+        if ($st === 'nonaktif' && $sendiri === (int) $id) {
+            return ApiResponse::error('CONFLICT', 'Anda tidak bisa menonaktifkan akun sendiri', null, 409);
+        }
+
         $db = db_connect();
         $db->transBegin();
         try {
-            $this->model->update($id, ['status' => 'nonaktif']);
+            $this->model->update($id, ['status' => $st]);
             $db->table('users')->where('karyawan_id', (int) $id)->update([
-                'aktif'      => 0,
+                'aktif'      => $st === 'aktif' ? 1 : 0,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
-            return ApiResponse::error('SERVER_ERROR', 'Gagal menonaktifkan karyawan', null, 500);
+            log_message('error', 'Gagal ubah status karyawan: ' . $e->getMessage());
+            return ApiResponse::error('SERVER_ERROR', 'Gagal mengubah status karyawan', null, 500);
         }
 
-        return ApiResponse::success($this->detail($id), 'Karyawan dinonaktifkan');
+        return ApiResponse::success($this->detail($id), 'Status karyawan diperbarui');
+    }
+
+    // GET /api/v1/karyawan/(:num)/kehadiran-ringkas?periode=2026-11   (admin_hrd, pemilik)
+    public function kehadiranRingkas($id = null)
+    {
+        $role = (JwtService::$user ?? [])['role'] ?? '';
+        if (! in_array($role, ['admin_hrd', 'pemilik'], true)) {
+            return ApiResponse::error('FORBIDDEN', 'Anda tidak berhak mengakses data ini', null, 403);
+        }
+        if (! $this->model->find($id)) {
+            return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
+        }
+
+        $periode = (string) ($this->request->getGet('periode') ?: date('Y-m'));
+        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $periode)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['periode' => 'Periode harus berformat YYYY-MM'], 422);
+        }
+
+        $mulai = $periode . '-01';
+        $akhir = date('Y-m-t', strtotime($mulai));
+
+        $c = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0];
+        $rows = db_connect()->table('absensi')->select('status, COUNT(*) AS n', false)
+            ->where('karyawan_id', (int) $id)
+            ->where('tanggal >=', $mulai)->where('tanggal <=', $akhir)
+            ->groupBy('status')->get()->getResultArray();
+        foreach ($rows as $r) {
+            if (isset($c[$r['status']])) {
+                $c[$r['status']] = (int) $r['n'];
+            }
+        }
+
+        $c['hadir'] += $c['terlambat'];
+        return ApiResponse::success(['periode' => $periode, 'hari_kerja' => count((new PayrollService())->hariKerja($mulai, $akhir))] + $c);
     }
 
     // Jabatan harus milik departemen karyawan, atau jabatan lintas departemen (departemen_id kosong)

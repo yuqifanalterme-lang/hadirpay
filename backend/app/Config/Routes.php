@@ -25,12 +25,6 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->put('auth/password', 'Auth::password');
 
         // ---- BACA: semua user login boleh ----
-        $routes->get('departemen', 'Departemen::index');
-        $routes->get('departemen/(:num)', 'Departemen::show/$1');
-
-        $routes->get('jabatan', 'Jabatan::index');
-        $routes->get('jabatan/(:num)', 'Jabatan::show/$1');
-
         // lokasi, jadwal, dan hari libur dibaca karyawan untuk halaman absen
         $routes->get('lokasi-absensi', 'LokasiAbsensi::index');
         $routes->get('lokasi-absensi/(:num)', 'LokasiAbsensi::show/$1');
@@ -48,12 +42,10 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         // ---- kuota cuti sendiri ----
         $routes->get('kuota-cuti/saya', 'KuotaCuti::saya');
 
-        // ---- NOTIFIKASI (milik sendiri) dan PENGATURAN (baca): semua user login ----
+        // ---- NOTIFIKASI (milik sendiri): semua user login ----
         $routes->get('notifikasi', 'Notifikasi::index');
         $routes->patch('notifikasi/(:num)/baca', 'Notifikasi::baca/$1');
         $routes->post('notifikasi/baca-semua', 'Notifikasi::bacaSemua');
-        $routes->get('pengaturan', 'Pengaturan::index');
-        $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
 
         // ---- PAYROLL (mengikuti kontrak bagian 7) ----
         // slip gaji dan rincian gaji: controller memeriksa kepemilikan untuk karyawan biasa
@@ -72,11 +64,12 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->delete('pengajuan/(:num)', 'Pengajuan::delete/$1');
         });
 
-        // baca payroll, akuntansi, dan data karyawan: admin_hrd, keuangan, pemilik
+        // baca payroll, akuntansi, data karyawan, master, dan pengaturan: admin_hrd, keuangan, pemilik (kontrak bagian 4, 11, 12)
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan,pemilik']], static function ($routes) {
             $routes->get('periode-gaji', 'PeriodeGaji::index');
             $routes->get('periode-gaji/(:num)', 'PeriodeGaji::show/$1');
             $routes->get('periode-gaji/(:num)/penggajian', 'Penggajian::index/$1');
+            $routes->get('periode-gaji/(:num)/rekap-absensi', 'AbsensiAdmin::rekapPeriode/$1');
 
             $routes->get('akun', 'Akun::index');
             $routes->get('jurnal', 'Jurnal::index');
@@ -84,9 +77,22 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->get('buku-besar', 'BukuBesar::index');
             $routes->get('neraca-saldo', 'NeracaSaldo::index');
 
-            // karyawan: admin_hrd tulis, keuangan dan pemilik hanya baca (kontrak bagian 12)
+            // absensi admin: GET /absensi hanya admin_hrd dan pemilik (dicek di controller), rekap untuk ketiganya
+            $routes->get('absensi', 'AbsensiAdmin::index');
+            $routes->get('absensi/rekap', 'AbsensiAdmin::rekap');
+
+            // karyawan: admin_hrd tulis, keuangan dan pemilik hanya baca
             $routes->get('karyawan', 'Karyawan::index');
             $routes->get('karyawan/(:num)', 'Karyawan::show/$1');
+            $routes->get('karyawan/(:num)/kehadiran-ringkas', 'Karyawan::kehadiranRingkas/$1'); // controller: admin_hrd dan pemilik
+
+            $routes->get('departemen', 'Departemen::index');
+            $routes->get('departemen/(:num)', 'Departemen::show/$1');
+            $routes->get('jabatan', 'Jabatan::index');
+            $routes->get('jabatan/(:num)', 'Jabatan::show/$1');
+
+            $routes->get('pengaturan', 'Pengaturan::index');
+            $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
         });
 
         // baca komponen gaji: admin_hrd dan keuangan
@@ -121,6 +127,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         // ---- TULIS: hanya admin_hrd ----
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('departemen', 'Departemen::create');
+            $routes->get('absensi/export', 'AbsensiAdmin::export');
             $routes->put('departemen/(:num)', 'Departemen::update/$1');
             $routes->delete('departemen/(:num)', 'Departemen::delete/$1');
 
@@ -128,9 +135,10 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('jabatan/(:num)', 'Jabatan::update/$1');
             $routes->delete('jabatan/(:num)', 'Jabatan::delete/$1');
 
+            // karyawan: tidak ada DELETE (kontrak), nonaktifkan lewat PATCH status
             $routes->post('karyawan', 'Karyawan::create');
             $routes->put('karyawan/(:num)', 'Karyawan::update/$1');
-            $routes->delete('karyawan/(:num)', 'Karyawan::delete/$1');
+            $routes->patch('karyawan/(:num)/status', 'Karyawan::status/$1');
 
             $routes->post('lokasi-absensi', 'LokasiAbsensi::create');
             $routes->put('lokasi-absensi/(:num)', 'LokasiAbsensi::update/$1');
@@ -156,6 +164,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             // komponen gaji: tulis khusus admin_hrd
             $routes->post('komponen-gaji', 'KomponenGaji::create');
             $routes->put('komponen-gaji/(:num)', 'KomponenGaji::update/$1');
+            $routes->patch('komponen-gaji/(:num)/status', 'KomponenGaji::status/$1');
             $routes->delete('komponen-gaji/(:num)', 'KomponenGaji::delete/$1');
 
             // komponen gaji per karyawan: khusus admin_hrd

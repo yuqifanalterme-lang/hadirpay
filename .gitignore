@@ -18,3 +18,8 @@
 **/.env
 /backend/env
 **/.DS_Store
+backend/**/*.bak*
+backend/dump_*.txt
+backend/hasil_tes.txt
+backend/untuk_claude*.txt
+backend/public/uploads/

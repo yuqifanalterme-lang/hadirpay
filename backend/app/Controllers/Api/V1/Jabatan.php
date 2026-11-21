@@ -9,6 +9,8 @@ use CodeIgniter\Database\Exceptions\DatabaseException;
 
 class Jabatan extends BaseController
 {
+    private const SELECT = 'jabatan.*, departemen.nama AS departemen_nama, (SELECT COUNT(*) FROM karyawan k WHERE k.jabatan_id = jabatan.id) AS jumlah_karyawan';
+
     private JabatanModel $model;
 
     public function __construct()
@@ -16,28 +18,37 @@ class Jabatan extends BaseController
         $this->model = new JabatanModel();
     }
 
-    private function withDepartemen(): JabatanModel
+    private function gabung(): JabatanModel
     {
-        return $this->model
-            ->select('jabatan.*, departemen.nama AS departemen_nama')
-            ->join('departemen', 'departemen.id = jabatan.departemen_id', 'left');
+        return $this->model->join('departemen', 'departemen.id = jabatan.departemen_id', 'left');
     }
 
-    private function detail($id): ?array
+    private function bentuk(array $r): array
     {
-        return $this->withDepartemen()->where('jabatan.id', $id)->first();
+        return [
+            'id'              => (int) $r['id'],
+            'nama'            => $r['nama'],
+            'jumlah_karyawan' => (int) ($r['jumlah_karyawan'] ?? 0),
+            'departemen_id'   => $r['departemen_id'] === null ? null : (int) $r['departemen_id'],
+            'departemen_nama' => $r['departemen_nama'] ?? null,
+        ];
     }
 
-    // GET /api/v1/jabatan?page=1&per_page=10&q=staf&departemen_id=1
+    private function ambil($id): ?array
+    {
+        $r = $this->gabung()->select(self::SELECT, false)->where('jabatan.id', $id)->first();
+        return $r ? $this->bentuk($r) : null;
+    }
+
+    // GET /api/v1/jabatan?search=&departemen_id=&page=&per_page=
     public function index()
     {
         $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
         $perPage = min(100, max(1, (int) ($this->request->getGet('per_page') ?? 10)));
-        $q       = trim((string) $this->request->getGet('q'));
+        $q       = trim((string) ($this->request->getGet('search') ?? $this->request->getGet('q')));
         $deptId  = (int) ($this->request->getGet('departemen_id') ?? 0);
 
-        $this->withDepartemen();
-
+        $this->gabung();
         if ($q !== '') {
             $this->model->like('jabatan.nama', $q);
         }
@@ -46,9 +57,11 @@ class Jabatan extends BaseController
         }
 
         $total = $this->model->countAllResults(false);
-        $rows  = $this->model->orderBy('jabatan.nama', 'ASC')->findAll($perPage, ($page - 1) * $perPage);
+        $rows  = $this->model->select(self::SELECT, false)
+            ->orderBy('jabatan.nama', 'ASC')
+            ->findAll($perPage, ($page - 1) * $perPage);
 
-        return ApiResponse::success($rows, 'OK', [
+        return ApiResponse::success(array_map(fn ($r) => $this->bentuk($r), $rows), 'OK', [
             'page'        => $page,
             'per_page'    => $perPage,
             'total'       => $total,
@@ -58,7 +71,7 @@ class Jabatan extends BaseController
 
     public function show($id = null)
     {
-        $row = $this->detail($id);
+        $row = $this->ambil($id);
         if (! $row) {
             return ApiResponse::error('NOT_FOUND', 'Jabatan tidak ditemukan', null, 404);
         }
@@ -71,7 +84,6 @@ class Jabatan extends BaseController
 
         $validation = service('validation');
         $validation->setRules($this->rules(null), $this->messages());
-
         if (! $validation->run($input)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
         }
@@ -81,7 +93,7 @@ class Jabatan extends BaseController
             'departemen_id' => empty($input['departemen_id']) ? null : (int) $input['departemen_id'],
         ], true);
 
-        return ApiResponse::success($this->detail($id), 'Jabatan dibuat', null, 201);
+        return ApiResponse::success($this->ambil($id), 'Jabatan dibuat', null, 201);
     }
 
     public function update($id = null)
@@ -94,7 +106,6 @@ class Jabatan extends BaseController
 
         $validation = service('validation');
         $validation->setRules($this->rules((int) $id), $this->messages());
-
         if (! $validation->run($input)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
         }
@@ -104,7 +115,7 @@ class Jabatan extends BaseController
             'departemen_id' => empty($input['departemen_id']) ? null : (int) $input['departemen_id'],
         ]);
 
-        return ApiResponse::success($this->detail($id), 'Jabatan diperbarui');
+        return ApiResponse::success($this->ambil($id), 'Jabatan diperbarui');
     }
 
     public function delete($id = null)
@@ -116,7 +127,7 @@ class Jabatan extends BaseController
         try {
             $this->model->delete($id);
         } catch (DatabaseException $e) {
-            return ApiResponse::error('IN_USE', 'Jabatan masih dipakai karyawan', null, 409);
+            return ApiResponse::error('CONFLICT', 'Jabatan masih dipakai karyawan', null, 409);
         }
 
         return ApiResponse::success(null, 'Jabatan dihapus');
