@@ -57,6 +57,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         // ---- PENGAJUAN (kontrak bagian 6): admin_hrd (semua), karyawan dan keuangan (milik sendiri) ----
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd,karyawan,keuangan']], static function ($routes) {
             $routes->get('pengajuan', 'Pengajuan::index');
+            $routes->get('dashboard/karyawan', 'Dashboard::karyawan');
             $routes->get('pengajuan/kuota', 'Pengajuan::kuota');
             $routes->get('pengajuan/(:num)', 'Pengajuan::show/$1');
             $routes->get('pengajuan/(:num)/lampiran', 'Pengajuan::lampiran/$1');
@@ -80,6 +81,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             // absensi admin: GET /absensi hanya admin_hrd dan pemilik (dicek di controller), rekap untuk ketiganya
             $routes->get('absensi', 'AbsensiAdmin::index');
             $routes->get('absensi/rekap', 'AbsensiAdmin::rekap');
+            $routes->get('dashboard/pemilik', 'Dashboard::pemilik');
 
             // karyawan: admin_hrd tulis, keuangan dan pemilik hanya baca
             $routes->get('karyawan', 'Karyawan::index');
@@ -116,6 +118,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('periode-gaji/(:num)/bayar', 'PeriodeGaji::bayar/$1');
 
             $routes->post('akun', 'Akun::create');
+            $routes->get('dashboard/keuangan', 'Dashboard::keuangan');
             $routes->put('akun/(:num)', 'Akun::update/$1');
             $routes->delete('akun/(:num)', 'Akun::delete/$1');
 
@@ -128,6 +131,11 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('departemen', 'Departemen::create');
             $routes->get('absensi/export', 'AbsensiAdmin::export');
+            $routes->patch('pengguna/(:num)/status', 'Pengguna::status/$1');
+            $routes->post('pengguna/(:num)/reset-password', 'Pengguna::resetPassword/$1');
+            $routes->put('pengguna/(:num)/role', 'Pengguna::role/$1');
+            $routes->get('pengguna', 'Pengguna::index');
+            $routes->get('dashboard/admin', 'Dashboard::admin');
             $routes->put('departemen/(:num)', 'Departemen::update/$1');
             $routes->delete('departemen/(:num)', 'Departemen::delete/$1');
 
