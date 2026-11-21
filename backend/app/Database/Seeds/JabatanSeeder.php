@@ -18,6 +18,6 @@ class JabatanSeeder extends Seeder
         foreach ($nama as $n) {
             $rows[] = ['nama' => $n, 'created_at' => $now, 'updated_at' => $now];
         }
-        $this->db->table('jabatan')->insertBatch($rows);
+        $this->db->table('jabatan')->ignore(true)->insertBatch($rows);
     }
 }

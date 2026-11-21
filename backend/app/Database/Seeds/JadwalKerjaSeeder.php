@@ -9,6 +9,7 @@ class JadwalKerjaSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
+        if ($this->db->table('jadwal_kerja')->countAllResults() > 0) return;
         $this->db->table('jadwal_kerja')->insert([
             'nama'            => 'Reguler',
             'jam_masuk'       => '08:00:00',

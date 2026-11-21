@@ -8,6 +8,8 @@ use App\Libraries\JwtService;
 use App\Libraries\Tanggal;
 use App\Models\PengaturanModel;
 use App\Services\PayslipFormatter;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class SlipGaji extends BaseController
 {
@@ -79,6 +81,56 @@ class SlipGaji extends BaseController
         ];
 
         return ApiResponse::success($detail);
+    }
+
+    // GET /api/v1/slip-gaji/(:num)/pdf
+    public function pdf($id = null)
+    {
+        $db = db_connect();
+        $s = $db->table('slip_gaji s')
+            ->select('s.id, s.penggajian_id, s.nomor_slip, s.tanggal_terbit, g.karyawan_id')
+            ->join('penggajian g', 'g.id = s.penggajian_id')
+            ->where('s.id', (int) $id)
+            ->get()->getRowArray();
+        if (! $s) {
+            return ApiResponse::error('NOT_FOUND', 'Slip gaji tidak ditemukan', null, 404);
+        }
+        if (! in_array($this->role(), self::ROLE_LIHAT_SEMUA, true) && (int) $s['karyawan_id'] !== (int) $this->karyawanId()) {
+            return ApiResponse::error('FORBIDDEN', 'Anda tidak berhak mengakses data ini', null, 403);
+        }
+
+        $detail = PayslipFormatter::detail((int) $s['penggajian_id']);
+        if (! $detail) {
+            return ApiResponse::error('NOT_FOUND', 'Data penggajian tidak ditemukan', null, 404);
+        }
+
+        $rows = '';
+        foreach ($detail['rincian'] as $r) {
+            $rows .= '<tr><td>' . esc($r['nama']) . '</td><td style="text-align:right">Rp ' . number_format((float) $r['jumlah'], 2, ',', '.') . '</td></tr>';
+        }
+        $html = '<html><body style="font-family:DejaVu Sans;font-size:12px">'
+            . '<h2>HADIRPAY - Slip Gaji</h2>'
+            . '<p><strong>Nomor:</strong> ' . esc($s['nomor_slip']) . '<br>'
+            . '<strong>Periode:</strong> ' . esc($detail['periode']) . '<br>'
+            . '<strong>Karyawan:</strong> ' . esc($detail['karyawan']['nama']) . '</p>'
+            . '<table width="100%" cellspacing="0" cellpadding="6" border="1">' . $rows
+            . '<tr><td><strong>Total Pendapatan</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['total_pendapatan'], 2, ',', '.') . '</strong></td></tr>'
+            . '<tr><td><strong>Total Potongan</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['total_potongan'], 2, ',', '.') . '</strong></td></tr>'
+            . '<tr><td><strong>Gaji Bersih</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['gaji_bersih'], 2, ',', '.') . '</strong></td></tr>'
+            . '</table></body></html>';
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', false);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = 'slip-' . str_replace('/', '-', $s['nomor_slip']) . '.pdf';
+        return $this->response
+            ->setContentType('application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($dompdf->output());
     }
 
     // ---------- helper ----------

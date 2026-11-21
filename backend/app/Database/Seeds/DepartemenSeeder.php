@@ -15,6 +15,6 @@ class DepartemenSeeder extends Seeder
         foreach ($nama as $n) {
             $rows[] = ['nama' => $n, 'created_at' => $now, 'updated_at' => $now];
         }
-        $this->db->table('departemen')->insertBatch($rows);
+        $this->db->table('departemen')->ignore(true)->insertBatch($rows);
     }
 }

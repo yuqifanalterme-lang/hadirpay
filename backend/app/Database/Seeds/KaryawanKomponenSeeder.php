@@ -21,6 +21,6 @@ class KaryawanKomponenSeeder extends Seeder
                 'updated_at'  => $now,
             ];
         }
-        $this->db->table('karyawan_komponen')->insertBatch($rows);
+        $this->db->table('karyawan_komponen')->ignore(true)->insertBatch($rows);
     }
 }

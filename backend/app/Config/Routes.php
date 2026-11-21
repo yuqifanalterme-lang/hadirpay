@@ -52,6 +52,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         $routes->get('slip-gaji', 'SlipGaji::index');
         $routes->get('slip-gaji/saya', 'SlipGaji::saya');
         $routes->get('slip-gaji/(:num)', 'SlipGaji::show/$1');
+        $routes->get('slip-gaji/(:num)/pdf', 'SlipGaji::pdf/$1');
         $routes->get('penggajian/(:num)', 'Penggajian::show/$1');
 
         // ---- PENGAJUAN (kontrak bagian 6): admin_hrd (semua), karyawan dan keuangan (milik sendiri) ----
@@ -95,6 +96,14 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
 
             $routes->get('pengaturan', 'Pengaturan::index');
             $routes->get('pengaturan/(:segment)', 'Pengaturan::show/$1');
+            $routes->get('laporan/kehadiran', 'Laporan::kehadiran');
+            $routes->get('laporan/keterlambatan', 'Laporan::keterlambatan');
+            $routes->get('laporan/izin-cuti', 'Laporan::izinCuti');
+            $routes->get('laporan/lembur', 'Laporan::lembur');
+            $routes->get('laporan/penggajian', 'Laporan::penggajian');
+            $routes->get('laporan/beban-gaji', 'Laporan::bebanGaji');
+            $routes->get('laporan/jurnal-penggajian', 'Laporan::jurnalPenggajian');
+            $routes->get('laporan/(:segment)/export', 'Laporan::export/$1');
         });
 
         // baca komponen gaji: admin_hrd dan keuangan
@@ -183,6 +192,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
 
             // notifikasi (kirim) dan pengaturan (tulis): khusus admin_hrd
             $routes->post('notifikasi', 'Notifikasi::create');
+            $routes->post('pengaturan/logo', 'Pengaturan::logo');
             $routes->put('pengaturan', 'Pengaturan::simpanMassal');
             $routes->put('pengaturan/(:segment)', 'Pengaturan::simpan/$1');
             $routes->delete('pengaturan/(:segment)', 'Pengaturan::delete/$1');

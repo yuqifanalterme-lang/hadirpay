@@ -184,6 +184,38 @@ class Pengaturan extends BaseController
         return ApiResponse::success((object) $this->gabungan(), 'Pengaturan disimpan');
     }
 
+    // POST /api/v1/pengaturan/logo   multipart/form-data field: logo
+    public function logo()
+    {
+        $file = $this->request->getFile('logo');
+        if (! $file || ! $file->isValid()) {
+            return ApiResponse::error('VALIDATION_ERROR', 'File logo wajib diisi', ['logo' => 'Logo tidak valid'], 422);
+        }
+        if (! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Format logo tidak didukung', ['logo' => 'Gunakan JPG, PNG, atau WEBP'], 422);
+        }
+        if ($file->getSize() > 2 * 1024 * 1024) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Ukuran logo terlalu besar', ['logo' => 'Maksimal 2 MB'], 422);
+        }
+
+        $dir = FCPATH . 'uploads' . DIRECTORY_SEPARATOR . 'pengaturan';
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $name = $file->getRandomName();
+        if (! $file->move($dir, $name)) {
+            return ApiResponse::error('SERVER_ERROR', 'Gagal menyimpan logo', null, 500);
+        }
+
+        $url = base_url('uploads/pengaturan/' . $name);
+        $perusahaan = $this->model->ambil('perusahaan');
+        $value = is_array($perusahaan['value'] ?? null) ? $perusahaan['value'] : $this->bawaan()['perusahaan'];
+        $value['logo_url'] = $url;
+        $this->model->simpan('perusahaan', $value);
+
+        return ApiResponse::success(['logo_url' => $url], 'Logo perusahaan diperbarui');
+    }
+
     // DELETE /api/v1/pengaturan/(:segment)
     public function delete($key = null)
     {
@@ -214,6 +246,12 @@ class Pengaturan extends BaseController
         if (isset($j['toleransi_menit']) && (! is_numeric($j['toleransi_menit']) || (int) $j['toleransi_menit'] < 0 || (int) $j['toleransi_menit'] > 240)) {
             $e['jadwal_kerja.toleransi_menit'] = 'Toleransi 0 sampai 240 menit';
         }
+        if (isset($j['hari_kerja'])) {
+            $validHari = ['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu', 'minggu'];
+            if (! is_array($j['hari_kerja']) || array_diff(array_map('strtolower', $j['hari_kerja']), $validHari)) {
+                $e['jadwal_kerja.hari_kerja'] = 'Hari kerja harus berisi nama hari yang valid';
+            }
+        }
         if (! $e) {
             $skrg = $this->jadwal();
             $m    = (string) ($j['jam_masuk'] ?? $skrg['jam_masuk']);
@@ -225,7 +263,7 @@ class Pengaturan extends BaseController
         return $e;
     }
 
-    /** Hanya jam_masuk, jam_pulang, dan toleransi_menit yang diubah. hari_kerja belum bisa diubah lewat sini. */
+    /** Sinkronkan semua properti jadwal kerja yang didukung kontrak. */
     private function simpanJadwal(array $j): void
     {
         $upd = [];
@@ -237,6 +275,9 @@ class Pengaturan extends BaseController
         }
         if (isset($j['toleransi_menit'])) {
             $upd['toleransi_menit'] = (int) $j['toleransi_menit'];
+        }
+        if (isset($j['hari_kerja']) && is_array($j['hari_kerja'])) {
+            $upd['hari_kerja'] = implode(',', array_map('strtolower', $j['hari_kerja']));
         }
         if (! $upd) {
             return;

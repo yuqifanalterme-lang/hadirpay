@@ -74,6 +74,6 @@ class KaryawanSeeder extends Seeder
                 'updated_at'       => $now,
             ];
         }
-        $this->db->table('karyawan')->insertBatch($rows);
+        $this->db->table('karyawan')->ignore(true)->insertBatch($rows);
     }
 }

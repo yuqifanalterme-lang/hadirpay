@@ -28,6 +28,6 @@ class KomponenGajiSeeder extends Seeder
                 'created_at' => $now, 'updated_at' => $now,
             ];
         }
-        $this->db->table('komponen_gaji')->insertBatch($rows);
+        $this->db->table('komponen_gaji')->ignore(true)->insertBatch($rows);
     }
 }

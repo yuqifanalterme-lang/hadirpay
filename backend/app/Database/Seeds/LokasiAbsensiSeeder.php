@@ -9,6 +9,7 @@ class LokasiAbsensiSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
+        if ($this->db->table('lokasi_absensi')->countAllResults() > 0) return;
         $this->db->table('lokasi_absensi')->insert([
             'nama'         => 'Sekolah Vokasi IPB (Kampus Cilibende)',
             'alamat'       => 'Jl. Kumbang No. 14, Babakan, Bogor Tengah, Kota Bogor',

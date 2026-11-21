@@ -20,6 +20,6 @@ class KuotaCutiSeeder extends Seeder
                 'updated_at'  => $now,
             ];
         }
-        $this->db->table('kuota_cuti')->insertBatch($rows);
+        $this->db->table('kuota_cuti')->ignore(true)->insertBatch($rows);
     }
 }

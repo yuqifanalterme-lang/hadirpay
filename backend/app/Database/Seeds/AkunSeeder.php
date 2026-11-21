@@ -25,6 +25,6 @@ class AkunSeeder extends Seeder
                 'created_at' => $now, 'updated_at' => $now,
             ];
         }
-        $this->db->table('akun')->insertBatch($rows);
+        $this->db->table('akun')->ignore(true)->insertBatch($rows);
     }
 }
