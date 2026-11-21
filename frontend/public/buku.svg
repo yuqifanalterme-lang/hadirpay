@@ -50,9 +50,6 @@
       <!-- Soft Blue Inner Cover Panel (Matches Phone & Payslip Cards) -->
       <rect x="56" y="24" width="206" height="318" rx="16" fill="#eff6ff" stroke="#dbeafe" stroke-width="1.2" />
 
-      <!-- Accounting Balance Scale Emblem (Clean Medallion) -->
-      <g transform="translate(161, 154)">
-        <circle cx="0" cy="0" r="46" fill="#1e3a8a" stroke="#93c5fd" stroke-width="2" />
       <!-- Accounting Balance Scale Emblem (Clean Royal Blue Medallion) -->
       <g transform="translate(159, 144)">
         <circle cx="0" cy="0" r="44" fill="#2563eb" stroke="#bfdbfe" stroke-width="2" />
@@ -74,10 +71,6 @@
         <path d="M22 -8 L16 7 H28 Z" stroke="#ffffff" stroke-width="2" fill="none" stroke-linejoin="round" />
       </g>
 
-      <!-- Ledger Plaque -->
-      <g transform="translate(115, 226)">
-        <rect x="0" y="0" width="92" height="26" rx="6" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.5" />
-        <text x="46" y="17" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" letter-spacing="2">JURNAL</text>
       <!-- Clean White Journal Label Plaque -->
       <g transform="translate(113, 212)">
         <rect x="0" y="0" width="92" height="26" rx="13" fill="#ffffff" stroke="#bfdbfe" stroke-width="1.2" />
