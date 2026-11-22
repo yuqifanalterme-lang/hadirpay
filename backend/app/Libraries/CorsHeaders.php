@@ -11,7 +11,10 @@ class CorsHeaders
         $origin = service('request')->getHeaderLine('Origin');
         $allowedOrigins = array_filter(array_map(
             'trim',
-            explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')),
+            explode(',', (string) env(
+                'CORS_ALLOWED_ORIGINS',
+                'http://localhost:3000,http://127.0.0.1:3000,https://hadirpay.vercel.app',
+            )),
         ));
 
         $response->removeHeader('Access-Control-Allow-Origin');

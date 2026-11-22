@@ -10,7 +10,7 @@ Tambahkan environment variables berikut di Render:
 | --- | --- |
 | `CI_ENVIRONMENT` | `production` |
 | `APP_BASE_URL` | URL service Render, misalnya `https://hadirpay-api.onrender.com/` |
-| `CORS_ALLOWED_ORIGINS` | URL frontend, tanpa slash di akhir. Beberapa origin dapat dipisahkan koma |
+| `CORS_ALLOWED_ORIGINS` | `https://hadirpay.vercel.app`, tanpa slash di akhir. Beberapa origin dapat dipisahkan koma |
 | `DB_HOST` | Host database MySQL |
 | `DB_PORT` | Port database MySQL |
 | `DB_NAME` | Nama database |
