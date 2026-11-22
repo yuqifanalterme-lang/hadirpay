@@ -6,16 +6,7 @@ class ApiResponse
 {
     private static function cors($response)
     {
-        $origin = service('request')->getHeaderLine('Origin');
-        $allowed = ['http://localhost:3000', 'http://127.0.0.1:3000'];
-        $allowOrigin = in_array($origin, $allowed, true) ? $origin : 'http://localhost:3000';
-        return $response
-            ->setHeader('Access-Control-Allow-Origin', $allowOrigin)
-            ->setHeader('Vary', 'Origin')
-            ->setHeader('Access-Control-Allow-Credentials', 'true')
-            ->setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept')
-            ->setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-            ->setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length');
+        return CorsHeaders::apply($response);
     }
 
     /**

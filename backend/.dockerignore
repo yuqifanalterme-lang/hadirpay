@@ -1,0 +1,15 @@
+.env
+.env.*
+.git
+.gitignore
+.idea
+.vscode
+vendor
+tests
+*.bak
+*.log
+writable/cache/*
+writable/debugbar/*
+writable/logs/*
+writable/session/*
+writable/uploads/*

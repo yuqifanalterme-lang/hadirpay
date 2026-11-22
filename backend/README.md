@@ -1,5 +1,25 @@
 # CodeIgniter 4 Application Starter
 
+## Deploy ke Render dengan Docker
+
+Di Render, buat **Web Service** dari repository ini dan atur **Root Directory** ke `backend`. Render akan memakai `backend/Dockerfile` dan mengisi variabel `PORT` secara otomatis. Set **Health Check Path** ke `/api/v1/ping`.
+
+Tambahkan environment variables berikut di Render:
+
+| Variable | Isi |
+| --- | --- |
+| `CI_ENVIRONMENT` | `production` |
+| `APP_BASE_URL` | URL service Render, misalnya `https://hadirpay-api.onrender.com/` |
+| `CORS_ALLOWED_ORIGINS` | URL frontend, tanpa slash di akhir. Beberapa origin dapat dipisahkan koma |
+| `DB_HOST` | Host database MySQL |
+| `DB_PORT` | Port database MySQL |
+| `DB_NAME` | Nama database |
+| `DB_USER` | User database |
+| `DB_PASSWORD` | Password database |
+| `JWT_SECRET` | Secret acak yang kuat dan hanya disimpan di environment Render |
+
+Jangan menambahkan `.env` atau secret ke image Docker maupun repository. `writable/uploads` pada filesystem container bersifat sementara; gunakan persistent disk atau object storage bila file unggahan harus bertahan setelah deploy/restart. Jangan jalankan seeder pada database production.
+
 ## What is CodeIgniter?
 
 CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.

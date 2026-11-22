@@ -358,10 +358,6 @@ export function Topbar({
                 <Shield className="size-4 text-muted-foreground" aria-hidden="true" />
                 Ubah password
               </button>
-              <button type="button" onClick={() => { setOpenPanel(null); router.push('/login') }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-heading hover:bg-surface focus-visible:outline-2 focus-visible:outline-primary">
-                <UserRound className="size-4 text-muted-foreground" aria-hidden="true" />
-                Ganti role
-              </button>
               <button type="button" onClick={handleLogout} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-destructive hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-destructive">
                 <LogOut className="size-4" aria-hidden="true" />
                 Keluar
