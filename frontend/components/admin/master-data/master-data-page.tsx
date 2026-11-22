@@ -11,6 +11,7 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { TextField } from '@/components/auth/fields'
 import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { ApiError } from '@/lib/api/client'
+import { config } from '@/lib/config'
 import type { MasterKind, MasterRecord } from '@/lib/mock/master-data'
 import type { Employee } from '@/lib/mock/employees'
 import {
@@ -51,9 +52,13 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
     setLoading(true)
     setLoadError('')
     try {
-      const [masterRecords, employeeRecords] = await Promise.all([listMasterRecords(kind), listEmployees()])
+      const masterRecords = await listMasterRecords(kind)
       setRecords(masterRecords)
-      setEmployees(employeeRecords)
+      if (config.mock.karyawan) {
+        setEmployees(await listEmployees())
+      } else {
+        setEmployees([])
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : `Data ${kindLabel(kind).toLowerCase()} gagal dimuat.`)
     } finally {

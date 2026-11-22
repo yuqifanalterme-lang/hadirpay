@@ -80,7 +80,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ? 'pengajuan'
       : pathname.startsWith('/app/karyawan') || pathname.startsWith('/app/master')
         ? 'karyawan'
-        : pathname.startsWith('/app/penggajian') || pathname.startsWith('/app/slip-gaji')
+        : pathname.startsWith('/app/slip-gaji') && role === 'karyawan'
+          ? 'slip_gaji'
+          : pathname.startsWith('/app/penggajian') || pathname.startsWith('/app/slip-gaji')
           ? 'penggajian'
           : pathname.startsWith('/app/akuntansi')
             ? 'akuntansi'
