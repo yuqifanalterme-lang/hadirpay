@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Button } from '@/components/ui/button'
 import { StatIcon } from '@/components/ui/stat-icon'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
@@ -195,9 +194,6 @@ export function AttendancePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Data absensi Andi Wijaya untuk mode demo. Catatan dan perubahan tersimpan di browser ini saja.
-      </DemoDataNotice>
 
       <section
         className="rounded-2xl bg-navy-2 p-5 text-white shadow-lg shadow-blue-900/20 sm:p-8"

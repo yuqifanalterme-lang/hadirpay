@@ -29,7 +29,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatIcon } from '@/components/ui/stat-icon'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
@@ -116,9 +115,9 @@ function ReportAccess({ children }: { children: React.ReactNode }) {
     return (
       <EmptyState
         title="Laporan untuk Admin, Keuangan, dan Pemilik"
-        description="Masuk dengan mode demo Admin/HRD, Keuangan, atau Pemilik untuk melihat laporan."
+        description="Masuk sebagai Admin/HRD, Keuangan, atau Pemilik untuk melihat laporan."
         icon={FileChartColumn}
-        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
+        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih role</Link>}
       />
     )
   }
@@ -154,9 +153,6 @@ export function ReportsIndexPage() {
   return (
     <ReportAccess>
       <div className="flex flex-col gap-6">
-        <DemoDataNotice>
-          Laporan memakai data demo. Rincian departemen dan tren historis adalah contoh, sedangkan penggajian dan jurnal mengikuti data tersimpan di aplikasi.
-        </DemoDataNotice>
         <div>
           <h2 className="text-xl font-bold text-heading">Laporan</h2>
           <p className="mt-1 text-sm text-muted-foreground">Pilih laporan untuk meninjau angka dan rincian berdasarkan periode.</p>
@@ -277,9 +273,6 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
   return (
     <ReportAccess>
       <div className="report-print-document flex flex-col gap-6">
-        <DemoDataNotice>
-          Data laporan bersifat demo. Data November 2026 menggunakan sumber HADIRPAY yang tersedia; riwayat lain ditandai sebagai contoh.
-        </DemoDataNotice>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-heading">{dataset.title}</h2>
@@ -450,7 +443,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
         </Panel>
 
         {dataset.title === 'Beban Gaji' && (
-          <p className="text-xs text-muted-foreground">Nilai historis Juni sampai Oktober 2026 merupakan data contoh. November mengikuti total gaji demo Rp186.450.000.</p>
+          <p className="text-xs text-muted-foreground">Nilai historis Juni sampai Oktober 2026 tersedia sebagai referensi. November mengikuti total gaji Rp186.450.000.</p>
         )}
       </div>
     </ReportAccess>

@@ -54,12 +54,12 @@ function readStoredData<T>(
   try {
     parsed = JSON.parse(stored)
   } catch (error) {
-    throw new Error(`Data ${label} demo tidak dapat dibaca. Muat ulang atau bersihkan data demo.`, {
+    throw new Error(`Data ${label} tidak dapat dibaca. Muat ulang atau coba lagi.`, {
       cause: error,
     })
   }
   if (!Array.isArray(parsed) || !parsed.every(isItem)) {
-    throw new Error(`Format data ${label} demo tidak valid. Bersihkan data demo sebelum melanjutkan.`)
+    throw new Error(`Format data ${label} tidak valid. Periksa data sebelum melanjutkan.`)
   }
   return parsed
 }

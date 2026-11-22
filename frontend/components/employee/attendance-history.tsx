@@ -13,7 +13,6 @@ import { toast } from 'sonner'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Panel } from '@/components/hadirpay/panel'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
@@ -186,9 +185,6 @@ export function AttendanceHistory() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Riwayat kehadiran Andi Wijaya merupakan data contoh November 2026. Pengajuan koreksi tersimpan di browser ini.
-      </DemoDataNotice>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Hadir" value={String(summary?.present ?? 0)} icon={CalendarCheck} tone="green" />

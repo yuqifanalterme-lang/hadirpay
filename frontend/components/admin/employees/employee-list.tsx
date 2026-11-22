@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, ArrowUpDown, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Eye, SquarePen, UserCheck, UserX, Users } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { SelectField } from '@/components/ui/select-field'
@@ -21,6 +20,7 @@ import type { KaryawanListQuery } from '@/lib/types/karyawan'
 import { formatRupiah } from '@/lib/mock-data'
 import { listEmployeesPage, listMasterRecords, setEmployeeStatus } from '@/lib/services/karyawan.service'
 import { EmployeeFormDialog } from './employee-form-dialog'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 
 type SortKey = 'id' | 'name' | 'position' | 'department' | 'baseSalary' | 'status'
 const pageSize = 5
@@ -206,12 +206,7 @@ export function EmployeeList() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DemoDataNotice>
-          {config.mock.karyawan
-            ? 'Daftar ini berisi 10 karyawan contoh untuk mode demo. Perubahan disimpan di browser ini saja.'
-            : 'Daftar ini memuat data karyawan dari layanan.'}
-        </DemoDataNotice>
+      <div className="flex justify-end">
         <Button type="button" variant="primary" size="action" onClick={() => setFormEmployee(null)}>
           Tambah karyawan
         </Button>
@@ -272,8 +267,8 @@ export function EmployeeList() {
 
         {employees.length === 0 ? (
           <EmptyState
-            title="Belum ada karyawan contoh"
-            description="Tambahkan karyawan untuk mulai mengisi direktori demo."
+            title="Belum ada karyawan"
+            description="Tambahkan karyawan untuk mulai mengisi direktori."
             icon={Users}
           />
         ) : filtered.length === 0 ? (
@@ -304,7 +299,7 @@ export function EmployeeList() {
           <>
             <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[980px] text-left text-sm">
-                <caption className="sr-only">Daftar karyawan contoh HadirPay</caption>
+                <caption className="sr-only">Daftar karyawan HadirPay</caption>
                 <thead>
                   <tr className="border-b border-border">
                     <th scope="col" aria-sort={sortKey === 'id' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>{sortLabel('id', 'ID')}</th>
@@ -345,26 +340,38 @@ export function EmployeeList() {
                         <StatusBadge status={employee.status} />
                       </td>
                       <td className="py-3">
-                        <div className="flex items-center gap-2">
-                          <Link
+                        <div className="flex items-center gap-1">
+                          <TableActionIcon
+                            label="Detail"
+                            ariaLabel={`Detail ${employee.name}`}
+                            icon={Eye}
+                            tone="blue"
                             href={`/app/karyawan/${encodeURIComponent(employee.id)}`}
-                            className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}
-                          >
-                            Detail
-                          </Link>
-                          <Button type="button" variant="ghost" size="action" onClick={() => setFormEmployee(employee)}>
-                            Ubah
-                            <span className="sr-only">{employee.name}</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="action"
-                            onClick={() => setStatusEmployee(employee)}
-                          >
-                            {employee.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
-                            <span className="sr-only">{employee.name}</span>
-                          </Button>
+                          />
+                          <TableActionIcon
+                            label="Ubah"
+                            ariaLabel={`Ubah ${employee.name}`}
+                            icon={SquarePen}
+                            tone="blue"
+                            onClick={() => setFormEmployee(employee)}
+                          />
+                          {employee.status === 'Aktif' ? (
+                            <TableActionIcon
+                              label="Nonaktifkan"
+                              ariaLabel={`Nonaktifkan ${employee.name}`}
+                              icon={UserX}
+                              tone="red"
+                              onClick={() => setStatusEmployee(employee)}
+                            />
+                          ) : (
+                            <TableActionIcon
+                              label="Aktifkan"
+                              ariaLabel={`Aktifkan ${employee.name}`}
+                              icon={UserCheck}
+                              tone="green"
+                              onClick={() => setStatusEmployee(employee)}
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>

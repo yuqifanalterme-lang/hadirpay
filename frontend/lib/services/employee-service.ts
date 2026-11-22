@@ -28,10 +28,10 @@ function readEmployees(): Employee[] {
   try {
     parsed = JSON.parse(stored)
   } catch (error) {
-    throw new Error('Data karyawan contoh tidak dapat dibaca. Muat ulang atau bersihkan data demo.', { cause: error })
+    throw new Error('Data karyawan tidak dapat dibaca. Muat ulang atau coba lagi.', { cause: error })
   }
   if (!Array.isArray(parsed) || !parsed.every(isEmployee)) {
-    throw new Error('Format data karyawan contoh tidak valid. Bersihkan data demo sebelum melanjutkan.')
+    throw new Error('Format data karyawan tidak valid. Periksa data sebelum melanjutkan.')
   }
   return parsed
 }

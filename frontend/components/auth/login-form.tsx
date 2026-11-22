@@ -39,7 +39,7 @@ export function LoginForm() {
       window.dispatchEvent(new Event('hadirpay-role-changed'))
       router.push(signedInRole === 'karyawan' ? '/app/beranda' : '/app')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Login demo gagal.')
+      toast.error(error instanceof Error ? error.message : 'Login gagal.')
     } finally {
       setLoading(false)
     }
@@ -49,7 +49,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {config.mock.auth && (
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-semibold text-heading">Masuk sebagai (mode demo)</legend>
+          <legend className="mb-2 text-sm font-semibold text-heading">Masuk sebagai</legend>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {roles.map((r) => {
               const active = role === r.value

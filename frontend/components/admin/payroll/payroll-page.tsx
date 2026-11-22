@@ -13,7 +13,6 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import type { PayrollLine, PayrollPeriod } from '@/lib/mock/payroll'
@@ -187,14 +186,14 @@ export function PayrollPage() {
     return (
       <EmptyState
         title="Penggajian untuk Admin, Keuangan, dan Pemilik"
-        description="Pilih mode demo Admin/HRD atau Keuangan untuk mengelola gaji. Pemilik dapat melihat ringkasan."
+        description="Pilih Admin/HRD atau Keuangan untuk mengelola gaji. Pemilik dapat melihat ringkasan."
         icon={FileCheck2}
-        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
+        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih role</Link>}
       />
     )
   }
   if (error) return <ErrorState message={error} onRetry={() => void load()} />
-  if (!period) return <EmptyState title="Periode penggajian belum tersedia" description="Periksa kembali data demo penggajian." icon={FileCheck2} />
+  if (!period) return <EmptyState title="Periode penggajian belum tersedia" description="Periksa kembali data penggajian." icon={FileCheck2} />
 
   const actions: PayrollAction[] = []
   if (role === 'admin' && period.status === 'Draft') actions.push('submit')
@@ -204,11 +203,6 @@ export function PayrollPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {period.isMock && (
-        <DemoDataNotice>
-          Periode November 2026 memakai data contoh. Rincian tersedia untuk 9 karyawan aktif, sedangkan 39 karyawan lain ditampilkan sebagai agregat agar total sama dengan dashboard.
-        </DemoDataNotice>
-      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -294,7 +288,7 @@ export function PayrollPage() {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen} label={`Rincian penggajian ${period.period}`} size="drawer">
         <DialogHeader
           title={`Rincian ${period.period}`}
-          description={period.isMock ? 'Rincian individu demo dan agregat karyawan lain.' : undefined}
+          description={period.isMock ? 'Rincian individu dan agregat karyawan lain.' : undefined}
           onClose={() => setDetailOpen(false)}
         />
         <div className="flex flex-col gap-4 p-5 sm:p-6">

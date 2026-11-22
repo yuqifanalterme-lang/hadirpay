@@ -5,11 +5,11 @@ import { BriefcaseBusiness, Building2, Pencil, Plus, Trash2 } from 'lucide-react
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { TextField } from '@/components/auth/fields'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { ApiError } from '@/lib/api/client'
 import type { MasterKind, MasterRecord } from '@/lib/mock/master-data'
 import type { Employee } from '@/lib/mock/employees'
@@ -148,9 +148,6 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DemoDataNotice>
-          Data {kindLabel(kind).toLowerCase()} ini adalah contoh mode demo. Perubahan disimpan di browser ini saja.
-        </DemoDataNotice>
         <Button type="button" variant="primary" size="action" onClick={() => setFormRecord(null)}>
           <Plus className="size-4" aria-hidden="true" />
           Tambah {kindLabel(kind).toLowerCase()}
@@ -189,7 +186,7 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
           <>
             <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[560px] text-left text-sm">
-                <caption className="sr-only">Daftar {kindLabel(kind).toLowerCase()} contoh</caption>
+                <caption className="sr-only">Daftar {kindLabel(kind).toLowerCase()}</caption>
                 <thead>
                   <tr className="border-b border-border text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     <th scope="col" className="py-3 pr-4">Nama {kindLabel(kind).toLowerCase()}</th>
@@ -203,25 +200,24 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
                       <td className="py-3 pr-4 font-semibold text-heading">{record.name}</td>
                       <td className="py-3 pr-4">{usageCount(record)} karyawan</td>
                       <td className="py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" variant="outline" size="action" className="bg-white" onClick={() => setFormRecord(record)}>
-                            <Pencil className="size-4" aria-hidden="true" />
-                            Ubah
-                            <span className="sr-only">{record.name}</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="dangerOutline"
-                            size="action"
+                        <div className="flex items-center gap-1">
+                          <TableActionIcon
+                            label="Ubah"
+                            ariaLabel={`Ubah ${record.name}`}
+                            icon={Pencil}
+                            tone="blue"
+                            onClick={() => setFormRecord(record)}
+                          />
+                          <TableActionIcon
+                            label="Hapus"
+                            ariaLabel={`Hapus ${record.name}`}
+                            icon={Trash2}
+                            tone="red"
                             onClick={() => {
                               setDeleteError('')
                               setDeleteRecord(record)
                             }}
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                            Hapus
-                            <span className="sr-only">{record.name}</span>
-                          </Button>
+                          />
                         </div>
                       </td>
                     </tr>
@@ -274,7 +270,7 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
         <form noValidate onSubmit={saveRecord}>
           <DialogHeader
             title={formRecord ? `Ubah ${kindLabel(kind).toLowerCase()}` : `Tambah ${kindLabel(kind).toLowerCase()}`}
-            description="Perubahan tersimpan sebagai data contoh di browser ini."
+            description="Perubahan tersimpan ke data master."
             onClose={() => setFormRecord(undefined)}
           />
           <div className="flex flex-col gap-2 p-5 sm:p-6">
@@ -313,7 +309,7 @@ export function MasterDataPage({ kind }: { kind: MasterKind }) {
         />
         <div className="flex flex-col gap-2 p-5 sm:p-6">
           <p className="text-sm text-foreground">
-            {deleteRecord ? `Data ${deleteRecord.name} akan dihapus dari daftar contoh.` : ''}
+            {deleteRecord ? `Data ${deleteRecord.name} akan dihapus dari daftar.` : ''}
           </p>
           {deleteError && <p className="text-sm text-red-700" role="alert">{deleteError}</p>}
         </div>

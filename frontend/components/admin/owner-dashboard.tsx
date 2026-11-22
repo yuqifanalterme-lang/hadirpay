@@ -15,7 +15,6 @@ import { ArrowRight, Clock3, Users, Wallet } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { formatRupiah } from '@/lib/mock-data'
@@ -55,11 +54,6 @@ export function OwnerDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {config.useMock && (
-        <DemoDataNotice>
-          Ringkasan ini memakai data demo. Total November mengikuti nilai penggajian Rp186.450.000; riwayat enam bulan dan rincian departemen adalah contoh.
-        </DemoDataNotice>
-      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -74,7 +68,7 @@ export function OwnerDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Total biaya gaji" value={formatRupiah(data.payrollTotal)} hint={config.useMock ? 'Periode November 2026' : 'Periode berjalan'} icon={Wallet} highlight />
-        {data.employeeCount !== null && <StatCard label="Karyawan" value={String(data.employeeCount)} hint="Termasuk agregat data demo" icon={Users} tone="blue" />}
+        {data.employeeCount !== null && <StatCard label="Karyawan" value={String(data.employeeCount)} hint="Jumlah karyawan aktif" icon={Users} tone="blue" />}
         {data.payrollStatus !== null && <StatCard label="Status penggajian" value={data.payrollStatus} hint="Periode November 2026" icon={Clock3} tone="amber" />}
       </div>
 
@@ -107,7 +101,7 @@ export function OwnerDashboard() {
       </Panel>
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-2">
-        <Panel className="min-w-0" title="Kehadiran per departemen" description={config.useMock ? 'Jumlah hadir dan terlambat pada 17 Nov 2026, data contoh.' : 'Persentase hadir dari respons dashboard.'}>
+        <Panel className="min-w-0" title="Kehadiran per departemen" description={config.useMock ? 'Jumlah hadir dan terlambat pada 17 Nov 2026.' : 'Persentase hadir dari respons dashboard.'}>
           {data.attendanceByDepartment.length ? (
             <div className="h-72 min-w-0" role="img" aria-label="Grafik kehadiran per departemen">
               <ResponsiveContainer width="100%" height="100%">

@@ -12,7 +12,6 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import { payrollPeriodId, type PayrollLine, type PayrollPeriod } from '@/lib/mock/payroll'
@@ -117,9 +116,9 @@ function DemoPayrollProcessPage() {
     return (
       <EmptyState
         title="Proses ini untuk Admin/HRD dan Keuangan"
-        description="Masuk dengan mode demo Admin/HRD atau Keuangan untuk melanjutkan proses."
+        description="Masuk sebagai Admin/HRD atau Keuangan untuk melanjutkan proses."
         icon={FileCheck2}
-        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
+        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih role</Link>}
       />
     )
   }
@@ -481,7 +480,7 @@ function DemoPayrollProcessPage() {
         </label>
         <EmptyState
           title="Data periode ini belum tersedia"
-          description="Data proses demo saat ini hanya tersedia untuk November 2026."
+          description="Proses saat ini hanya tersedia untuk November 2026."
           icon={CalendarDays}
           action={<Button type="button" variant="outline" size="action" onClick={() => setPeriodInput(payrollPeriodId)}>Pilih November 2026</Button>}
         />
@@ -503,9 +502,6 @@ function DemoPayrollProcessPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Perhitungan memakai 9 rincian karyawan aktif dan satu agregat untuk 39 karyawan lain. Total periode tetap mengikuti angka dashboard.
-      </DemoDataNotice>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -538,7 +534,7 @@ function DemoPayrollProcessPage() {
       </div>
 
       {step === 0 && (
-        <Panel title="Pilih periode" description="Periode yang tersedia untuk data demo saat ini.">
+        <Panel title="Pilih periode" description="Periode yang tersedia saat ini.">
           <label className="flex max-w-sm flex-col gap-2 text-sm font-semibold text-heading">
             Periode penggajian
             <input type="month" value={periodInput} onChange={(event) => setPeriodInput(event.target.value)} className="min-h-12 rounded-xl border border-border bg-white px-3 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />

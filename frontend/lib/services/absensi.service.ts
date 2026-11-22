@@ -460,6 +460,6 @@ export async function getMonthlyAttendanceSummary(query: AbsensiRekapQuery): Pro
 }
 
 export async function exportAdminAttendance(params: AbsensiExportQuery): Promise<Blob> {
-  if (config.mock.absensi) throw new ApiError(0, 'MOCK_EXPORT_UNAVAILABLE', 'Ekspor menggunakan data demo disiapkan oleh tampilan.')
+  if (config.mock.absensi) throw new ApiError(0, 'MOCK_EXPORT_UNAVAILABLE', 'Ekspor data tidak tersedia untuk tampilan saat ini.')
   return apiBlob('absensi/export', { params })
 }

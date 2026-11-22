@@ -1,17 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, ClipboardCheck, Inbox, XCircle } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, Eye, Inbox, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import {
   requestStatuses,
   requestTypes,
@@ -182,11 +182,6 @@ export function AdminRequestsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {config.mock.pengajuan && (
-        <DemoDataNotice>
-          Daftar pengajuan ini menggunakan data contoh. Perubahan keputusan tersimpan di browser ini.
-        </DemoDataNotice>
-      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Menunggu persetujuan"
@@ -357,9 +352,13 @@ export function AdminRequestsPage() {
                       <td className="px-4 py-3">{request.department}</td>
                       <td className="px-4 py-3"><StatusBadge status={badgeStatus(request)} /></td>
                       <td className="px-4 py-3 text-right">
-                        <Button type="button" variant="outline" size="action" onClick={() => openDetails(request)}>
-                          Lihat detail
-                        </Button>
+                        <TableActionIcon
+                          label="Detail"
+                          ariaLabel={`Detail ${request.name}`}
+                          icon={Eye}
+                          tone="blue"
+                          onClick={() => openDetails(request)}
+                        />
                       </td>
                     </tr>
                   ))}

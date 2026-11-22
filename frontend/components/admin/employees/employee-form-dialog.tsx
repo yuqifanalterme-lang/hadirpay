@@ -173,7 +173,7 @@ export function EmployeeFormDialog({
         employee
           ? 'Data karyawan berhasil diperbarui.'
           : config.mock.karyawan
-            ? 'Karyawan contoh berhasil ditambahkan.'
+            ? 'Karyawan berhasil ditambahkan.'
             : 'Karyawan berhasil ditambahkan.',
       )
       onSaved(result, employee?.id)
@@ -229,7 +229,7 @@ export function EmployeeFormDialog({
       <form noValidate onSubmit={handleSubmit}>
         <DialogHeader
           title={employee ? 'Ubah data karyawan' : 'Tambah karyawan'}
-          description={config.mock.karyawan ? 'Data yang disimpan di sini hanya berlaku untuk mode demo.' : 'Masukkan data sesuai kontrak layanan karyawan.'}
+          description="Masukkan data sesuai kontrak layanan karyawan."
           onClose={() => onOpenChange(false)}
         />
         <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">

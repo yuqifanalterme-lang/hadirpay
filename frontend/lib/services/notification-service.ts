@@ -22,10 +22,10 @@ function readIds() {
   try {
     parsed = JSON.parse(stored)
   } catch (error) {
-    throw new Error('Status notifikasi demo tidak dapat dibaca.', { cause: error })
+    throw new Error('Status notifikasi tidak dapat dibaca.', { cause: error })
   }
   if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === 'string')) {
-    throw new Error('Format status notifikasi demo tidak valid.')
+    throw new Error('Format status notifikasi tidak valid.')
   }
   return new Set(parsed)
 }

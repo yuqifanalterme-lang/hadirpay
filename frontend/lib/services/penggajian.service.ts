@@ -51,7 +51,7 @@ function parseId(value: string) {
 
 function requireLivePayroll(): void {
   if (config.mock.penggajian) {
-    throw new ApiError(0, 'MOCK_PAYROLL_WORKFLOW_UNAVAILABLE', 'Alur penggajian ini belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_PAYROLL_WORKFLOW_UNAVAILABLE', 'Alur penggajian ini belum tersedia.')
   }
 }
 

@@ -7,7 +7,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { Avatar } from '@/components/ui/avatar'
 import { buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { SelectField } from '@/components/ui/select-field'
@@ -106,9 +105,6 @@ export function AttendanceRecapPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Rekap ini menggunakan data contoh untuk karyawan aktif di direktori demo. Angka berubah mengikuti periode yang tersedia.
-      </DemoDataNotice>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -173,7 +169,7 @@ export function AttendanceRecapPage() {
         {totalCount === 0 ? (
           <EmptyState
             title="Rekap periode ini belum tersedia"
-            description="Pilih November 2026 untuk melihat rekap contoh yang tersedia."
+            description="Pilih November 2026 untuk melihat rekap yang tersedia."
             icon={CalendarDays}
           />
         ) : (

@@ -60,10 +60,10 @@ function readSettings(): DemoSettings {
   try {
     parsed = JSON.parse(stored)
   } catch (error) {
-    throw new Error('Pengaturan demo tidak dapat dibaca. Coba muat ulang atau bersihkan data demo.', { cause: error })
+    throw new Error('Pengaturan tidak dapat dibaca. Coba muat ulang.', { cause: error })
   }
   if (!isDemoSettings(parsed)) {
-    throw new Error('Format pengaturan demo tidak valid. Periksa atau bersihkan data demo sebelum melanjutkan.')
+    throw new Error('Format pengaturan tidak valid. Periksa data sebelum melanjutkan.')
   }
   const defaults = copyDefaults()
   return {
@@ -124,7 +124,7 @@ export async function getDemoSettings(): Promise<DemoSettings> {
 export async function saveDemoSettings(settings: DemoSettings): Promise<DemoSettings> {
   validateSettings(settings)
   if (typeof window === 'undefined') {
-    throw new Error('Pengaturan demo hanya dapat disimpan dari browser.')
+    throw new Error('Pengaturan tidak dapat disimpan saat ini.')
   }
   window.localStorage.setItem(settingsStorageKey, JSON.stringify(settings))
   window.dispatchEvent(new Event(settingsChangedEvent))

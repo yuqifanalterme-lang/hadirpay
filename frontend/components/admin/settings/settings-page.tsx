@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
-import { Building2, Clock3, MapPin, Plus, Shield, Trash2, Wallet } from 'lucide-react'
+import { Building2, Clock3, MapPin, Plus, Shield, Trash2, UserCheck, UserX, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { workingDayOptions, type DemoSettings } from '@/lib/mock/settings'
 import { getDemoSettings, resetUserPasswordForSettings, saveDemoSettings, updateUserStatusForSettings } from '@/lib/services/pengaturan.service'
 import { config } from '@/lib/config'
@@ -213,7 +213,7 @@ export function SettingsPage() {
     try {
       const saved = await saveDemoSettings(settings)
       setSettings(saved)
-      toast.success(config.mock.pengaturan ? 'Pengaturan demo berhasil disimpan di browser ini.' : 'Pengaturan berhasil disimpan.')
+      toast.success('Pengaturan berhasil disimpan.')
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Pengaturan gagal disimpan.'
       toast.error(message)
@@ -240,7 +240,7 @@ export function SettingsPage() {
     return (
       <EmptyState
         title="Pengaturan belum tersedia"
-        description="Data pengaturan demo belum dapat ditampilkan. Muat ulang untuk mencoba kembali."
+        description="Pengaturan belum dapat ditampilkan. Muat ulang untuk mencoba kembali."
         icon={Building2}
         action={<Button type="button" variant="outline" size="action" onClick={() => void loadSettings()}>Muat ulang</Button>}
       />
@@ -249,11 +249,6 @@ export function SettingsPage() {
 
   return (
     <form onSubmit={handleSave} className="flex min-w-0 flex-col gap-6">
-      {config.mock.pengaturan && (
-        <DemoDataNotice>
-          Pengaturan ini hanya tersimpan di browser untuk mode demo. Data backend belum terhubung.
-        </DemoDataNotice>
-      )}
 
       <div
         className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto border-b border-border"
@@ -290,7 +285,7 @@ export function SettingsPage() {
 
       <Panel
         title={tabs.find((item) => item.id === tab)?.label ?? 'Pengaturan'}
-        description={config.mock.pengaturan ? 'Perubahan disimpan sebagai konfigurasi demo pada perangkat ini.' : 'Perubahan disimpan ke pengaturan perusahaan.'}
+        description="Perubahan disimpan ke pengaturan perusahaan."
       >
         <div
           id={`settings-panel-${tab}`}
@@ -321,7 +316,7 @@ export function SettingsPage() {
                   aria-describedby="logo-help"
                 />
                 <span id="logo-help" className="text-xs font-normal text-muted-foreground">
-                  {config.mock.pengaturan ? 'Gambar maksimal 512 KB. Disimpan di browser demo.' : 'Gambar maksimal 512 KB. Diunggah ke server saat pengaturan disimpan.'}
+                  Gambar maksimal 512 KB. Diunggah ke server saat pengaturan disimpan.
                 </span>
                 {settings.company.logoDataUrl || settings.company.logoUrl ? (
                   <div className="flex items-center gap-3">
@@ -460,7 +455,7 @@ export function SettingsPage() {
                 />
                 Potongan izin tanpa surat
               </label>
-              <p className="text-sm text-muted-foreground md:col-span-2">Perubahan kebijakan tersimpan untuk demo. Snapshot penggajian November 2026 tidak dihitung ulang.</p>
+              <p className="text-sm text-muted-foreground md:col-span-2">Perubahan kebijakan tersimpan. Snapshot penggajian November 2026 tidak dihitung ulang.</p>
             </div>
           )}
 
@@ -497,7 +492,25 @@ export function SettingsPage() {
                           <td className="px-3 py-3">
                             <div className="flex flex-wrap gap-2">
                               <span className="self-center">{user.active ? 'Aktif' : 'Nonaktif'}</span>
-                              <Button type="button" variant="outline" size="action" disabled={userStatusBusy === user.id} onClick={() => void toggleUserStatus(user.id, user.active ?? true)}>{userStatusBusy === user.id ? 'Memproses…' : user.active ? 'Nonaktifkan' : 'Aktifkan'}</Button>
+                              {user.active ? (
+                                <TableActionIcon
+                                  label="Nonaktifkan"
+                                  ariaLabel={`Nonaktifkan ${user.name}`}
+                                  icon={UserX}
+                                  tone="red"
+                                  disabled={userStatusBusy === user.id}
+                                  onClick={() => void toggleUserStatus(user.id, true)}
+                                />
+                              ) : (
+                                <TableActionIcon
+                                  label="Aktifkan"
+                                  ariaLabel={`Aktifkan ${user.name}`}
+                                  icon={UserCheck}
+                                  tone="green"
+                                  disabled={userStatusBusy === user.id}
+                                  onClick={() => void toggleUserStatus(user.id, false)}
+                                />
+                              )}
                               <Button
                                 type="button"
                                 variant="outline"
@@ -518,10 +531,9 @@ export function SettingsPage() {
                     ))}
                   </tbody>
                 </table>
-                <p className="mt-4 text-sm text-muted-foreground">Role yang dipilih saat masuk mode demo menentukan navigasi dan hak akses pada sesi tersebut.</p>
               </div>
             ) : (
-              <EmptyState title="Belum ada pengguna" description="Pengguna demo akan muncul setelah data tersedia." icon={Shield} />
+              <EmptyState title="Belum ada pengguna" description="Pengguna akan muncul setelah data tersedia." icon={Shield} />
             )
           )}
 
@@ -542,7 +554,6 @@ export function SettingsPage() {
                   <input type="number" min={50} max={10000} className={fieldClass} value={settings.attendanceLocation.radiusMeters} required onChange={(event) => updateLocation('radiusMeters', Number(event.target.value))} />
                 </Field>
               </div>
-              <p className="text-sm text-muted-foreground">Pemeriksaan lokasi masih berupa konfigurasi demo dan belum meminta akses GPS perangkat.</p>
             </div>
           )}
         </div>

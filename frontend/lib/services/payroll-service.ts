@@ -26,7 +26,7 @@ function readStored<T>(key: string, fallback: T): T {
 
 function writeStored<T>(key: string, value: T) {
   if (typeof window === 'undefined') {
-    throw new Error('Penyimpanan demo hanya tersedia di browser.')
+    throw new Error('Penyimpanan tidak tersedia saat ini.')
   }
   window.localStorage.setItem(key, JSON.stringify(value))
 }
@@ -186,7 +186,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
   const aggregate: PayrollLine | null = aggregateCount > 0
     ? {
         employeeId: 'agregat-karyawan-demo',
-        employeeName: `${aggregateCount} karyawan lainnya (agregat data demo)`,
+        employeeName: `${aggregateCount} karyawan lainnya (data agregat)`,
         position: 'Rincian individu belum tersedia',
         department: 'Berbagai departemen',
         initials: '…',

@@ -30,7 +30,7 @@ export function StatusPage({
           </Link>
           {code === '403' && (
             <Link href="/login" className={buttonVariants({ variant: 'outline', size: 'action' })}>
-              Ganti akun demo
+              Ganti akun
             </Link>
           )}
         </div>

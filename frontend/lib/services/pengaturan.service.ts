@@ -195,7 +195,7 @@ export function getWorkingDaysForSettings(): WorkingDay[] {
 
 export async function resetUserPasswordForSettings(id: string): Promise<ResetPasswordResponse> {
   if (config.mock.pengaturan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Reset password pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Reset password pengguna belum tersedia.')
   }
   const parsed = Number(id)
   if (!Number.isSafeInteger(parsed) || parsed < 1) {
@@ -210,7 +210,7 @@ export async function resetUserPasswordForSettings(id: string): Promise<ResetPas
 
 export async function updateUserStatusForSettings(id: string, aktif: boolean): Promise<ApiUser> {
   if (config.mock.pengaturan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan status pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan status pengguna belum tersedia.')
   }
   const parsed = Number(id)
   if (!Number.isSafeInteger(parsed) || parsed < 1) {

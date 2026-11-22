@@ -257,7 +257,7 @@ export async function deleteMasterRecord(kind: MasterKind, id: string): Promise<
 
 export async function getEmployeeAttendanceSummary(id: string, period: string): Promise<KaryawanKehadiranRingkas> {
   if (config.mock.karyawan) {
-    throw new ApiError(0, 'MOCK_ATTENDANCE_SUMMARY_UNAVAILABLE', 'Ringkasan absensi karyawan belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_ATTENDANCE_SUMMARY_UNAVAILABLE', 'Ringkasan absensi karyawan belum tersedia.')
   }
   const result = await apiRequest<KaryawanKehadiranRingkas>(
     `karyawan/${apiId(id)}/kehadiran-ringkas`,
@@ -268,7 +268,7 @@ export async function getEmployeeAttendanceSummary(id: string, period: string): 
 
 export async function listUsers(): Promise<Pengguna[]> {
   if (config.mock.karyawan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Daftar pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Daftar pengguna belum tersedia.')
   }
   const result = await apiRequest<Pengguna[]>('pengguna')
   return result.data
@@ -276,7 +276,7 @@ export async function listUsers(): Promise<Pengguna[]> {
 
 export async function updateUserRole(id: string | number, role: Pengguna['role']): Promise<Pengguna> {
   if (config.mock.karyawan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan peran pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan peran pengguna belum tersedia.')
   }
   const result = await apiRequest<Pengguna>(`pengguna/${apiId(String(id))}/role`, {
     method: 'PUT',
@@ -287,7 +287,7 @@ export async function updateUserRole(id: string | number, role: Pengguna['role']
 
 export async function resetUserPassword(id: string | number): Promise<ResetPasswordResponse> {
   if (config.mock.karyawan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Reset password pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Reset password pengguna belum tersedia.')
   }
   const result = await apiRequest<ResetPasswordResponse>(`pengguna/${apiId(String(id))}/reset-password`, {
     method: 'POST',
@@ -298,7 +298,7 @@ export async function resetUserPassword(id: string | number): Promise<ResetPassw
 
 export async function updateUserStatus(id: string | number, aktif: boolean): Promise<Pengguna> {
   if (config.mock.karyawan) {
-    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan status pengguna belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_USERS_UNAVAILABLE', 'Perubahan status pengguna belum tersedia.')
   }
   const result = await apiRequest<Pengguna>(`pengguna/${apiId(String(id))}/status`, {
     method: 'PATCH',

@@ -89,7 +89,7 @@ export const mockSettings: DemoSettings = {
     { id: 'user-rina', name: 'Rina Kartika', email: 'rina.hrd@hadirpay.id', role: 'admin' },
     { id: 'user-andi-finance', name: 'Andi Wijaya', email: 'andi.wijaya@hadirpay.id', role: 'keuangan' },
     { id: 'user-andi-employee', name: 'Andi Wijaya', email: 'andi.wijaya@hadirpay.id', role: 'karyawan' },
-    { id: 'user-owner', name: 'Pemilik Demo', email: 'pemilik@contoh.id', role: 'pemilik' },
+    { id: 'user-owner', name: 'Pemilik', email: 'pemilik@contoh.id', role: 'pemilik' },
   ],
   attendanceLocation: {
     enabled: false,

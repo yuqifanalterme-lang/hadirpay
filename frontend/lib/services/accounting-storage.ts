@@ -54,7 +54,7 @@ export function readAccountingState(): AccountingState {
   const storedState = window.localStorage.getItem(ACCOUNTING_STATE_KEY)
   if (storedState) {
     const parsed: unknown = JSON.parse(storedState)
-    if (!isAccountingState(parsed)) throw new Error('Data status penggajian dan jurnal demo tidak valid.')
+    if (!isAccountingState(parsed)) throw new Error('Data status penggajian dan jurnal tidak valid.')
     return { ...parsed, accounts: parsed.accounts ?? mockAccounts }
   }
 
@@ -67,7 +67,7 @@ export function readAccountingState(): AccountingState {
 
 export function writeAccountingState(state: AccountingState) {
   if (typeof window === 'undefined') {
-    throw new Error('Penyimpanan akuntansi demo hanya tersedia di browser.')
+    throw new Error('Penyimpanan akuntansi tidak tersedia saat ini.')
   }
   window.localStorage.setItem(ACCOUNTING_STATE_KEY, JSON.stringify(state))
 }

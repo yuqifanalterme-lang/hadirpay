@@ -22,7 +22,6 @@ import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { toast } from 'sonner'
@@ -150,7 +149,7 @@ export function EmployeeDetail({ id }: { id: string }) {
     return (
       <EmptyState
         title="Data karyawan tidak ditemukan"
-        description="Karyawan ini mungkin sudah dihapus dari data contoh."
+        description="Karyawan ini mungkin sudah dihapus."
         icon={CircleUserRound}
         action={
           <Link href="/app/karyawan" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
@@ -167,9 +166,6 @@ export function EmployeeDetail({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DemoDataNotice>
-          {config.mock.karyawan ? 'Profil ini menggunakan data contoh untuk mode demo.' : 'Profil ini memuat data karyawan dari layanan.'}
-        </DemoDataNotice>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/app/karyawan"
@@ -314,11 +310,11 @@ export function EmployeeDetail({ id }: { id: string }) {
           (payslips.length === 0 ? (
             <EmptyState
               title="Belum ada riwayat slip"
-              description="Slip gaji karyawan ini belum tersedia pada data contoh."
+              description="Slip gaji karyawan ini belum tersedia."
               icon={FileText}
             />
           ) : (
-            <Panel title="Riwayat slip gaji" description="Ringkasan slip gaji contoh, belum berupa berkas unduhan.">
+            <Panel title="Riwayat slip gaji" description="Ringkasan slip gaji, belum berupa berkas unduhan.">
               <div className="no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-sm">
                   <caption className="sr-only">Riwayat slip gaji {employee.name}</caption>

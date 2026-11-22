@@ -7,7 +7,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
@@ -274,11 +273,6 @@ export function RequestsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {config.mock.pengajuan && (
-        <DemoDataNotice>
-          Data pengajuan Andi Wijaya adalah data contoh. Perubahan tersimpan di browser ini.
-        </DemoDataNotice>
-      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Sisa kuota cuti tahunan"
@@ -585,7 +579,7 @@ export function RequestsPage() {
                 className="sr-only"
               />
               <p className="text-xs text-muted-foreground">
-                PDF, JPG, atau PNG, maksimal 5 MB. {config.mock.pengajuan ? 'Mode demo hanya menyimpan nama file, bukan isi lampiran.' : 'Berkas akan dikirim bersama pengajuan.'}
+                PDF, JPG, atau PNG, maksimal 5 MB. Berkas akan dikirim bersama pengajuan.
               </p>
               {fieldErrors.lampiran?.[0] && <p className="text-sm font-medium text-destructive" role="alert">{fieldErrors.lampiran[0]}</p>}
             </div>}

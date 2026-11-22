@@ -10,7 +10,6 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { config } from '@/lib/config'
 import { formatRupiah, payslip as octoberPayslip } from '@/lib/mock-data'
@@ -124,7 +123,7 @@ function DemoPayslipPage() {
     return (
       <EmptyState
         title="Masuk untuk melihat slip gaji"
-        description="Pilih mode demo Karyawan, Admin/HRD, atau Keuangan."
+        description="Pilih role Karyawan, Admin/HRD, atau Keuangan."
         icon={FileText}
         action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Masuk ke HADIRPAY</Link>}
       />
@@ -327,14 +326,11 @@ function DemoPayslipPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Slip gaji memakai data contoh. Slip Oktober mengikuti data yang tampil di Beranda; rincian hari hadir untuk periode itu belum tersedia.
-      </DemoDataNotice>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-heading">{isEmployee ? 'Slip gaji saya' : 'Slip gaji karyawan'}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{isEmployee ? 'Pilih periode untuk melihat slip gaji milik Anda.' : 'Cari karyawan untuk melihat rincian slip gaji demo.'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{isEmployee ? 'Pilih periode untuk melihat slip gaji milik Anda.' : 'Cari karyawan untuk melihat rincian slip gaji.'}</p>
         </div>
         {!isEmployee && (
           <label className="flex w-full flex-col gap-2 text-sm font-semibold text-heading sm:max-w-sm">
@@ -358,9 +354,9 @@ function DemoPayslipPage() {
           </div>
         </Panel>
       ) : (
-        <Panel title="Pilih karyawan" description="Daftar pencarian mengikuti karyawan aktif yang tersedia di data demo.">
+        <Panel title="Pilih karyawan" description="Daftar pencarian mengikuti karyawan aktif.">
           {filteredEmployees.length === 0 ? (
-            <EmptyState title="Karyawan tidak ditemukan" description="Coba nama atau ID lain yang ada di direktori demo." icon={Users} />
+            <EmptyState title="Karyawan tidak ditemukan" description="Coba nama atau ID lain yang ada di direktori." icon={Users} />
           ) : (
             <label className="flex max-w-xl flex-col gap-2 text-sm font-semibold text-heading">
               Karyawan

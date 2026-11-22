@@ -198,7 +198,7 @@ export function Topbar({
     setPasswordSaving(true)
     try {
       await updatePasswordForRole(role, currentPassword, newPassword)
-      toast.success('Kata sandi role demo berhasil diperbarui.')
+      toast.success('Kata sandi role berhasil diperbarui.')
       setPasswordOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Kata sandi gagal diperbarui.')
@@ -227,16 +227,10 @@ export function Topbar({
               {title}
             </h1>
             {subtitle && !sm && <p className="hidden truncate text-sm text-muted-foreground sm:block">{subtitle}</p>}
-            {!sm && <p className="text-[10px] font-medium text-muted-foreground lg:hidden">Data contoh</p>}
           </div>
         </div>
 
         <div ref={rootRef} className={cn('relative flex shrink-0 items-center', sm ? 'gap-1' : 'gap-2 sm:gap-3')}>
-          {!sm && (
-            <span className="hidden rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground lg:inline">
-              Mode demo · data contoh
-            </span>
-          )}
           {sm ? (
             <span className={bellClass} aria-hidden="true">{bellInner}</span>
           ) : (
@@ -366,7 +360,7 @@ export function Topbar({
               </button>
               <button type="button" onClick={() => { setOpenPanel(null); router.push('/login') }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-heading hover:bg-surface focus-visible:outline-2 focus-visible:outline-primary">
                 <UserRound className="size-4 text-muted-foreground" aria-hidden="true" />
-                Ganti role demo
+                Ganti role
               </button>
               <button type="button" onClick={handleLogout} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-destructive hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-destructive">
                 <LogOut className="size-4" aria-hidden="true" />
@@ -378,7 +372,7 @@ export function Topbar({
       </header>
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen} label="Profil saya">
-        <DialogHeader title="Profil saya" description="Identitas pengguna pada sesi demo HADIRPAY." onClose={() => setProfileOpen(false)} />
+        <DialogHeader title="Profil saya" description="Identitas pengguna yang sedang masuk." onClose={() => setProfileOpen(false)} />
         <div className="flex flex-col gap-4 p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <Avatar initials={user.initials} size="lg" tone="navy" />
@@ -389,7 +383,6 @@ export function Topbar({
           </div>
           <dl className="grid gap-3 rounded-xl bg-surface p-4 text-sm sm:grid-cols-2">
             <div><dt className="text-muted-foreground">Perusahaan</dt><dd className="font-semibold text-heading">{companyName}</dd></div>
-            <div><dt className="text-muted-foreground">Mode akses</dt><dd className="font-semibold text-heading">Demo</dd></div>
           </dl>
         </div>
         <DialogFooter>
@@ -398,7 +391,7 @@ export function Topbar({
       </Dialog>
 
       <Dialog open={passwordOpen} onOpenChange={setPasswordOpen} label="Ubah password">
-        <DialogHeader title="Ubah password" description="Kata sandi demo disimpan sebagai hash di browser ini." onClose={() => setPasswordOpen(false)} />
+        <DialogHeader title="Ubah password" description="Perbarui kata sandi akun Anda." onClose={() => setPasswordOpen(false)} />
         <form onSubmit={submitPassword} className="flex flex-col gap-4 p-5 sm:p-6">
           <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
             Password saat ini
@@ -412,7 +405,6 @@ export function Topbar({
             Konfirmasi password baru
             <input type="password" autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="min-h-12 rounded-xl border border-border bg-white px-4 font-normal focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
           </label>
-          <p className="text-xs text-muted-foreground">Password awal mode demo adalah demo12345. Perubahan berlaku untuk role demo ini.</p>
           <DialogFooter>
             <Button type="button" variant="outline" size="action" onClick={() => setPasswordOpen(false)}>Batal</Button>
             <Button type="submit" variant="primary" size="action" disabled={passwordSaving}>

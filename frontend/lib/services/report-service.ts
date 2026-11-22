@@ -72,7 +72,7 @@ function noPeriodData(id: ReportId, emptyDescription?: string) {
     [],
     'Grafik belum tersedia',
     [],
-    emptyDescription ?? 'Data demo yang tersedia hanya mencakup November 2026. Pilih periode tersebut untuk melihat laporan.',
+    emptyDescription ?? 'Data yang tersedia mencakup November 2026. Pilih periode tersebut untuk melihat laporan.',
   )
 }
 
@@ -183,7 +183,7 @@ export async function getReportDataset(
         totalMenit: row.lateMinutes,
       })),
       [
-        metric('Karyawan tercatat', String(rows.length), 'Pada daftar keterlambatan demo', 'users'),
+        metric('Karyawan tercatat', String(rows.length), 'Pada daftar keterlambatan', 'users'),
         metric('Hari terlambat', String(lateDays), 'Akumulasi dari daftar', 'calendar'),
         metric('Total menit', String(lateMinutes), 'Akumulasi dari daftar', 'clock'),
       ],
@@ -294,7 +294,7 @@ export async function getReportDataset(
         departemen: line.department,
         jenis: line.isAggregate ? 'Agregat' : line.payrollType,
         gajiBersih: formatRupiah(line.netPay),
-        catatan: line.isAggregate ? `${line.employeeCount} karyawan, tanpa rincian individu` : 'Data contoh individu',
+        catatan: line.isAggregate ? `${line.employeeCount} karyawan, tanpa rincian individu` : 'Data individu',
       })),
       [
         metric(
@@ -343,7 +343,7 @@ export async function getReportDataset(
           department === 'Semua departemen' ? 'Beban gaji' : 'Subtotal gaji bersih',
           formatRupiah(total),
           department === 'Semua departemen'
-            ? `${formatMonth(period)} · data demo`
+            ? formatMonth(period)
             : 'Rincian individu, bukan total departemen',
           'wallet',
         ),
@@ -352,7 +352,7 @@ export async function getReportDataset(
           department === 'Semua departemen' ? 'Total karyawan' : 'Karyawan terinci',
           String(department === 'Semua departemen' ? departmentHeadCount : departmentLines.length),
           department === 'Semua departemen'
-            ? 'Jumlah pada data demo HADIRPAY'
+            ?             'Jumlah pada data HADIRPAY'
             : `${departmentHeadCount} karyawan di departemen ini, rincian gaji individu terbatas`,
           'users',
         ),

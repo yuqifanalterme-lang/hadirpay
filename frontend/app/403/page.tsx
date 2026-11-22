@@ -5,7 +5,7 @@ export default function ForbiddenRoute() {
     <StatusPage
       code="403"
       title="Akses tidak tersedia"
-      description="Role demo yang sedang digunakan tidak memiliki izin untuk membuka halaman ini."
+      description="Role yang sedang digunakan tidak memiliki izin untuk membuka halaman ini."
     />
   )
 }

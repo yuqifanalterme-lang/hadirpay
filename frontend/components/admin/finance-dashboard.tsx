@@ -7,7 +7,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { StatIcon } from '@/components/ui/stat-icon'
@@ -48,11 +47,6 @@ export function FinanceDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {config.useMock && (
-        <DemoDataNotice>
-          Ringkasan menggunakan data penggajian demo. Jadwal pembayaran adalah tanggal contoh, saldo utang mengikuti jurnal yang tersimpan.
-        </DemoDataNotice>
-      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>

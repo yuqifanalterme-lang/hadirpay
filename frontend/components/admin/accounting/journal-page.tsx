@@ -8,7 +8,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
@@ -179,9 +178,6 @@ export function JournalPage() {
     <AccountingAccess role={role}>
       {loading ? <PageLoadingSkeleton label="jurnal umum" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : (
         <div className="flex flex-col gap-6">
-          <DemoDataNotice>
-            Data jurnal bersifat demo. Rincian pajak dan BPJS tersedia untuk 9 karyawan; 39 karyawan lain tetap berupa agregat gaji bersih.
-          </DemoDataNotice>
           <AccountingPageTitle
             title="Jurnal umum"
             description="Catat jurnal manual atau telusuri jurnal otomatis dari proses penggajian."

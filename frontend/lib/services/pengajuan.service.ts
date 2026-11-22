@@ -286,7 +286,7 @@ export async function decideRequest(
 
 export async function bulkProcessRequests(request: PengajuanBulkRequest): Promise<PengajuanBulkResponse> {
   if (config.mock.pengajuan) {
-    throw new ApiError(0, 'MOCK_BULK_PROCESS_UNAVAILABLE', 'Proses pengajuan sekaligus belum tersedia pada service demo.')
+    throw new ApiError(0, 'MOCK_BULK_PROCESS_UNAVAILABLE', 'Proses pengajuan sekaligus belum tersedia.')
   }
   const result = await apiRequest<PengajuanBulkResponse>('pengajuan/bulk-proses', {
     method: 'POST',

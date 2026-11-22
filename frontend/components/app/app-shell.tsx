@@ -188,14 +188,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!hydrated || (!config.mock.auth && auth.loading) || !role || !canAccess) {
-    return <PageLoadingSkeleton label={!hydrated || !role ? 'sesi demo' : 'hak akses'} />
+    return <PageLoadingSkeleton label={!hydrated || !role ? 'sesi' : 'hak akses'} />
   }
 
   const account = settings?.users.find((user) => user.role === role)
   const accountName = account?.name ?? (
     role === 'admin' ? adminUser.name
       : role === 'karyawan' ? employeeUser.name
-        : role === 'keuangan' ? 'Andi Wijaya' : 'Pemilik Demo'
+        : role === 'keuangan' ? 'Andi Wijaya' : 'Pemilik'
   )
   const user = config.mock.auth
     ? {

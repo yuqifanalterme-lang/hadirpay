@@ -17,7 +17,6 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
@@ -247,9 +246,6 @@ export function AdminAttendancePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DemoDataNotice>
-        Data contoh menampilkan karyawan aktif yang tersedia di direktori demo. Perubahan keputusan koreksi tersimpan di browser ini dan ikut diperbarui di menu Pengajuan.
-      </DemoDataNotice>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -273,7 +269,7 @@ export function AdminAttendancePage() {
         </div>
       </div>
 
-      <Panel title="Data kehadiran" description={`Data contoh untuk ${formatTanggal(date)}.`}>
+      <Panel title="Data kehadiran" description={`Data untuk ${formatTanggal(date)}.`}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-2">
             <label htmlFor="attendance-date" className="text-sm font-semibold text-heading">Tanggal</label>
@@ -330,7 +326,7 @@ export function AdminAttendancePage() {
             title={records.length === 0 ? 'Belum ada data kehadiran' : 'Tidak ada catatan yang cocok'}
             description={
               records.length === 0
-                ? 'Data contoh tersedia untuk 17 Nov 2026. Pilih tanggal tersebut untuk melihat catatan.'
+                ? 'Pilih 17 Nov 2026 untuk melihat catatan.'
                 : 'Ubah filter divisi atau status untuk melihat catatan lain.'
             }
             icon={records.length === 0 ? CalendarDays : Search}

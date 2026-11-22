@@ -19,9 +19,9 @@ export function AccountingAccess({
     return (
       <EmptyState
         title="Akuntansi hanya untuk Admin, Keuangan, dan Pemilik"
-        description="Pilih salah satu mode demo tersebut untuk membuka data akuntansi."
+        description="Pilih salah satu role tersebut untuk membuka data akuntansi."
         icon={BookOpenText}
-        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih mode demo</Link>}
+        action={<Link href="/login" className={buttonVariants({ variant: 'primary', size: 'action' })}>Pilih role</Link>}
       />
     )
   }

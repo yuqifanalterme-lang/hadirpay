@@ -46,12 +46,12 @@ function readRequests(): ApprovalRequest[] {
   try {
     parsed = JSON.parse(stored)
   } catch (error) {
-    throw new Error('Data pengajuan demo tidak dapat dibaca. Muat ulang atau bersihkan data demo.', {
+    throw new Error('Data pengajuan tidak dapat dibaca. Muat ulang atau coba lagi.', {
       cause: error,
     })
   }
   if (!Array.isArray(parsed) || !parsed.every(isRequest)) {
-    throw new Error('Format data pengajuan demo tidak valid. Bersihkan data demo sebelum melanjutkan.')
+    throw new Error('Format data pengajuan tidak valid. Periksa data sebelum melanjutkan.')
   }
   return parsed
 }

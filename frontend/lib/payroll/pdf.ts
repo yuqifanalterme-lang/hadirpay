@@ -68,7 +68,7 @@ export function createPayslipPdf(data: PayslipPdfData, brandColor: string): Blob
   content += textAt(`Alpha: ${data.attendance.absenceDays ?? 'Belum tersedia'} hari`, 390, y - 28, 9)
   content += textAt('GAJI BERSIH', 44, y - 58, 12, '0.059 0.090 0.165')
   content += textAt(`Rp${data.netPay.toLocaleString('id-ID')}`, 390, y - 58, 14, '0.059 0.090 0.165')
-  content += textAt('Dokumen data contoh HADIRPAY', 44, 40, 8, '0.278 0.337 0.416')
+  content += textAt('Dokumen HADIRPAY', 44, 40, 8, '0.278 0.337 0.416')
 
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',

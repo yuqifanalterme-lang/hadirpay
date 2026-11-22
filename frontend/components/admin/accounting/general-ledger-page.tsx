@@ -6,7 +6,6 @@ import { BookOpen, CalendarDays, CircleDollarSign } from "lucide-react";
 import { Panel } from "@/components/hadirpay/panel";
 import { StatCard } from "@/components/hadirpay/stat-card";
 import { StatusBadge } from "@/components/hadirpay/status-badge";
-import { DemoDataNotice } from "@/components/ui/demo-data-notice";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageLoadingSkeleton } from "@/components/ui/page-loading-skeleton";
 import { AccountingAccess, AccountingPageTitle } from "./accounting-shared";
@@ -97,10 +96,6 @@ export function GeneralLedgerPage() {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          <DemoDataNotice>
-            Saldo awal dihitung dari jurnal sebelum periode terpilih. Data demo
-            tidak memiliki saldo awal historis di luar jurnal yang tersimpan.
-          </DemoDataNotice>
           <AccountingPageTitle
             title="Buku besar"
             description="Telusuri mutasi akun dan saldo berjalan per periode."

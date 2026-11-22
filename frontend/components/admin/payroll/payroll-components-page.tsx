@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2, UserCheck, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
@@ -10,6 +10,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { config } from '@/lib/config'
 import type { PayrollComponent, PayrollComponentCategory, PayrollComponentMethod } from '@/lib/mock/payroll'
@@ -151,7 +152,7 @@ export function PayrollComponentsPage() {
     return (
       <EmptyState
         title="Pengaturan komponen dikelola Admin/HRD"
-        description="Gunakan akun Admin/HRD untuk mengubah komponen gaji demo."
+        description="Gunakan akun Admin/HRD untuk mengubah komponen gaji."
         icon={Plus}
         action={<Link href="/app/penggajian" className={buttonVariants({ variant: 'primary', size: 'action' })}>Kembali ke penggajian</Link>}
       />
@@ -166,7 +167,7 @@ export function PayrollComponentsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-heading">Komponen gaji</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Kelola daftar komponen pendapatan dan potongan untuk data demo.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Kelola daftar komponen pendapatan dan potongan.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link href="/app/penggajian" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
@@ -179,7 +180,7 @@ export function PayrollComponentsPage() {
         </div>
       </div>
 
-      <Panel title="Daftar komponen" description="Perubahan tersimpan di browser. Rincian gaji November memakai snapshot perhitungan demo yang terpisah.">
+      <Panel title="Daftar komponen" description="Perubahan tersimpan ke layanan penggajian.">
         {components.length === 0 ? (
           <EmptyState
             title="Belum ada komponen gaji"
@@ -190,7 +191,7 @@ export function PayrollComponentsPage() {
         ) : (
           <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
             <table className={`w-full ${config.mock.penggajian ? 'min-w-[660px]' : 'min-w-[760px]'} border-collapse text-left text-sm`}>
-              <caption className="sr-only">Daftar komponen gaji contoh</caption>
+              <caption className="sr-only">Daftar komponen gaji</caption>
               <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
                 <tr>
                   {!config.mock.penggajian && <th scope="col" className="px-4 py-3">Kode</th>}
@@ -218,26 +219,23 @@ export function PayrollComponentsPage() {
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={component.active ? 'Aktif' : 'Nonaktif'} /></td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="icon-lg" className="min-h-11 min-w-11" aria-label={`Ubah ${component.name}`} onClick={() => openForm(component)}>
-                          <Pencil aria-hidden="true" />
-                        </Button>
-                        <Button type="button" variant="outline" size="action" disabled={saving} onClick={() => void handleStatus(component)}>
-                          {component.active ? 'Nonaktifkan' : 'Aktifkan'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="dangerOutline"
-                          size="icon-lg"
-                          className="min-h-11 min-w-11"
-                          aria-label={`Hapus ${component.name}`}
+                      <div className="flex items-center gap-1">
+                        <TableActionIcon label="Ubah" ariaLabel={`Ubah ${component.name}`} icon={Pencil} tone="blue" onClick={() => openForm(component)} />
+                        {component.active ? (
+                          <TableActionIcon label="Nonaktifkan" ariaLabel={`Nonaktifkan ${component.name}`} icon={UserX} tone="red" disabled={saving} onClick={() => void handleStatus(component)} />
+                        ) : (
+                          <TableActionIcon label="Aktifkan" ariaLabel={`Aktifkan ${component.name}`} icon={UserCheck} tone="green" disabled={saving} onClick={() => void handleStatus(component)} />
+                        )}
+                        <TableActionIcon
+                          label="Hapus"
+                          ariaLabel={`Hapus ${component.name}`}
+                          icon={Trash2}
+                          tone="red"
                           onClick={() => {
                             setDeleting(component)
                             setDeleteOpen(true)
                           }}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
+                        />
                       </div>
                     </td>
                   </tr>
@@ -252,7 +250,7 @@ export function PayrollComponentsPage() {
         <form onSubmit={(event) => void handleSave(event)}>
           <DialogHeader
             title={editing ? 'Ubah komponen gaji' : 'Tambah komponen gaji'}
-            description="Perubahan tersimpan sebagai data demo di browser ini."
+            description="Perubahan disimpan ke komponen gaji."
             onClose={() => setFormOpen(false)}
           />
           <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
@@ -300,7 +298,7 @@ export function PayrollComponentsPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen} label="Konfirmasi hapus komponen gaji">
         <DialogHeader
           title="Hapus komponen gaji?"
-          description={`Komponen ${deleting?.name ?? ''} akan dihapus dari data demo.`}
+          description={`Komponen ${deleting?.name ?? ''} akan dihapus.`}
           onClose={() => setDeleteOpen(false)}
         />
         <DialogFooter>

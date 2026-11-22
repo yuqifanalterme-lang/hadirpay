@@ -96,7 +96,7 @@ export async function getReportDataset(
         rows: [],
         metrics: [],
         chart: [],
-        emptyDescription: 'Data demo laporan belum mendukung rentang yang dipilih.',
+        emptyDescription: 'Laporan belum mendukung rentang yang dipilih.',
         pagination: { page, per_page: perPage, total: 0, total_pages: 1 },
       }
     }
@@ -160,7 +160,7 @@ export async function exportReport(
   params: LaporanQuery,
   format: 'pdf' | 'xlsx',
 ): Promise<Blob> {
-  if (config.mock.laporan) throw new ApiError(0, 'MOCK_EXPORT_UNAVAILABLE', 'Ekspor mode demo disiapkan oleh tampilan.')
+  if (config.mock.laporan) throw new ApiError(0, 'MOCK_EXPORT_UNAVAILABLE', 'Ekspor tidak tersedia untuk tampilan saat ini.')
   return apiBlob(`laporan/${endpointByReport[id]}/export`, {
     params: {
       ...params,

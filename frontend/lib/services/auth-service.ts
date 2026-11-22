@@ -15,8 +15,8 @@ export async function authenticateDemoRole(role: Role, password: string) {
   const expectedHash = storedHash ?? await hashPassword(initialDemoPassword)
   if (await hashPassword(password) !== expectedHash) {
     throw new Error(storedHash
-      ? 'Kata sandi tidak sesuai untuk role demo ini.'
-      : 'Kata sandi awal mode demo adalah demo12345.')
+      ? 'Kata sandi tidak sesuai untuk role ini.'
+      : 'Kata sandi awal adalah demo12345.')
   }
 }
 

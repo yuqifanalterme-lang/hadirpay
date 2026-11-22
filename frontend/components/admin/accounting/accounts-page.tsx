@@ -7,11 +7,11 @@ import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { DemoDataNotice } from '@/components/ui/demo-data-notice'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { AccountingAccess, AccountingPageTitle } from './accounting-shared'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import type { AccountingAccount } from '@/lib/mock/accounting'
 import { createAccount, deleteAccount, listAccounts, updateAccount } from '@/lib/services/akuntansi.service'
@@ -139,7 +139,6 @@ export function AccountsPage() {
     <AccountingAccess role={role}>
       {loading ? <PageLoadingSkeleton label="data akun" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : (
         <div className="flex flex-col gap-6">
-          <DemoDataNotice>Bagan akun seed mode demo. Saldo aktual akan muncul setelah transaksi dijurnal.</DemoDataNotice>
           <AccountingPageTitle
             title="Data akun"
             description="Bagan akun yang digunakan untuk jurnal penggajian dan pencatatan manual."
@@ -176,7 +175,7 @@ export function AccountsPage() {
             ) : (
               <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                  <caption className="sr-only">Bagan akun akuntansi demo</caption>
+                  <caption className="sr-only">Bagan akun akuntansi</caption>
                   <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
                     <tr>
                       <th scope="col" className="px-4 py-3">Kode</th>
@@ -201,7 +200,12 @@ export function AccountsPage() {
                         {canManage && (
                           <>
                             <td className="px-4 py-3">{account.active === false ? 'Nonaktif' : 'Aktif'}</td>
-                            <td className="px-4 py-3"><div className="flex gap-2"><Button type="button" variant="outline" size="icon-lg" className="min-h-11 min-w-11" aria-label={`Ubah ${account.name}`} onClick={() => openForm(account)}><Pencil aria-hidden="true" /></Button><Button type="button" variant="dangerOutline" size="icon-lg" className="min-h-11 min-w-11" aria-label={`Hapus ${account.name}`} onClick={() => setDeleting(account)}><Trash2 aria-hidden="true" /></Button></div></td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <TableActionIcon label="Ubah" ariaLabel={`Ubah ${account.name}`} icon={Pencil} tone="blue" onClick={() => openForm(account)} />
+                                <TableActionIcon label="Hapus" ariaLabel={`Hapus ${account.name}`} icon={Trash2} tone="red" onClick={() => setDeleting(account)} />
+                              </div>
+                            </td>
                           </>
                         )}
                       </tr>

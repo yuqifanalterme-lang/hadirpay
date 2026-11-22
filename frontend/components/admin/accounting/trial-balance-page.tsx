@@ -5,7 +5,6 @@ import { Scale } from "lucide-react";
 import { Panel } from "@/components/hadirpay/panel";
 import { StatCard } from "@/components/hadirpay/stat-card";
 import { StatusBadge } from "@/components/hadirpay/status-badge";
-import { DemoDataNotice } from "@/components/ui/demo-data-notice";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageLoadingSkeleton } from "@/components/ui/page-loading-skeleton";
 import { AccountingAccess, AccountingPageTitle } from "./accounting-shared";
@@ -67,10 +66,6 @@ export function TrialBalancePage() {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          <DemoDataNotice>
-            Neraca saldo menjumlahkan mutasi jurnal pada periode terpilih. Angka
-            awal periode belum tersedia dalam data demo.
-          </DemoDataNotice>
           <AccountingPageTitle
             title="Neraca saldo"
             description="Bandingkan total debit dan kredit dari jurnal pada satu periode."
