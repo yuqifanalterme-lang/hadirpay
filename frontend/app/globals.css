@@ -132,25 +132,3 @@
     transition-duration: 0.01ms !important;
   }
 }
-
-@media print {
-  body.report-print-mode > * {
-    visibility: hidden !important;
-  }
-  body.report-print-mode .report-print-document,
-  body.report-print-mode .report-print-document * {
-    visibility: visible !important;
-  }
-  body.report-print-mode .report-print-document {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    padding: 1rem;
-  }
-  body.report-print-mode .report-print-hide {
-    display: none !important;
-  }
-  body.report-print-mode .report-print-document .overflow-x-auto {
-    overflow: visible !important;
-  }
-}

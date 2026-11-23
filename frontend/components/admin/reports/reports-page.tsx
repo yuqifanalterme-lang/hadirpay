@@ -41,6 +41,7 @@ import {
   listReportCatalog,
   reportDepartmentOptions,
   reportOptions,
+  exportReport,
 } from '@/lib/services/laporan.service'
 
 const initialPeriod = '2026-11'
@@ -74,38 +75,15 @@ function cellValue(value: ReportRow[string]) {
   return typeof value === 'number' ? new Intl.NumberFormat('id-ID').format(value) : value
 }
 
-function csvEscape(value: string | number) {
-  const text = String(value)
-  return `"${text.replaceAll('"', '""')}"`
-}
-
-function exportCsv(dataset: ReportDataset, period: string) {
-  const columns = dataset.columns.length
-    ? dataset.columns
-    : [{ key: 'informasi', label: 'Informasi' }]
-  const rows = dataset.columns.length
-    ? dataset.rows
-    : [{ informasi: dataset.emptyDescription }]
-  const csv = [
-    columns.map((column) => csvEscape(column.label)).join(','),
-    ...rows.map((row) => columns.map((column) => csvEscape(row[column.key] ?? '')).join(',')),
-  ].join('\r\n')
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `laporan-${period}.csv`
+  anchor.download = filename
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-function exportPdf() {
-  const removePrintMode = () => document.body.classList.remove('report-print-mode')
-  document.body.classList.add('report-print-mode')
-  window.addEventListener('afterprint', removePrintMode, { once: true })
-  window.print()
 }
 
 function ReportAccess({ children }: { children: React.ReactNode }) {
@@ -199,6 +177,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
   const reportKey = isReportId(reportId) ? reportId : null
 
   useEffect(() => {
@@ -254,6 +233,30 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
       : `${dateFrom || '...'} s.d. ${dateTo || '...'}`
   const pageCount = Math.max(1, dataset?.pagination?.total_pages ?? 1)
 
+  async function handleExport(format: 'xlsx' | 'pdf') {
+    if (!reportKey || exporting) return
+    setExporting(format)
+    const query: ReportQuery = {
+      ...(filterMode === 'periode' ? { periode: period || undefined } : {}),
+      ...(filterMode === 'rentang_periode'
+        ? { periode_dari: periodFrom || undefined, periode_sampai: periodTo || undefined }
+        : {}),
+      ...(filterMode === 'rentang_tanggal'
+        ? { tanggal_dari: dateFrom || undefined, tanggal_sampai: dateTo || undefined }
+        : {}),
+    }
+    try {
+      const blob = await exportReport(reportKey, query, format, department)
+      const extension = format === 'xlsx' ? 'xlsx' : 'pdf'
+      downloadBlob(blob, `laporan-${reportKey}-${filterLabel.replaceAll(' ', '-')}.${extension}`)
+      toast.success(`Laporan ${format.toUpperCase()} berhasil diunduh.`)
+    } catch (exportError) {
+      toast.error(exportError instanceof Error ? exportError.message : 'Ekspor laporan gagal.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
   if (!reportKey) {
     return (
       <EmptyState
@@ -272,32 +275,30 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
 
   return (
     <ReportAccess>
-      <div className="report-print-document flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-heading">{dataset.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{dataset.description}</p>
             <p className="mt-1 text-sm text-muted-foreground">Periode {filterLabel} · {department}</p>
           </div>
-          <div className="report-print-hide flex flex-wrap gap-3">
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div className="flex flex-wrap gap-3">
             <Link href="/app/laporan" className={buttonVariants({ variant: 'outline', size: 'action', className: 'bg-white' })}>
               Daftar laporan
             </Link>
-            <Button type="button" variant="outline" size="action" onClick={() => {
-              try {
-                exportCsv(dataset, filterLabel.replaceAll(' ', '-'))
-                toast.success('File CSV berhasil disiapkan untuk Excel.')
-              } catch (exportError) {
-                toast.error(exportError instanceof Error ? exportError.message : 'Ekspor CSV gagal.')
-              }
-            }}>
-              Ekspor Excel
+            <Button type="button" variant="outline" size="action" disabled={exporting !== null} onClick={() => void handleExport('xlsx')}>
+              {exporting === 'xlsx' ? 'Menyiapkan Excel…' : 'Ekspor Excel'}
             </Button>
-            <Button type="button" variant="primary" size="action" onClick={exportPdf}>Ekspor PDF</Button>
+            <Button type="button" variant="primary" size="action" disabled={exporting !== null} onClick={() => void handleExport('pdf')}>
+              {exporting === 'pdf' ? 'Menyiapkan PDF…' : 'Ekspor PDF'}
+            </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Ekspor memuat seluruh baris sesuai filter, bukan hanya halaman yang sedang dibuka.</p>
           </div>
         </div>
 
-        <div className="report-print-hide grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
             Jenis periode
             <select

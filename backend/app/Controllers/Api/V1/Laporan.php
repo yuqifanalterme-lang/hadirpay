@@ -115,7 +115,7 @@ class Laporan extends BaseController
             ->join('karyawan k', 'k.id = a.karyawan_id')
             ->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai)
-            ->groupBy('k.id')->orderBy('k.nama', 'ASC')->get()->getResultArray();
+            ->groupBy('k.id')->orderBy('k.id', 'ASC')->get()->getResultArray();
         $tabel = array_map(static fn ($r) => [
             'karyawan_id' => (int) $r['karyawan_id'],
             'kode' => $r['kode'],
@@ -136,7 +136,8 @@ class Laporan extends BaseController
         $b = $db->table('absensi a')->join('karyawan k', 'k.id = a.karyawan_id')->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('a.status', 'terlambat')->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai);
         $b = $this->filterDepartemen($b);
-        $rows = $b->select('a.tanggal, k.id AS karyawan_id, k.nama, d.nama AS departemen, a.menit_terlambat', false)->orderBy('a.tanggal', 'DESC')->get()->getResultArray();
+        $rows = $b->select('a.tanggal, k.id AS karyawan_id, k.nama, d.nama AS departemen, a.menit_terlambat', false)
+            ->orderBy('k.id', 'ASC')->orderBy('a.tanggal', 'DESC')->get()->getResultArray();
         $grafik = [];
         foreach ((new PayrollService())->hariKerja($dari, $sampai) as $tanggal) {
             $grafik[] = ['label' => $tanggal, 'nilai' => array_sum(array_map(fn ($r) => $r['tanggal'] === $tanggal ? (int) $r['menit_terlambat'] : 0, $rows))];
@@ -191,7 +192,7 @@ class Laporan extends BaseController
         $rows = $db->table('absensi a')->select('a.tanggal, k.id AS karyawan_id, k.nama, d.nama AS departemen, a.lembur_menit', false)
             ->join('karyawan k', 'k.id = a.karyawan_id')->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai)->where('a.lembur_menit >', 0)
-            ->orderBy('a.tanggal', 'DESC')->get()->getResultArray();
+            ->orderBy('k.id', 'ASC')->orderBy('a.tanggal', 'DESC')->get()->getResultArray();
         $menit = array_sum(array_column($rows, 'lembur_menit'));
         $upah = $db->table('detail_penggajian d')->select('COALESCE(SUM(d.jumlah),0) AS total', false)
             ->join('penggajian g', 'g.id = d.penggajian_id')->join('periode_gaji p', 'p.id = g.periode_gaji_id')
@@ -213,7 +214,7 @@ class Laporan extends BaseController
         $rows = $db->table('penggajian g')->select('g.*, k.nama AS karyawan_nama, k.kode, d.nama AS departemen, p.periode', false)
             ->join('periode_gaji p', 'p.id = g.periode_gaji_id')->join('karyawan k', 'k.id = g.karyawan_id')
             ->join('departemen d', 'd.id = k.departemen_id', 'left')->where('p.periode', $periode)
-            ->orderBy('k.nama', 'ASC')->get()->getResultArray();
+            ->orderBy('k.id', 'ASC')->get()->getResultArray();
         $pendapatan = round(array_sum(array_column($rows, 'total_pendapatan')), 2);
         $potongan = round(array_sum(array_column($rows, 'total_potongan')), 2);
         $bersih = round(array_sum(array_column($rows, 'gaji_bersih')), 2);
@@ -321,6 +322,9 @@ class Laporan extends BaseController
         $_GET['page'] = '1';
         $_GET['per_page'] = '500';
         $response = $this->{$methods[$jenis]}();
+        if ($response->getStatusCode() >= 400) {
+            return $response;
+        }
         $body = $response->getJSON();
         $json = json_decode($body, true);
         $data = $json['data'] ?? [];
@@ -334,7 +338,16 @@ class Laporan extends BaseController
                 $headers = array_keys($table[0]);
                 $sheet->fromArray($headers, null, 'A1');
                 $sheet->fromArray(array_map(fn ($r) => array_values($r), $table), null, 'A2');
-                foreach (range('A', chr(64 + count($headers))) as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+                $lastColumn = $sheet->getHighestColumn();
+                $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                    'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '1E3A8A']],
+                ]);
+                $sheet->freezePane('A2');
+                $sheet->setAutoFilter('A1:' . $lastColumn . $sheet->getHighestRow());
+                foreach (range('A', $lastColumn) as $col) {
+                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                }
             }
             $tmp = tempnam(sys_get_temp_dir(), 'report');
             (new Xlsx($spreadsheet))->save($tmp);
@@ -345,21 +358,91 @@ class Laporan extends BaseController
                 ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')->setBody($content);
         }
         if ($format === 'pdf') {
-            $html = '<html><body style="font-family:DejaVu Sans;font-size:10px"><h2>Laporan ' . esc($jenis) . '</h2>';
+            $judul = [
+                'kehadiran' => 'Laporan Kehadiran',
+                'keterlambatan' => 'Laporan Keterlambatan',
+                'izin-cuti' => 'Laporan Izin dan Cuti',
+                'lembur' => 'Laporan Lembur',
+                'penggajian' => 'Laporan Penggajian Bulanan',
+                'beban-gaji' => 'Laporan Beban Gaji',
+                'jurnal-penggajian' => 'Laporan Jurnal Penggajian',
+            ][$jenis];
+            $label = static function (string $key): string {
+                $labels = [
+                    'karyawan_id' => 'ID Karyawan',
+                    'karyawan_kode' => 'Kode Karyawan',
+                    'penggajian_id' => 'ID Penggajian',
+                    'nomor_bukti' => 'Nomor Bukti',
+                    'total_gaji_bersih' => 'Total Gaji Bersih',
+                    'total_pendapatan' => 'Total Pendapatan',
+                    'total_potongan' => 'Total Potongan',
+                    'total_beban_gaji' => 'Total Beban Gaji',
+                ];
+                return $labels[$key] ?? ucwords(str_replace('_', ' ', $key));
+            };
+            $html = '<!doctype html><html><head><meta charset="utf-8"><style>
+                @page { size: A4 landscape; margin: 28px 30px 38px; }
+                body { font-family: DejaVu Sans, sans-serif; color: #172554; font-size: 9px; }
+                h1 { margin: 0; color: #1e3a8a; font-size: 20px; }
+                .brand { color: #64748b; font-size: 9px; letter-spacing: 1.5px; font-weight: bold; }
+                .subtitle { color: #64748b; margin: 5px 0 16px; }
+                .top { border-bottom: 2px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 14px; }
+                .meta { color: #475569; font-size: 8px; margin-top: 8px; }
+                .summary { width: 100%; border-collapse: separate; border-spacing: 6px 0; margin: 0 -6px 16px; }
+                .summary td { width: 25%; background: #eff6ff; border: 1px solid #dbeafe; padding: 9px; vertical-align: top; }
+                .summary-label { color: #64748b; font-size: 8px; }
+                .summary-value { color: #172554; font-size: 12px; font-weight: bold; margin-top: 4px; }
+                table.data { width: 100%; border-collapse: collapse; }
+                .data thead { display: table-header-group; }
+                .data th { background: #1e3a8a; color: #fff; text-align: left; padding: 7px 6px; font-size: 8px; }
+                .data td { border-bottom: 1px solid #e2e8f0; padding: 6px; color: #1e293b; vertical-align: top; }
+                .data tr:nth-child(even) td { background: #f8fafc; }
+                .empty { color: #64748b; padding: 16px 0; }
+                .footer { position: fixed; bottom: -24px; left: 0; right: 0; color: #64748b; font-size: 8px; border-top: 1px solid #e2e8f0; padding-top: 6px; }
+                .page:after { content: counter(page); }
+            </style></head><body>';
+            $html .= '<div class="top"><div class="brand">HADIRPAY</div><h1>' . esc($judul) . '</h1>';
+            $html .= '<div class="subtitle">Dokumen laporan resmi</div><div class="meta">';
+            $filterParts = [];
+            foreach (($data['filter'] ?? []) as $key => $value) {
+                if ($value !== null && $value !== '') {
+                    $filterParts[] = esc($label((string) $key)) . ': ' . esc((string) $value);
+                }
+            }
+            $html .= implode(' &nbsp; | &nbsp; ', $filterParts);
+            $html .= ' &nbsp; | &nbsp; Dicetak: ' . esc(date('d/m/Y H:i')) . '</div></div>';
+
+            $summary = array_filter(($data['ringkasan'] ?? []), static fn ($value) => $value !== null && $value !== '');
+            if ($summary) {
+                $html .= '<table class="summary"><tr>';
+                foreach ($summary as $key => $value) {
+                    $display = is_numeric($value) && (str_contains($key, 'gaji') || str_contains($key, 'upah') || str_contains($key, 'beban') || str_contains($key, 'debit') || str_contains($key, 'kredit'))
+                        ? 'Rp ' . number_format((float) $value, 2, ',', '.')
+                        : (is_numeric($value) ? number_format((float) $value, 0, ',', '.') : (string) $value);
+                    $html .= '<td><div class="summary-label">' . esc($label((string) $key)) . '</div><div class="summary-value">' . esc($display) . '</div></td>';
+                }
+                $html .= '</tr></table>';
+            }
             if ($table) {
-                $html .= '<table border="1" cellspacing="0" cellpadding="4"><thead><tr>';
-                foreach (array_keys($table[0]) as $h) $html .= '<th>' . esc((string) $h) . '</th>';
+                $html .= '<table class="data"><thead><tr>';
+                foreach (array_keys($table[0]) as $h) $html .= '<th>' . esc($label((string) $h)) . '</th>';
                 $html .= '</tr></thead><tbody>';
                 foreach ($table as $row) {
                     $html .= '<tr>';
-                    foreach ($row as $v) $html .= '<td>' . esc(is_array($v) ? json_encode($v) : (string) $v) . '</td>';
+                    foreach ($row as $key => $v) {
+                        $display = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string) $v;
+                        if (is_numeric($v) && (str_contains((string) $key, 'gaji') || str_contains((string) $key, 'upah') || str_contains((string) $key, 'pendapatan') || str_contains((string) $key, 'potongan') || str_contains((string) $key, 'debit') || str_contains((string) $key, 'kredit'))) {
+                            $display = 'Rp ' . number_format((float) $v, 2, ',', '.');
+                        }
+                        $html .= '<td>' . esc($display) . '</td>';
+                    }
                     $html .= '</tr>';
                 }
                 $html .= '</tbody></table>';
             } else {
-                $html .= '<p>Tidak ada data.</p>';
+                $html .= '<div class="empty">Tidak ada data untuk filter yang dipilih.</div>';
             }
-            $html .= '</body></html>';
+            $html .= '<div class="footer">HADIRPAY &nbsp; • &nbsp; Dokumen dibuat otomatis &nbsp; <span style="float:right">Halaman <span class="page"></span></span></div></body></html>';
             $dompdf = new Dompdf();
             $dompdf->loadHtml($html);
             $dompdf->setPaper('A4', 'landscape');

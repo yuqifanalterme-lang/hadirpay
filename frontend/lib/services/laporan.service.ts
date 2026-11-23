@@ -48,9 +48,13 @@ function metricIcon(key: string): ReportMetric['icon'] {
 
 function toRows(data: LaporanData): { columns: ReportDataset['columns']; rows: ReportRow[] } {
   const keys = [...new Set(data.tabel.flatMap((row) => Object.keys(row)))]
+  const rows = [...data.tabel] as ReportRow[]
+  if (rows.some((row) => typeof row.karyawan_id === 'number')) {
+    rows.sort((a, b) => Number(a.karyawan_id) - Number(b.karyawan_id))
+  }
   return {
     columns: keys.map((key) => ({ key, label: titleCase(key) })),
-    rows: data.tabel as ReportRow[],
+    rows,
   }
 }
 
@@ -159,12 +163,17 @@ export async function exportReport(
   id: ReportId,
   params: LaporanQuery,
   format: 'pdf' | 'xlsx',
+  department = 'Semua departemen',
 ): Promise<Blob> {
   if (config.mock.laporan) throw new ApiError(0, 'MOCK_EXPORT_UNAVAILABLE', 'Ekspor tidak tersedia untuk tampilan saat ini.')
+  const selectedDepartmentId = await departmentId(department)
   return apiBlob(`laporan/${endpointByReport[id]}/export`, {
     params: {
       ...params,
+      departemen_id: selectedDepartmentId,
       format,
+      page: 1,
+      per_page: 500,
     },
   })
 }

@@ -153,9 +153,15 @@ function DemoPayrollProcessPage() {
       setDetail(nextDetail)
       setAttendance(nextAttendance)
       setCalculation(null)
-      setLines([])
-      setLinesMeta(null)
       setLinePage(1)
+      if (nextDetail.ringkasan.jumlah_karyawan > 0) {
+        const nextLines = await listPayrollLines({ page: 1, per_page: payrollPageSize }, id)
+        setLines(nextLines.items)
+        setLinesMeta({ total: nextLines.meta.total, total_pages: nextLines.meta.total_pages })
+      } else {
+        setLines([])
+        setLinesMeta(null)
+      }
     }
 
     async function load() {
@@ -303,6 +309,7 @@ function DemoPayrollProcessPage() {
     const canSubmit = role === 'admin' && selected?.status === 'draft'
     const canReview = role === 'keuangan' && selected?.status === 'menunggu_validasi'
     const canPay = role === 'keuangan' && selected?.status === 'disetujui'
+    const canCalculate = role === 'admin' && selected?.status === 'draft'
     const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
     return (
@@ -396,15 +403,35 @@ function DemoPayrollProcessPage() {
         )}
 
         {step === 2 && (
-          <Panel title="Hasil perhitungan" description="Nilai penggajian dihitung dan dikirim oleh server.">
-            <Button type="button" variant="primary" size="action" disabled={!selected || busy} onClick={() => void handleCalculate()}>
-              {busy ? 'Menghitung…' : 'Hitung penggajian'}
-            </Button>
-            {calculation && (
+          <Panel
+            title="Hasil perhitungan"
+            description={role === 'admin'
+              ? 'Nilai penggajian dihitung dan dikirim oleh server.'
+              : 'Hasil perhitungan disiapkan HRD. Keuangan dapat meninjau rincian dan melanjutkan ke persetujuan.'}
+          >
+            {canCalculate && (
+              <Button type="button" variant="primary" size="action" disabled={!selected || busy} onClick={() => void handleCalculate()}>
+                {busy ? 'Menghitung…' : 'Hitung penggajian'}
+              </Button>
+            )}
+            {(calculation || (detail && detail.ringkasan.jumlah_karyawan > 0)) && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <StatCard label="Jumlah karyawan" value={String(calculation.jumlah_karyawan)} icon={Users} tone="blue" />
-                <StatCard label="Total gaji bersih" value={formatRupiah(calculation.total_gaji_bersih)} icon={BadgeCheck} tone="green" />
+                <StatCard
+                  label="Jumlah karyawan"
+                  value={String(calculation?.jumlah_karyawan ?? detail?.ringkasan.jumlah_karyawan ?? 0)}
+                  icon={Users}
+                  tone="blue"
+                />
+                <StatCard
+                  label="Total gaji bersih"
+                  value={formatRupiah(calculation?.total_gaji_bersih ?? detail?.ringkasan.total_gaji_bersih ?? 0)}
+                  icon={BadgeCheck}
+                  tone="green"
+                />
               </div>
+            )}
+            {!canCalculate && lines.length === 0 && (
+              <p className="text-sm text-muted-foreground">Belum ada hasil perhitungan untuk periode ini. HRD perlu menghitung dan mengajukan periode terlebih dahulu.</p>
             )}
             {lines.length > 0 && (
               <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
