@@ -12,16 +12,12 @@ const jakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'HADIRPAY — Absensi, Penggajian, dan Jurnal Akuntansi',
+  title: 'HADIRPAY',
   description:
     'HADIRPAY mengotomatisasi rekap kehadiran karyawan, perhitungan gaji, slip gaji PDF, hingga jurnal akuntansi dalam satu sistem terintegrasi.',
   generator: 'v0.app',
   icons: {
-    icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
-    ],
+    icon: '/icon.svg',
     apple: '/apple-icon.png',
   },
 }
