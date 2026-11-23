@@ -15,6 +15,8 @@ import { formatTanggal } from '@/lib/format'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import {
+  canCheckInNow,
+  canCheckOutNow,
   formatAttendanceRadius,
   formatAttendanceTime,
   getCurrentAttendanceLocation,
@@ -137,17 +139,12 @@ export function AttendancePage() {
 
   const today = now ?? new Date()
   const todayRecord = getTodayRecord(records, today)
-  const action: AttendanceAction | null = todayData
-    ? todayData.canCheckIn
-      ? 'Masuk'
-      : todayData.canCheckOut
-        ? 'Pulang'
-        : null
-    : !todayRecord
-      ? 'Masuk'
-      : todayRecord.checkIn && !todayRecord.checkOut
-        ? 'Pulang'
-        : null
+  const canCheckIn = todayData ? canCheckInNow(todayData) : !todayRecord
+  const canCheckOut = todayData
+    ? canCheckOutNow(todayData)
+    : Boolean(todayRecord?.checkIn && !todayRecord.checkOut)
+  const checkInClosed = Boolean(todayData && !todayRecord && !canCheckIn)
+  const action: AttendanceAction | null = canCheckIn ? 'Masuk' : canCheckOut ? 'Pulang' : null
   const currentTime = now ? clockFormat.format(now) : '--.--.--'
   const dateKey = todayData?.date ?? getLocalDateKey(today)
   const attendanceTime = config.mock.absensi
@@ -159,15 +156,19 @@ export function AttendancePage() {
         hourCycle: 'h23',
       }).formatToParts(today).map((part) => [part.type, Number(part.value)])) as { hour: number; minute: number }
   const pastStartTime = config.mock.absensi && attendanceTime.hour * 60 + attendanceTime.minute > 8 * 60
-  const isLate = todayRecord?.status === 'Terlambat' || (!todayRecord && pastStartTime)
+  const isLate = todayRecord?.status === 'Terlambat' || (!todayRecord && pastStartTime && !checkInClosed)
   const workStart = todayData?.workHours.checkIn.replace(':', '.') ?? '08.00'
   const statusText = !todayRecord
-    ? 'Belum ada catatan absensi hari ini. Pilih Absen Masuk untuk memulai.'
+    ? checkInClosed
+      ? 'Batas waktu absen masuk sudah ditutup.'
+      : 'Belum ada catatan absensi hari ini. Pilih Absen Masuk untuk memulai.'
     : !todayRecord.checkIn
       ? `Status absensi hari ini: ${todayRecord.status}.`
     : todayRecord.checkOut
       ? `Absensi selesai. Masuk ${todayRecord.checkIn}, pulang ${todayRecord.checkOut}.`
-      : `Sudah absen masuk pukul ${todayRecord.checkIn}.`
+      : canCheckOut
+        ? `Sudah absen masuk pukul ${todayRecord.checkIn}.`
+        : 'Absen pulang tersedia satu menit setelah absen masuk.'
 
   return (
     <div className="flex flex-col gap-6">
@@ -187,7 +188,7 @@ export function AttendancePage() {
             <p className="text-base text-blue-100 sm:text-lg">{formatTanggal(dateKey)}</p>
             <p className="flex items-center gap-2 text-sm text-blue-100">
               <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              Radius area absensi: {formatAttendanceRadius(todayData?.office.radiusMeters ?? 5000)}
+              Radius area absensi: {formatAttendanceRadius(todayData?.office.radiusMeters ?? 300)}
             </p>
           </div>
 
@@ -223,9 +224,13 @@ export function AttendancePage() {
                 ? 'Absen Masuk'
                 : action === 'Pulang'
                   ? 'Absen Pulang'
-                  : todayRecord?.checkIn
+                  : todayRecord?.checkOut
                     ? 'Absen hari ini selesai'
-                    : 'Tidak ada absensi hari ini'}
+                    : todayRecord?.checkIn
+                      ? 'Tunggu 1 menit untuk absen pulang'
+                      : checkInClosed
+                        ? 'Absen masuk ditutup'
+                        : 'Tidak ada absensi hari ini'}
             </Button>
           </div>
         </div>
@@ -235,7 +240,7 @@ export function AttendancePage() {
             Jam kerja dimulai pukul {workStart}. Waktu masuk tercatat {todayRecord.checkIn}.
           </p>
         )}
-        {!todayRecord && pastStartTime && (
+        {!todayRecord && pastStartTime && !checkInClosed && (
           <p className="mt-5 flex items-center gap-2 text-sm text-amber-200">
             <Clock3 className="size-4" aria-hidden="true" />
             Absen masuk setelah pukul {workStart} akan ditandai terlambat.

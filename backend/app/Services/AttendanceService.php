@@ -28,17 +28,10 @@ class AttendanceService
         return $this->db->table('lokasi_absensi')->where('aktif', 1)->orderBy('id')->get(1)->getRowArray();
     }
 
-    /** Minimal durasi kerja (menit) sebelum boleh check-out. Default 480 (8 jam). Diatur lewat tabel pengaturan. */
+    /** Minimal satu menit setelah check-in sebelum karyawan dapat melakukan check-out. */
     public function minDurasiMenit(): int
     {
-        $row = $this->db->table('pengaturan')->where('key', 'absensi.min_durasi_menit')->get()->getRowArray();
-        if ($row) {
-            $nilai = json_decode($row['value_json'], true);
-            if (is_numeric($nilai) && $nilai >= 0) {
-                return (int) $nilai;
-            }
-        }
-        return 480;
+        return 1;
     }
 
     private function absensi(int $karyawanId, string $tanggal): ?array
@@ -97,6 +90,7 @@ class AttendanceService
         $jadwal  = $this->jadwal();
         $lokasi  = $this->lokasi();
         $abs     = $this->absensi($karyawanId, $tanggal);
+        $jamPulang = new \DateTimeImmutable($tanggal . ' ' . $jadwal['jam_pulang']);
 
         $min         = $this->minDurasiMenit();
         $pulangCepat = ($abs && $abs['jam_masuk'] !== null)
@@ -131,7 +125,7 @@ class AttendanceService
                     'dalam_radius' => $abs['dalam_radius'] !== null ? (bool) $abs['dalam_radius'] : null,
                 ],
             ] : null,
-            'bisa_absen_masuk'    => $abs === null,
+            'bisa_absen_masuk'    => $abs === null && $now < $jamPulang,
             'bisa_absen_pulang'   => $abs !== null && $abs['jam_masuk'] !== null && $abs['jam_pulang'] === null && $now >= $pulangCepat,
             'min_durasi_menit'    => $min,
             'pulang_paling_cepat' => $pulangCepat?->format('c'),
@@ -157,6 +151,11 @@ class AttendanceService
             return $abs['jam_masuk'] !== null
                 ? ['error' => ['ALREADY_CHECKED_IN', 'Anda sudah absen masuk hari ini', 409, null]]
                 : ['error' => ['CONFLICT', 'Hari ini Anda tercatat ' . $abs['status'], 409, null]];
+        }
+
+        $jamPulang = new \DateTimeImmutable($tanggal . ' ' . $jadwal['jam_pulang']);
+        if ($now >= $jamPulang) {
+            return ['error' => ['CHECK_IN_WINDOW_CLOSED', 'Batas absen masuk sudah ditutup pada pukul ' . substr($jadwal['jam_pulang'], 0, 5), 409, null]];
         }
 
         $lokasi = $this->lokasi();

@@ -134,7 +134,7 @@ class LokasiAbsensi extends BaseController
             'alamat'       => 'permit_empty|max_length[255]',
             'latitude'     => 'required|numeric|greater_than_equal_to[-90]|less_than_equal_to[90]',
             'longitude'    => 'required|numeric|greater_than_equal_to[-180]|less_than_equal_to[180]',
-            'radius_meter' => 'permit_empty|is_natural_no_zero|less_than_equal_to[5000]',
+            'radius_meter' => 'permit_empty|is_natural_no_zero|less_than_equal_to[100000]',
         ];
     }
 
@@ -159,7 +159,6 @@ class LokasiAbsensi extends BaseController
             ],
             'radius_meter' => [
                 'is_natural_no_zero' => 'Radius harus bilangan bulat lebih dari 0',
-                'less_than_equal_to' => 'Radius absensi maksimal 5.000 meter',
             ],
         ];
     }

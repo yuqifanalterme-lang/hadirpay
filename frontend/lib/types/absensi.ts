@@ -28,6 +28,8 @@ export type AbsensiHariIni = {
   } | null
   bisa_absen_masuk: boolean
   bisa_absen_pulang: boolean
+  min_durasi_menit: number
+  pulang_paling_cepat: string | null
 }
 
 export type AbsensiLokasiRequest = { latitude: number; longitude: number }

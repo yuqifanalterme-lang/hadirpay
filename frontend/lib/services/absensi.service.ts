@@ -84,6 +84,7 @@ export type AttendanceToday = {
   attendance: EmployeeAttendanceRecord | null
   canCheckIn: boolean
   canCheckOut: boolean
+  checkoutAvailableAt: string | null
 }
 
 export function getCurrentAttendanceLocation(): Promise<AbsensiLokasiRequest> {
@@ -227,6 +228,21 @@ export function getServerTime(): Date | null {
   return new Date(latestServerTime.getTime() + elapsed)
 }
 
+export function canCheckInNow(today: AttendanceToday): boolean {
+  if (!today.canCheckIn) return false
+  const now = getServerTime()
+  const cutoff = Date.parse(`${today.date}T${today.workHours.checkOut}:00+07:00`)
+  return now !== null && Number.isFinite(cutoff) && now.getTime() < cutoff
+}
+
+export function canCheckOutNow(today: AttendanceToday): boolean {
+  if (today.canCheckOut) return true
+  if (!today.attendance?.checkIn || today.attendance.checkOut || !today.checkoutAvailableAt) return false
+  const now = getServerTime()
+  const availableAt = Date.parse(today.checkoutAvailableAt)
+  return now !== null && Number.isFinite(availableAt) && now.getTime() >= availableAt
+}
+
 async function fetchAttendanceToday(): Promise<AbsensiHariIni> {
   const result = await apiRequest<AbsensiHariIni>('absensi/hari-ini')
   updateServerClock(result.data)
@@ -256,6 +272,7 @@ export async function getAttendanceToday(): Promise<AttendanceToday | null> {
       : null,
     canCheckIn: data.bisa_absen_masuk,
     canCheckOut: data.bisa_absen_pulang,
+    checkoutAvailableAt: data.pulang_paling_cepat,
   }
 }
 

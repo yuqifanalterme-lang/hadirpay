@@ -11,6 +11,8 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import {
+  canCheckInNow,
+  canCheckOutNow,
   formatAttendanceRadius,
   getAttendanceToday,
   getCurrentAttendanceLocation,
@@ -192,13 +194,16 @@ function LiveAttendanceClock({ weeklyAttendance }: {
   }, [retry])
 
   async function handleAbsen() {
-    if (!today || submitting || (!today.canCheckIn && !today.canCheckOut)) return
+    if (!today || submitting) return
+    const canCheckIn = canCheckInNow(today)
+    const canCheckOut = canCheckOutNow(today)
+    if (!canCheckIn && !canCheckOut) return
     const serverNow = getServerTime()
     if (!serverNow) {
       toast.error('Waktu server absensi belum tersedia.')
       return
     }
-    const action = today.canCheckIn ? 'Masuk' : 'Pulang'
+    const action = canCheckIn ? 'Masuk' : 'Pulang'
     setSubmitting(true)
     try {
       const location = await getCurrentAttendanceLocation()
@@ -229,11 +234,17 @@ function LiveAttendanceClock({ weeklyAttendance }: {
   const currentTime = now ? liveTimeFormat.format(now) : '--.--.--'
   const dateLabel = now ? liveDateFormat.format(now) : '\u00a0'
   const attendance = today.attendance
+  const canCheckIn = canCheckInNow(today)
+  const canCheckOut = canCheckOutNow(today)
   const statusText = !attendance
-    ? 'Anda belum absen hari ini'
-    : today.canCheckOut
-      ? `Sudah absen masuk pukul ${attendance.checkIn ?? '--.--'}`
-      : `Absensi hari ini selesai (${attendance.checkIn ?? '--.--'} – ${attendance.checkOut ?? '--.--'})`
+    ? canCheckIn
+      ? 'Anda belum absen hari ini'
+      : 'Batas waktu absen masuk sudah ditutup.'
+    : attendance.checkOut
+      ? `Absensi selesai (${attendance.checkIn ?? '--.--'} – ${attendance.checkOut})`
+      : canCheckOut
+        ? `Sudah absen masuk pukul ${attendance.checkIn ?? '--.--'}`
+        : 'Absen pulang tersedia satu menit setelah absen masuk.'
   const weekDays: WeekDay[] = weeklyAttendance.hari.map((day) => ({
     short: new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'short' })
       .format(new Date(`${day.tanggal}T12:00:00+07:00`))
@@ -280,26 +291,30 @@ function LiveAttendanceClock({ weeklyAttendance }: {
             <button
               type="button"
               onClick={() => void handleAbsen()}
-              disabled={submitting || (!today.canCheckIn && !today.canCheckOut)}
+              disabled={submitting || (!canCheckIn && !canCheckOut)}
               className={cn(
                 'flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl px-8 text-lg font-bold shadow-lg transition-all duration-200 sm:w-72',
-                today.canCheckIn && 'bg-success text-white hover:-translate-y-0.5 hover:bg-emerald-800',
-                today.canCheckOut && 'bg-white text-navy hover:-translate-y-0.5 hover:bg-blue-50',
-                !today.canCheckIn && !today.canCheckOut && 'cursor-not-allowed bg-white/15 text-blue-100 shadow-none',
+                canCheckIn && 'bg-success text-white hover:-translate-y-0.5 hover:bg-emerald-800',
+                canCheckOut && 'bg-white text-navy hover:-translate-y-0.5 hover:bg-blue-50',
+                !canCheckIn && !canCheckOut && 'cursor-not-allowed bg-white/15 text-blue-100 shadow-none',
               )}
             >
-              {today.canCheckOut ? (
+              {attendance && !attendance.checkOut ? (
                 <LogOut className="size-6" aria-hidden="true" />
               ) : (
                 <LogIn className="size-6" aria-hidden="true" />
               )}
               {submitting
                 ? 'Memeriksa lokasi...'
-                : today.canCheckIn
+                : canCheckIn
                   ? 'Absen Masuk'
-                  : today.canCheckOut
+                  : canCheckOut
                     ? 'Absen Pulang'
-                    : 'Sampai jumpa besok'}
+                    : attendance?.checkOut
+                      ? 'Sampai jumpa besok'
+                      : attendance
+                        ? 'Tunggu 1 menit untuk absen pulang'
+                        : 'Absen masuk ditutup'}
             </button>
           </div>
         </div>
