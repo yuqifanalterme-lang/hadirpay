@@ -15,7 +15,7 @@ class LokasiAbsensiSeeder extends Seeder
             'alamat'       => 'Jl. Kumbang No. 14, Babakan, Bogor Tengah, Kota Bogor',
             'latitude'     => -6.5877800,
             'longitude'    => 106.8058300,
-            'radius_meter' => 300,
+            'radius_meter' => 5000,
             'wajib_lokasi' => 1,
             'aktif'        => 1,
             'created_at'   => $now,

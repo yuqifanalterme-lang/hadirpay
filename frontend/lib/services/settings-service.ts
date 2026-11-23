@@ -112,8 +112,8 @@ function validateSettings(settings: DemoSettings) {
   if (!settings.attendanceLocation.name.trim() || !settings.attendanceLocation.address.trim() ||
       !Number.isInteger(settings.attendanceLocation.radiusMeters) ||
       settings.attendanceLocation.radiusMeters < 50 ||
-      settings.attendanceLocation.radiusMeters > 10000) {
-    throw new Error('Lokasi absensi harus diisi dengan radius 50 sampai 10.000 meter.')
+      settings.attendanceLocation.radiusMeters > 5000) {
+    throw new Error('Lokasi absensi harus diisi dengan radius 50 sampai 5.000 meter.')
   }
 }
 

@@ -10,7 +10,15 @@ import { ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
-import { getAttendanceToday, getServerTime, recordCheckIn, recordCheckOut, type AttendanceToday } from '@/lib/services/absensi.service'
+import {
+  formatAttendanceRadius,
+  getAttendanceToday,
+  getCurrentAttendanceLocation,
+  getServerTime,
+  recordCheckIn,
+  recordCheckOut,
+  type AttendanceToday,
+} from '@/lib/services/absensi.service'
 import type { DashboardKaryawan } from '@/lib/types/dashboard'
 import { cn } from '@/lib/utils'
 
@@ -103,10 +111,6 @@ function MockAttendanceClock() {
               {now ? timeFormat.format(now) : '--.--.--'}
             </p>
             <p className="text-lg text-blue-100">{now ? dateFormat.format(now) : '\u00a0'}</p>
-            <p className="flex items-center gap-1.5 text-sm text-blue-200">
-              <MapPin className="size-4" aria-hidden="true" />
-              Kantor Pusat · Jl. Sudirman No. 21, Jakarta
-            </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:items-end">
@@ -197,9 +201,10 @@ function LiveAttendanceClock({ weeklyAttendance }: {
     const action = today.canCheckIn ? 'Masuk' : 'Pulang'
     setSubmitting(true)
     try {
+      const location = await getCurrentAttendanceLocation()
       const record = action === 'Masuk'
-        ? await recordCheckIn(serverNow)
-        : await recordCheckOut(serverNow)
+        ? await recordCheckIn(serverNow, location)
+        : await recordCheckOut(serverNow, location)
       const updated = await getAttendanceToday()
       if (!updated) throw new Error('Data absensi hari ini tidak tersedia.')
       setToday(updated)
@@ -210,9 +215,7 @@ function LiveAttendanceClock({ weeklyAttendance }: {
     } catch (error) {
       const message = error instanceof ApiError && error.code === 'ALREADY_CHECKED_IN'
         ? 'Anda sudah melakukan absen masuk hari ini.'
-        : error instanceof ApiError && error.code === 'OUTSIDE_RADIUS'
-          ? 'Lokasi Anda berada di luar area kantor.'
-          : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
+        : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
       toast.error(message)
     } finally {
       setSubmitting(false)
@@ -259,7 +262,7 @@ function LiveAttendanceClock({ weeklyAttendance }: {
             <p className="text-lg text-blue-100">{dateLabel}</p>
             <p className="flex items-center gap-1.5 text-sm text-blue-200">
               <MapPin className="size-4" aria-hidden="true" />
-              {today.office.name} · {today.office.address}
+              Radius area absensi: {formatAttendanceRadius(today.office.radiusMeters)}
             </p>
           </div>
 
@@ -291,7 +294,7 @@ function LiveAttendanceClock({ weeklyAttendance }: {
                 <LogIn className="size-6" aria-hidden="true" />
               )}
               {submitting
-                ? 'Menyimpan...'
+                ? 'Memeriksa lokasi...'
                 : today.canCheckIn
                   ? 'Absen Masuk'
                   : today.canCheckOut

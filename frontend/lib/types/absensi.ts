@@ -30,7 +30,7 @@ export type AbsensiHariIni = {
   bisa_absen_pulang: boolean
 }
 
-export type AbsensiLokasiRequest = { latitude?: number; longitude?: number }
+export type AbsensiLokasiRequest = { latitude: number; longitude: number }
 export type CheckInResponse = {
   id: Id
   tanggal: Tanggal

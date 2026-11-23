@@ -86,6 +86,46 @@ export type AttendanceToday = {
   canCheckOut: boolean
 }
 
+export function getCurrentAttendanceLocation(): Promise<AbsensiLokasiRequest> {
+  if (!navigator.geolocation) {
+    return Promise.reject(new Error('Perangkat ini tidak menyediakan layanan lokasi.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const { latitude, longitude } = coords
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+            Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+          reject(new Error('Koordinat lokasi perangkat tidak valid.'))
+          return
+        }
+        resolve({ latitude, longitude })
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          reject(new Error('Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini sebelum absen.'))
+          return
+        }
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          reject(new Error('Lokasi perangkat tidak tersedia. Periksa GPS lalu coba lagi.'))
+          return
+        }
+        reject(new Error('Pemeriksaan lokasi melewati batas waktu. Aktifkan GPS lalu coba lagi.'))
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  })
+}
+
+export function formatAttendanceRadius(radiusMeters: number): string {
+  if (radiusMeters >= 1000) {
+    const kilometers = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(radiusMeters / 1000)
+    return `${kilometers} km`
+  }
+  return `${radiusMeters} m`
+}
+
 export type AdminAttendancePage = {
   items: AdminDailyAttendanceRow[]
   summary: AbsensiAdminSummary
@@ -290,10 +330,11 @@ export async function listAttendanceRecords(period?: string): Promise<EmployeeAt
 
 export async function recordCheckIn(
   date: Date,
-  location?: AbsensiLokasiRequest,
+  location: AbsensiLokasiRequest | undefined,
 ): Promise<EmployeeAttendanceRecord & { checkIn: string }> {
   if (config.mock.absensi) return recordCheckInMock(date)
-  const result = await apiRequest<CheckInResponse>('absensi/check-in', { method: 'POST', body: location ?? {} })
+  if (!location) throw new Error('Lokasi perangkat diperlukan untuk melakukan absensi.')
+  const result = await apiRequest<CheckInResponse>('absensi/check-in', { method: 'POST', body: location })
   latestAttendanceStatus = apiStatusToUi[result.data.status]
   return {
     ...attendanceRecord(result.data.tanggal, result.data.jam_masuk, null, result.data.status),
@@ -303,10 +344,11 @@ export async function recordCheckIn(
 
 export async function recordCheckOut(
   date: Date,
-  location?: AbsensiLokasiRequest,
+  location: AbsensiLokasiRequest | undefined,
 ): Promise<EmployeeAttendanceRecord & { checkIn: string; checkOut: string }> {
   if (config.mock.absensi) return recordCheckOutMock(date)
-  const result = await apiRequest<CheckOutResponse>('absensi/check-out', { method: 'POST', body: location ?? {} })
+  if (!location) throw new Error('Lokasi perangkat diperlukan untuk melakukan absensi.')
+  const result = await apiRequest<CheckOutResponse>('absensi/check-out', { method: 'POST', body: location })
   const dateKey = latestServerDate ?? getLocalDateKey()
   if (!latestAttendanceStatus) {
     throw new ApiError(0, 'ATTENDANCE_STATUS_UNAVAILABLE', 'Status absensi harus dimuat dari server sebelum absen pulang.')

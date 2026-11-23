@@ -71,11 +71,11 @@ class AttendanceService
         $punya = is_numeric($lat) && is_numeric($lng);
 
         if ($punya && (abs((float) $lat) > 90 || abs((float) $lng) > 180)) {
-            return ['error' => ['VALIDATION_ERROR', 'Data tidak valid', 422, ['latitude' => 'Koordinat tidak valid']]];
+            return ['error' => ['VALIDATION_ERROR', 'Koordinat lokasi perangkat tidak valid', 422, ['latitude' => 'Latitude atau longitude di luar rentang yang diizinkan']]];
         }
         if (! $punya) {
             return $wajib
-                ? ['error' => ['VALIDATION_ERROR', 'Data tidak valid', 422, ['latitude' => 'Lokasi wajib dikirim. Aktifkan izin lokasi di browser']]]
+                ? ['error' => ['VALIDATION_ERROR', 'Koordinat lokasi tidak terkirim. Aktifkan izin lokasi perangkat lalu coba lagi', 422, ['latitude' => 'Latitude dan longitude wajib dikirim', 'longitude' => 'Latitude dan longitude wajib dikirim']]]
                 : ['dalam' => null];
         }
 

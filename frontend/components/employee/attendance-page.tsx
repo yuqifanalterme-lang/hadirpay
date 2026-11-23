@@ -15,7 +15,9 @@ import { formatTanggal } from '@/lib/format'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import {
+  formatAttendanceRadius,
   formatAttendanceTime,
+  getCurrentAttendanceLocation,
   getAttendanceToday,
   getServerTime,
   getLocalDateKey,
@@ -48,7 +50,6 @@ export function AttendancePage() {
   const [loadError, setLoadError] = useState('')
   const [locationState, setLocationState] = useState<LocationState>('Belum diperiksa')
   const [checkingLocation, setCheckingLocation] = useState(false)
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | undefined>()
   const [confirmAction, setConfirmAction] = useState<AttendanceAction | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -89,12 +90,14 @@ export function AttendancePage() {
       const currentTime = new Date()
       let record: EmployeeAttendanceRecord
       let recordedTime: string
+      const location = config.mock.absensi ? undefined : await getCurrentAttendanceLocation()
+      if (location) setLocationState('Lokasi perangkat tersedia')
       if (confirmAction === 'Masuk') {
-        const checkedInRecord = await recordCheckIn(currentTime, coordinates)
+        const checkedInRecord = await recordCheckIn(currentTime, location)
         record = checkedInRecord
         recordedTime = checkedInRecord.checkIn
       } else {
-        const checkedOutRecord = await recordCheckOut(currentTime, coordinates)
+        const checkedOutRecord = await recordCheckOut(currentTime, location)
         record = checkedOutRecord
         recordedTime = checkedOutRecord.checkOut
       }
@@ -106,9 +109,7 @@ export function AttendancePage() {
     } catch (error) {
       const message = error instanceof ApiError && error.code === 'ALREADY_CHECKED_IN'
         ? 'Anda sudah melakukan absen masuk hari ini.'
-        : error instanceof ApiError && error.code === 'OUTSIDE_RADIUS'
-          ? 'Lokasi Anda berada di luar area kantor.'
-          : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
+        : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
       toast.error(message)
     } finally {
       setSubmitting(false)
@@ -116,41 +117,19 @@ export function AttendancePage() {
   }
 
   function checkLocation() {
-    if (!navigator.geolocation) {
-      toast.error('Perangkat ini tidak menyediakan pemeriksaan lokasi.')
-      return
-    }
     setCheckingLocation(true)
     setLocationState('Memeriksa lokasi')
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCheckingLocation(false)
-        setLocationState('Lokasi perangkat tersedia')
-        setCoordinates({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        })
-        toast.success('Lokasi perangkat tersedia.', {
-          description: 'Pemeriksaan lokasi bersifat opsional dan tidak menentukan keberhasilan absen.',
-        })
-      },
-      (error) => {
-        setCheckingLocation(false)
-        setLocationState('Belum diperiksa')
-        if (error.code === error.PERMISSION_DENIED) {
-          toast.error('Izin lokasi tidak diberikan.', {
-            description: 'Anda tetap dapat melakukan absensi tanpa mengaktifkan lokasi.',
-          })
-          return
-        }
-        if (error.code === error.POSITION_UNAVAILABLE) {
-          toast.error('Lokasi perangkat tidak tersedia saat ini.')
-          return
-        }
-        toast.error('Pemeriksaan lokasi melewati batas waktu. Coba lagi atau lanjutkan tanpa lokasi.')
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
-    )
+    void getCurrentAttendanceLocation().then(() => {
+      setCheckingLocation(false)
+      setLocationState('Lokasi perangkat tersedia')
+      toast.success('Lokasi perangkat tersedia.', {
+        description: 'Lokasi perangkat akan dipakai untuk memvalidasi radius absensi.',
+      })
+    }).catch((error: unknown) => {
+      setCheckingLocation(false)
+      setLocationState('Belum diperiksa')
+      toast.error(error instanceof Error ? error.message : 'Lokasi perangkat tidak dapat diperiksa.')
+    })
   }
 
   if (loading) return <PageLoadingSkeleton label="absensi hari ini" />
@@ -182,8 +161,6 @@ export function AttendancePage() {
   const pastStartTime = config.mock.absensi && attendanceTime.hour * 60 + attendanceTime.minute > 8 * 60
   const isLate = todayRecord?.status === 'Terlambat' || (!todayRecord && pastStartTime)
   const workStart = todayData?.workHours.checkIn.replace(':', '.') ?? '08.00'
-  const officeName = todayData?.office.name ?? 'Kantor Pusat'
-  const officeAddress = todayData?.office.address ?? 'Jl. Sudirman No. 21, Jakarta'
   const statusText = !todayRecord
     ? 'Belum ada catatan absensi hari ini. Pilih Absen Masuk untuk memulai.'
     : !todayRecord.checkIn
@@ -210,7 +187,7 @@ export function AttendancePage() {
             <p className="text-base text-blue-100 sm:text-lg">{formatTanggal(dateKey)}</p>
             <p className="flex items-center gap-2 text-sm text-blue-100">
               <MapPin className="size-4 shrink-0" aria-hidden="true" />
-              {officeName}, {officeAddress}
+              Radius area absensi: {formatAttendanceRadius(todayData?.office.radiusMeters ?? 5000)}
             </p>
           </div>
 
@@ -288,7 +265,7 @@ export function AttendancePage() {
           </div>
         </Panel>
 
-        <Panel title="Status lokasi" description="Pemeriksaan lokasi bersifat opsional">
+        <Panel title="Status lokasi" description="Lokasi perangkat diperlukan untuk memvalidasi radius absensi">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <StatIcon
@@ -298,7 +275,7 @@ export function AttendancePage() {
               />
               <div>
                 <p className="font-semibold text-heading">{locationState}</p>
-                <p className="text-sm text-muted-foreground">Absensi tetap dapat dilakukan tanpa lokasi.</p>
+                <p className="text-sm text-muted-foreground">Izinkan akses lokasi saat mengirim absensi.</p>
               </div>
             </div>
             <Button
@@ -325,8 +302,8 @@ export function AttendancePage() {
           title={`Konfirmasi absen ${confirmAction?.toLowerCase() ?? ''}`}
           description={
             confirmAction === 'Masuk'
-              ? `Catat waktu masuk pukul ${now ? formatAttendanceTime(now) : 'sekarang'}?`
-              : `Catat waktu pulang pukul ${now ? formatAttendanceTime(now) : 'sekarang'}?`
+              ? `Catat waktu masuk pukul ${now ? formatAttendanceTime(now) : 'sekarang'}? Lokasi perangkat akan diperiksa.`
+              : `Catat waktu pulang pukul ${now ? formatAttendanceTime(now) : 'sekarang'}? Lokasi perangkat akan diperiksa.`
           }
           onClose={() => {
             if (!submitting) setConfirmAction(null)

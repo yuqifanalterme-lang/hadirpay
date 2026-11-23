@@ -551,7 +551,7 @@ export function SettingsPage() {
                   <input className={fieldClass} value={settings.attendanceLocation.address} maxLength={200} required onChange={(event) => updateLocation('address', event.target.value)} />
                 </Field>
                 <Field label="Radius absensi (meter)" error={fieldError('lokasi_absensi.0.radius_meter', 'radius_meter')}>
-                  <input type="number" min={50} max={10000} className={fieldClass} value={settings.attendanceLocation.radiusMeters} required onChange={(event) => updateLocation('radiusMeters', Number(event.target.value))} />
+                  <input type="number" min={50} max={5000} className={fieldClass} value={settings.attendanceLocation.radiusMeters} required onChange={(event) => updateLocation('radiusMeters', Number(event.target.value))} />
                 </Field>
               </div>
             </div>
