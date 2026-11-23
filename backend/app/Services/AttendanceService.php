@@ -60,22 +60,19 @@ class AttendanceService
             return ['error' => ['LOCATION_NOT_CONFIGURED', 'Lokasi kerja belum diatur. Hubungi admin HRD', 409, null]];
         }
 
-        $wajib = (int) $lokasi['wajib_lokasi'] === 1;
         $punya = is_numeric($lat) && is_numeric($lng);
 
         if ($punya && (abs((float) $lat) > 90 || abs((float) $lng) > 180)) {
             return ['error' => ['VALIDATION_ERROR', 'Koordinat lokasi perangkat tidak valid', 422, ['latitude' => 'Latitude atau longitude di luar rentang yang diizinkan']]];
         }
         if (! $punya) {
-            return $wajib
-                ? ['error' => ['VALIDATION_ERROR', 'Koordinat lokasi tidak terkirim. Aktifkan izin lokasi perangkat lalu coba lagi', 422, ['latitude' => 'Latitude dan longitude wajib dikirim', 'longitude' => 'Latitude dan longitude wajib dikirim']]]
-                : ['dalam' => null];
+            return ['error' => ['VALIDATION_ERROR', 'Koordinat lokasi tidak terkirim. Aktifkan izin lokasi perangkat lalu coba lagi', 422, ['latitude' => 'Latitude dan longitude wajib dikirim', 'longitude' => 'Latitude dan longitude wajib dikirim']]];
         }
 
         $jarak = $this->haversine((float) $lat, (float) $lng, (float) $lokasi['latitude'], (float) $lokasi['longitude']);
         $dalam = $jarak <= (int) $lokasi['radius_meter'];
 
-        if (! $dalam && $wajib) {
+        if (! $dalam) {
             return ['error' => ['OUTSIDE_RADIUS', 'Anda berada di luar radius lokasi kerja (' . round($jarak) . ' m dari kantor)', 422, null]];
         }
         return ['dalam' => $dalam];

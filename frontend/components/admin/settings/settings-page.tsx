@@ -539,10 +539,12 @@ export function SettingsPage() {
 
           {tab === 'location' && (
             <div className="flex flex-col gap-5">
-              <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-white px-4 text-sm font-semibold text-heading">
-                <input type="checkbox" checked={settings.attendanceLocation.enabled} onChange={(event) => updateLocation('enabled', event.target.checked)} className="size-4 accent-primary" />
-                Aktifkan pemeriksaan lokasi saat absensi
-              </label>
+              <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <p className="text-sm font-semibold text-heading">Validasi lokasi wajib aktif</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Absen masuk dan pulang hanya diterima jika perangkat berada dalam radius yang dikonfigurasi.
+                </p>
+              </div>
               <div className="grid gap-5 md:grid-cols-2">
                 <Field label="Nama lokasi" error={fieldError('lokasi_absensi.0.nama', 'lokasi_absensi', 'nama')}>
                   <input className={fieldClass} value={settings.attendanceLocation.name} maxLength={100} required onChange={(event) => updateLocation('name', event.target.value)} />

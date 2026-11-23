@@ -122,7 +122,7 @@ class LokasiAbsensi extends BaseController
             'latitude'     => $in['latitude'],
             'longitude'    => $in['longitude'],
             'radius_meter' => isset($in['radius_meter']) ? (int) $in['radius_meter'] : (int) ($lama['radius_meter'] ?? 100),
-            'wajib_lokasi' => $this->bool($in['wajib_lokasi'] ?? null, (int) ($lama['wajib_lokasi'] ?? 0)),
+            'wajib_lokasi' => 1,
             'aktif'        => $this->bool($in['aktif'] ?? null, (int) ($lama['aktif'] ?? 1)),
         ];
     }
