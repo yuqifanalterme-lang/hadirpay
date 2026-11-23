@@ -11,9 +11,8 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import {
-  canCheckInNow,
-  canCheckOutNow,
   formatAttendanceRadius,
+  getAttendanceAction,
   getAttendanceToday,
   getCurrentAttendanceLocation,
   getServerTime,
@@ -195,15 +194,13 @@ function LiveAttendanceClock({ weeklyAttendance }: {
 
   async function handleAbsen() {
     if (!today || submitting) return
-    const canCheckIn = canCheckInNow(today)
-    const canCheckOut = canCheckOutNow(today)
-    if (!canCheckIn && !canCheckOut) return
+    const action = getAttendanceAction(today)
+    if (!action) return
     const serverNow = getServerTime()
     if (!serverNow) {
       toast.error('Waktu server absensi belum tersedia.')
       return
     }
-    const action = canCheckIn ? 'Masuk' : 'Pulang'
     setSubmitting(true)
     try {
       const location = await getCurrentAttendanceLocation()
@@ -218,8 +215,21 @@ function LiveAttendanceClock({ weeklyAttendance }: {
         description: `Pukul ${action === 'Masuk' ? record.checkIn : record.checkOut}.`,
       })
     } catch (error) {
+      if (error instanceof ApiError && ['ALREADY_CHECKED_IN', 'ALREADY_CHECKED_OUT', 'NOT_CHECKED_IN'].includes(error.code)) {
+        try {
+          const updated = await getAttendanceToday()
+          if (updated) {
+            setToday(updated)
+            setNow(getServerTime())
+          }
+        } catch (refreshError) {
+          toast.error(refreshError instanceof Error ? refreshError.message : 'Status absensi gagal diperbarui.')
+        }
+      }
       const message = error instanceof ApiError && error.code === 'ALREADY_CHECKED_IN'
         ? 'Anda sudah melakukan absen masuk hari ini.'
+        : error instanceof ApiError && error.code === 'ALREADY_CHECKED_OUT'
+          ? 'Absen pulang hari ini sudah tercatat pada akun ini.'
         : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
       toast.error(message)
     } finally {
@@ -234,8 +244,9 @@ function LiveAttendanceClock({ weeklyAttendance }: {
   const currentTime = now ? liveTimeFormat.format(now) : '--.--.--'
   const dateLabel = now ? liveDateFormat.format(now) : '\u00a0'
   const attendance = today.attendance
-  const canCheckIn = canCheckInNow(today)
-  const canCheckOut = canCheckOutNow(today)
+  const action = getAttendanceAction(today)
+  const canCheckIn = action === 'Masuk'
+  const canCheckOut = action === 'Pulang'
   const statusText = !attendance
     ? canCheckIn
       ? 'Anda belum absen hari ini'

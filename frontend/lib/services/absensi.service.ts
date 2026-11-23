@@ -243,6 +243,12 @@ export function canCheckOutNow(today: AttendanceToday): boolean {
   return now !== null && Number.isFinite(availableAt) && now.getTime() >= availableAt
 }
 
+export function getAttendanceAction(today: AttendanceToday): 'Masuk' | 'Pulang' | null {
+  if (canCheckInNow(today)) return 'Masuk'
+  if (canCheckOutNow(today)) return 'Pulang'
+  return null
+}
+
 async function fetchAttendanceToday(): Promise<AbsensiHariIni> {
   const result = await apiRequest<AbsensiHariIni>('absensi/hari-ini')
   updateServerClock(result.data)

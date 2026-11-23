@@ -15,10 +15,9 @@ import { formatTanggal } from '@/lib/format'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import {
-  canCheckInNow,
-  canCheckOutNow,
   formatAttendanceRadius,
   formatAttendanceTime,
+  getAttendanceAction,
   getCurrentAttendanceLocation,
   getAttendanceToday,
   getServerTime,
@@ -109,8 +108,14 @@ export function AttendancePage() {
         description: `Pukul ${recordedTime}.`,
       })
     } catch (error) {
+      if (error instanceof ApiError && ['ALREADY_CHECKED_IN', 'ALREADY_CHECKED_OUT', 'NOT_CHECKED_IN'].includes(error.code)) {
+        await load()
+        setConfirmAction(null)
+      }
       const message = error instanceof ApiError && error.code === 'ALREADY_CHECKED_IN'
         ? 'Anda sudah melakukan absen masuk hari ini.'
+        : error instanceof ApiError && error.code === 'ALREADY_CHECKED_OUT'
+          ? 'Absen pulang hari ini sudah tercatat pada akun ini.'
         : error instanceof Error ? error.message : 'Absensi gagal disimpan.'
       toast.error(message)
     } finally {
@@ -139,9 +144,10 @@ export function AttendancePage() {
 
   const today = now ?? new Date()
   const todayRecord = getTodayRecord(records, today)
-  const canCheckIn = todayData ? canCheckInNow(todayData) : !todayRecord
+  const apiAction = todayData ? getAttendanceAction(todayData) : null
+  const canCheckIn = todayData ? apiAction === 'Masuk' : !todayRecord
   const canCheckOut = todayData
-    ? canCheckOutNow(todayData)
+    ? apiAction === 'Pulang'
     : Boolean(todayRecord?.checkIn && !todayRecord.checkOut)
   const checkInClosed = Boolean(todayData && !todayRecord && !canCheckIn)
   const action: AttendanceAction | null = canCheckIn ? 'Masuk' : canCheckOut ? 'Pulang' : null
