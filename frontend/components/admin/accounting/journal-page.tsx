@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Lock, NotebookPen, Plus, ReceiptText, Trash2 } from 'lucide-react'
+import { Lock, NotebookPen, Pencil, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -17,7 +17,7 @@ import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import { formatAccountingDate } from '@/lib/accounting/journal'
 import { formatRupiah, formatRupiahDecimal } from '@/lib/mock-data'
 import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
-import { cancelManualJournal, listAccounts, listJournalEntriesPage, saveManualJournal } from '@/lib/services/akuntansi.service'
+import { cancelManualJournal, listAccounts, listJournalEntriesPage, saveManualJournal, updateManualJournal } from '@/lib/services/akuntansi.service'
 import { accountingDataChangedEvent, notifyAccountingDataChanged } from '@/lib/services/accounting-events'
 import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 import type { JurnalRingkasan } from '@/lib/types/akuntansi'
@@ -74,6 +74,7 @@ export function JournalPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingJournal, setEditingJournal] = useState<JournalEntry | null>(null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<ApiErrorFields>({})
@@ -87,6 +88,7 @@ export function JournalPage() {
   const [creditAccountCode, setCreditAccountCode] = useState('')
   const [amount, setAmount] = useState('')
   const canCreate = role === 'keuangan'
+  const canUpdate = role === 'keuangan'
   const canDelete = role === 'admin' || role === 'keuangan'
   const amountError = [
     'detail.0.debit',
@@ -170,6 +172,29 @@ export function JournalPage() {
     setFieldErrors({})
   }
 
+  function openJournalForm(entry?: JournalEntry) {
+    setEditingJournal(entry ?? null)
+    setFormError('')
+    setFieldErrors({})
+    if (entry) {
+      setDate(entry.date)
+      setDescription(entry.description)
+      setDebitAccountCode(entry.lines.find((line) => line.debit > 0)?.accountCode ?? accounts[0]?.code ?? '')
+      setCreditAccountCode(entry.lines.find((line) => line.credit > 0)?.accountCode ?? accounts[1]?.code ?? '')
+      setAmount(String(entry.lines.find((line) => line.debit > 0)?.debit ?? entry.lines.find((line) => line.credit > 0)?.credit ?? ''))
+    } else {
+      resetForm()
+    }
+    setDialogOpen(true)
+  }
+
+  function closeJournalForm() {
+    if (saving) return
+    setDialogOpen(false)
+    setEditingJournal(null)
+    resetForm()
+  }
+
   function clearFieldError(field: string) {
     setFieldErrors((current) => ({ ...current, [field]: [] }))
   }
@@ -180,17 +205,20 @@ export function JournalPage() {
     setFormError('')
     setFieldErrors({})
     try {
-      await saveManualJournal({
+      const input = {
         date,
         description,
         debitAccountCode,
         creditAccountCode,
         amount: Number(amount),
-      })
+      }
+      if (editingJournal) await updateManualJournal(editingJournal.id, input)
+      else await saveManualJournal(input)
       await load()
       setDialogOpen(false)
+      setEditingJournal(null)
       resetForm()
-      toast.success('Jurnal manual berhasil disimpan.')
+      toast.success(editingJournal ? 'Jurnal manual berhasil diperbarui.' : 'Jurnal manual berhasil disimpan.')
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Jurnal manual gagal disimpan.'
       setFormError(message)
@@ -257,7 +285,7 @@ export function JournalPage() {
             title="Jurnal umum"
             description="Catat jurnal manual atau telusuri jurnal otomatis dari proses penggajian."
             action={canCreate ? (
-              <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>
+              <Button type="button" variant="primary" size="action" onClick={() => openJournalForm()}>
                 <Plus aria-hidden="true" />
                 Buat jurnal manual
               </Button>
@@ -314,7 +342,7 @@ export function JournalPage() {
                 title="Belum ada jurnal"
                 description="Jurnal payroll otomatis muncul setelah penggajian disetujui. Anda juga dapat membuat jurnal manual."
                 icon={ReceiptText}
-                action={canCreate ? <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>Buat jurnal manual</Button> : undefined}
+                action={canCreate ? <Button type="button" variant="primary" size="action" onClick={() => openJournalForm()}>Buat jurnal manual</Button> : undefined}
               />
             )}
             <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
@@ -375,18 +403,31 @@ export function JournalPage() {
                               readOnly
                             />
                           )}
-                          {index === 0 && canDelete && entry.type === 'Manual' && entry.status === 'aktif' && (
-                            <TableActionIcon
-                              label="Hapus jurnal"
-                              ariaLabel={`Hapus jurnal ${entry.voucherNumber}`}
-                              icon={Trash2}
-                              tone="red"
-                              onClick={() => {
-                                setCancelDialogEntry(entry)
-                                setCancelFieldErrors({})
-                                setCancelError('')
-                              }}
-                            />
+                          {index === 0 && entry.type === 'Manual' && entry.status === 'aktif' && (canUpdate || canDelete) && (
+                            <div className="flex items-center gap-1">
+                              {canUpdate && (
+                                <TableActionIcon
+                                  label="Ubah jurnal"
+                                  ariaLabel={`Ubah jurnal ${entry.voucherNumber}`}
+                                  icon={Pencil}
+                                  tone="blue"
+                                  onClick={() => openJournalForm(entry)}
+                                />
+                              )}
+                              {canDelete && (
+                                <TableActionIcon
+                                  label="Hapus jurnal"
+                                  ariaLabel={`Hapus jurnal ${entry.voucherNumber}`}
+                                  icon={Trash2}
+                                  tone="red"
+                                  onClick={() => {
+                                    setCancelDialogEntry(entry)
+                                    setCancelFieldErrors({})
+                                    setCancelError('')
+                                  }}
+                                />
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -435,12 +476,12 @@ export function JournalPage() {
             </div>
           </Panel>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen} label="Buat jurnal manual">
+          <Dialog open={dialogOpen} onOpenChange={(open) => open ? setDialogOpen(true) : closeJournalForm()} label={editingJournal ? 'Ubah jurnal manual' : 'Buat jurnal manual'}>
             <form onSubmit={(event) => void handleSave(event)}>
               <DialogHeader
-                title="Buat jurnal manual"
-                description="Jurnal hanya tersimpan jika akun debit dan kredit seimbang."
-                onClose={() => setDialogOpen(false)}
+                title={editingJournal ? 'Ubah jurnal manual' : 'Buat jurnal manual'}
+                description={editingJournal ? 'Perbarui tanggal, keterangan, akun, atau nominal jurnal.' : 'Jurnal hanya tersimpan jika akun debit dan kredit seimbang.'}
+                onClose={closeJournalForm}
               />
               <div className="flex flex-col gap-4 p-5 sm:p-6">
                 <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
@@ -463,9 +504,9 @@ export function JournalPage() {
                 {formError && <p className="text-sm font-medium text-destructive" role="alert">{formError}</p>}
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" size="action" disabled={saving} onClick={() => setDialogOpen(false)}>Batal</Button>
+                <Button type="button" variant="outline" size="action" disabled={saving} onClick={closeJournalForm}>Batal</Button>
                 <Button type="submit" variant="primary" size="action" disabled={saving || !accounts.length}>
-                  {saving ? 'Menyimpan…' : 'Simpan jurnal'}
+                  {saving ? 'Menyimpan…' : editingJournal ? 'Perbarui jurnal' : 'Simpan jurnal'}
                 </Button>
               </DialogFooter>
             </form>

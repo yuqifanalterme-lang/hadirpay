@@ -4,6 +4,7 @@ import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
 import type { Akun, BukuBesar, Jurnal, JurnalBatalkanRequest, JurnalCreateRequest, JurnalListQuery, JurnalRingkasan, NeracaSaldo } from '@/lib/types/akuntansi'
 import {
   createAccount as createAccountMock,
+  cancelManualJournal as cancelManualJournalMock,
   deleteAccount as deleteAccountMock,
   getAccountLedger as getAccountLedgerMock,
   getTrialBalance as getTrialBalanceMock,
@@ -11,6 +12,7 @@ import {
   listJournalEntries as listJournalEntriesMock,
   saveManualJournal as saveManualJournalMock,
   updateAccount as updateAccountMock,
+  updateManualJournal as updateManualJournalMock,
 } from './accounting-service'
 
 export type AccountingPage<T> = { items: T[]; meta: ApiMeta; ringkasan: JurnalRingkasan }
@@ -205,9 +207,9 @@ export async function listJournalEntriesPage(query: JurnalListQuery = {}): Promi
   }
 }
 
-export async function cancelManualJournal(id: string | number, body: JurnalBatalkanRequest): Promise<Jurnal> {
-  const result = await apiRequest<Jurnal>(`jurnal/${parseId(String(id))}`, { method: 'DELETE', body })
-  return result.data
+export async function cancelManualJournal(id: string | number, body: JurnalBatalkanRequest): Promise<void> {
+  if (config.mock.akuntansi) return cancelManualJournalMock(id, body.alasan)
+  await apiRequest<Jurnal>(`jurnal/${parseId(String(id))}`, { method: 'DELETE', body })
 }
 
 export async function saveManualJournal(input: {
@@ -231,6 +233,30 @@ export async function saveManualJournal(input: {
     ],
   }
   const result = await apiRequest<Jurnal>('jurnal', { method: 'POST', body })
+  return toJournal(result.data)
+}
+
+export async function updateManualJournal(id: string | number, input: {
+  date: string
+  description: string
+  debitAccountCode: string
+  creditAccountCode: string
+  amount: number
+}): Promise<JournalEntry> {
+  if (config.mock.akuntansi) return updateManualJournalMock(id, input)
+  const accounts = await apiRequest<Akun[]>('akun')
+  const debit = accounts.data.find((item) => item.kode === input.debitAccountCode)
+  const credit = accounts.data.find((item) => item.kode === input.creditAccountCode)
+  if (!debit || !credit) throw new ApiError(0, 'ACCOUNT_NOT_FOUND', 'Akun debit atau kredit tidak ditemukan.')
+  const body: JurnalCreateRequest = {
+    tanggal: input.date,
+    keterangan: input.description,
+    detail: [
+      { akun_id: debit.id, debit: input.amount, kredit: 0 },
+      { akun_id: credit.id, debit: 0, kredit: input.amount },
+    ],
+  }
+  const result = await apiRequest<Jurnal>(`jurnal/${parseId(String(id))}`, { method: 'PUT', body })
   return toJournal(result.data)
 }
 

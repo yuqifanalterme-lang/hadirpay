@@ -98,6 +98,54 @@ export async function saveManualJournal(input: {
   return journal
 }
 
+export async function updateManualJournal(id: string | number, input: {
+  date: string
+  description: string
+  debitAccountCode: string
+  creditAccountCode: string
+  amount: number
+}): Promise<JournalEntry> {
+  const state = readAccountingState()
+  const current = state.entries.find((entry) => entry.id === String(id))
+  if (!current) throw new Error('Jurnal yang akan diubah tidak ditemukan.')
+  if (current.type !== 'Manual') throw new Error('Jurnal otomatis tidak boleh diubah.')
+  if (current.status === 'dibatalkan') throw new Error('Jurnal yang sudah dibatalkan tidak boleh diubah.')
+
+  const updated = createManualJournal({
+    ...input,
+    id: current.id,
+    voucherNumber: current.voucherNumber,
+    accounts: state.accounts ?? mockAccounts,
+  })
+  updated.status = 'aktif'
+  writeAccountingState({
+    ...state,
+    entries: state.entries.map((entry) => entry.id === current.id ? updated : entry),
+  })
+  return updated
+}
+
+export async function cancelManualJournal(id: string | number, reason: string): Promise<void> {
+  const state = readAccountingState()
+  const current = state.entries.find((entry) => entry.id === String(id))
+  if (!current) throw new Error('Jurnal yang akan dibatalkan tidak ditemukan.')
+  if (current.type !== 'Manual') throw new Error('Jurnal otomatis tidak boleh dibatalkan dari jurnal umum.')
+  if (current.status === 'dibatalkan') throw new Error('Jurnal sudah dibatalkan.')
+  if (!reason.trim()) throw new Error('Alasan pembatalan wajib diisi.')
+
+  writeAccountingState({
+    ...state,
+    entries: state.entries.map((entry) => entry.id === current.id
+      ? {
+          ...entry,
+          status: 'dibatalkan',
+          dibatalkan_pada: new Date().toISOString(),
+          alasan_pembatalan: reason.trim(),
+        }
+      : entry),
+  })
+}
+
 export async function createAccount(input: AkunWriteRequest): Promise<AccountingAccount> {
   const state = readAccountingState()
   const accounts = state.accounts ?? mockAccounts
