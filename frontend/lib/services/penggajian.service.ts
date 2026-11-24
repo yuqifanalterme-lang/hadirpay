@@ -59,6 +59,7 @@ function requireLivePayroll(): void {
 function uiPeriodStatus(status: PeriodeGaji['status']): PayrollPeriodStatus {
   if (status === 'draft') return 'Draft'
   if (status === 'menunggu_validasi') return 'Menunggu validasi keuangan'
+  if (status === 'dibatalkan') return 'Dibatalkan'
   return status === 'disetujui' ? 'Disetujui' : 'Dibayar'
 }
 
@@ -77,6 +78,7 @@ function toUiPeriod(period: PeriodeGaji): PayrollPeriod {
     employeeCount: period.jumlah_karyawan,
     totalNetPay: period.total_gaji_bersih,
     status: uiPeriodStatus(period.status),
+    closed: period.ditutup ?? false,
     isMock: false,
   }
 }
@@ -342,6 +344,18 @@ export async function cancelPayrollApproval(id: string | number, body: PeriodePe
     { method: 'POST', body },
   )
   return result.data
+}
+
+export async function cancelPayroll(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
+  const result = await apiRequest<PeriodeGajiDetail>(
+    `periode-gaji/${parseId(String(id))}/batalkan`,
+    { method: 'POST', body },
+  )
+  return result.data
+}
+
+export async function deleteDraftPayroll(id: string | number): Promise<void> {
+  await apiRequest<null>(`periode-gaji/${parseId(String(id))}`, { method: 'DELETE' })
 }
 
 function pageResult<T>(items: T[], page = 1, perPage = 10): PayrollPage<T> {

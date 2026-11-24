@@ -308,6 +308,36 @@ class Laporan extends BaseController
         ]);
     }
 
+    private static function isKolomUang(string $key): bool
+    {
+        if ($key === 'id' || str_ends_with($key, '_id')) {
+            return false;
+        }
+        if (in_array($key, [
+            'gaji_pokok', 'tunjangan', 'tunjangan_tetap', 'upah_lembur', 'total_upah',
+            'total_pendapatan', 'pendapatan', 'total_potongan', 'potongan',
+            'gaji_bersih', 'total_gaji_bersih', 'total_beban_gaji', 'rata_rata_per_bulan',
+            'total_debit', 'total_kredit', 'debit', 'kredit',
+        ], true)) {
+            return true;
+        }
+        return (bool) preg_match('/(^|_)(gaji|upah|beban|tunjangan|pendapatan|potongan|debit|kredit)($|_)/', $key);
+    }
+
+    private static function formatRupiah($value): string
+    {
+        $num = round((float) $value, 2);
+        $hasDecimals = abs($num - round($num)) > 0.00001;
+        return 'Rp' . number_format($num, $hasDecimals ? 2 : 0, ',', '.');
+    }
+
+    private static function formatAngka($value): string
+    {
+        $num = round((float) $value, 2);
+        $hasDecimals = abs($num - round($num)) > 0.00001;
+        return number_format($num, $hasDecimals ? 2 : 0, ',', '.');
+    }
+
     public function export($jenis = null)
     {
         $allowed = ['kehadiran', 'keterlambatan', 'izin-cuti', 'lembur', 'penggajian', 'beban-gaji', 'jurnal-penggajian'];
@@ -331,14 +361,53 @@ class Laporan extends BaseController
         $data = $json['data'] ?? [];
         $table = $data['tabel'] ?? [];
 
+        $label = static function (string $key): string {
+            $labels = [
+                'karyawan_id' => 'ID Karyawan',
+                'karyawan_kode' => 'Kode Karyawan',
+                'penggajian_id' => 'ID Penggajian',
+                'nomor_bukti' => 'Nomor Bukti',
+                'total_gaji_bersih' => 'Total Gaji Bersih',
+                'total_pendapatan' => 'Total Pendapatan',
+                'total_potongan' => 'Total Potongan',
+                'total_beban_gaji' => 'Total Beban Gaji',
+                'rata_rata_per_bulan' => 'Rata-rata Per Bulan',
+            ];
+            return $labels[$key] ?? ucwords(str_replace('_', ' ', $key));
+        };
+
+        $formatCell = static function (string $key, $v): string {
+            if (is_array($v)) {
+                return (string) json_encode($v, JSON_UNESCAPED_UNICODE);
+            }
+            if (is_numeric($v)) {
+                if (self::isKolomUang($key)) {
+                    return self::formatRupiah($v);
+                }
+                if ($key === 'id' || str_ends_with($key, '_id')) {
+                    return (string) (int) $v;
+                }
+                return self::formatAngka($v);
+            }
+            return (string) $v;
+        };
+
         if ($format === 'xlsx') {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Laporan');
             if ($table) {
-                $headers = array_keys($table[0]);
+                $keys = array_keys($table[0]);
+                $headers = array_map(static fn ($k) => $label((string) $k), $keys);
+                $formattedRows = array_map(static function ($r) use ($formatCell) {
+                    $out = [];
+                    foreach ($r as $k => $v) {
+                        $out[] = $formatCell((string) $k, $v);
+                    }
+                    return $out;
+                }, $table);
                 $sheet->fromArray($headers, null, 'A1');
-                $sheet->fromArray(array_map(fn ($r) => array_values($r), $table), null, 'A2');
+                $sheet->fromArray($formattedRows, null, 'A2');
                 $lastColumn = $sheet->getHighestColumn();
                 $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray([
                     'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -368,19 +437,6 @@ class Laporan extends BaseController
                 'beban-gaji' => 'Laporan Beban Gaji',
                 'jurnal-penggajian' => 'Laporan Jurnal Penggajian',
             ][$jenis];
-            $label = static function (string $key): string {
-                $labels = [
-                    'karyawan_id' => 'ID Karyawan',
-                    'karyawan_kode' => 'Kode Karyawan',
-                    'penggajian_id' => 'ID Penggajian',
-                    'nomor_bukti' => 'Nomor Bukti',
-                    'total_gaji_bersih' => 'Total Gaji Bersih',
-                    'total_pendapatan' => 'Total Pendapatan',
-                    'total_potongan' => 'Total Potongan',
-                    'total_beban_gaji' => 'Total Beban Gaji',
-                ];
-                return $labels[$key] ?? ucwords(str_replace('_', ' ', $key));
-            };
             $html = '<!doctype html><html><head><meta charset="utf-8"><style>
                 @page { size: A4 landscape; margin: 28px 30px 38px; }
                 body { font-family: DejaVu Sans, sans-serif; color: #172554; font-size: 9px; }
@@ -417,9 +473,7 @@ class Laporan extends BaseController
             if ($summary) {
                 $html .= '<table class="summary"><tr>';
                 foreach ($summary as $key => $value) {
-                    $display = is_numeric($value) && (str_contains($key, 'gaji') || str_contains($key, 'upah') || str_contains($key, 'beban') || str_contains($key, 'debit') || str_contains($key, 'kredit'))
-                        ? 'Rp ' . number_format((float) $value, 2, ',', '.')
-                        : (is_numeric($value) ? number_format((float) $value, 0, ',', '.') : (string) $value);
+                    $display = $formatCell((string) $key, $value);
                     $html .= '<td><div class="summary-label">' . esc($label((string) $key)) . '</div><div class="summary-value">' . esc($display) . '</div></td>';
                 }
                 $html .= '</tr></table>';
@@ -431,10 +485,7 @@ class Laporan extends BaseController
                 foreach ($table as $row) {
                     $html .= '<tr>';
                     foreach ($row as $key => $v) {
-                        $display = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string) $v;
-                        if (is_numeric($v) && (str_contains((string) $key, 'gaji') || str_contains((string) $key, 'upah') || str_contains((string) $key, 'pendapatan') || str_contains((string) $key, 'potongan') || str_contains((string) $key, 'debit') || str_contains((string) $key, 'kredit'))) {
-                            $display = 'Rp ' . number_format((float) $v, 2, ',', '.');
-                        }
+                        $display = $formatCell((string) $key, $v);
                         $html .= '<td>' . esc($display) . '</td>';
                     }
                     $html .= '</tr>';

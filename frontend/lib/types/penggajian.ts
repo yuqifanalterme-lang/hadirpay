@@ -39,6 +39,7 @@ export type PeriodeGaji = {
   tanggal_tutup: Tanggal
   hari_kerja: number
   status: StatusPeriode
+  ditutup?: boolean
   jumlah_karyawan: number
   total_gaji_bersih: Uang
   dibuat_oleh?: string
@@ -48,6 +49,7 @@ export type PeriodeGajiDetail = {
   id: Id
   periode: Periode
   status: StatusPeriode
+  ditutup?: boolean
   hari_kerja: number
   ringkasan: {
     jumlah_karyawan: number

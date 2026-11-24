@@ -9,7 +9,7 @@ export type StatusAbsensi =
   | 'dinas_luar'
 export type JenisPengajuan = 'izin' | 'sakit' | 'cuti' | 'koreksi_absensi' | 'lembur'
 export type StatusPengajuan = 'menunggu' | 'disetujui' | 'ditolak'
-export type StatusPeriode = 'draft' | 'menunggu_validasi' | 'disetujui' | 'dibayar'
+export type StatusPeriode = 'draft' | 'menunggu_validasi' | 'disetujui' | 'dibayar' | 'dibatalkan'
 export type JenisPenggajian = 'bulanan' | 'harian'
 export type TipeKomponen = 'pendapatan' | 'potongan'
 export type MetodeKomponen = 'nominal_tetap' | 'persen' | 'per_hari' | 'per_jam' | 'per_menit'

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, BadgeCheck, CircleDollarSign, FileCheck2, Users } from 'lucide-react'
+import { ArrowRight, BadgeCheck, CircleDollarSign, FileCheck2, Trash2, Undo2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -13,14 +13,15 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import type { PayrollLine, PayrollPeriod } from '@/lib/mock/payroll'
 import { config } from '@/lib/config'
 import { accountingDataChangedEvent, notifyAccountingDataChanged } from '@/lib/services/accounting-events'
 import {
-  cancelPayrollApproval,
-  cancelPayrollPayment,
+  cancelPayroll,
+  deleteDraftPayroll,
   getPayrollPeriodById,
   listPayrollCashAccountOptions,
   listPayrollLines,
@@ -32,7 +33,7 @@ import {
 import type { PeriodeBayarRequest, PeriodeGaji } from '@/lib/types/penggajian'
 import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 
-type PayrollAction = 'submit' | 'return' | 'approve' | 'pay' | 'cancel_payment' | 'cancel_approval'
+type PayrollAction = 'submit' | 'return' | 'approve' | 'pay' | 'cancel_payroll' | 'delete_draft'
 const payrollPageSize = 10
 
 function actionLabel(action: PayrollAction) {
@@ -40,8 +41,8 @@ function actionLabel(action: PayrollAction) {
   if (action === 'return') return 'Kembalikan untuk diperbaiki'
   if (action === 'approve') return 'Setujui penggajian'
   if (action === 'pay') return 'Tandai sebagai dibayar'
-  if (action === 'cancel_payment') return 'Batalkan pembayaran'
-  return 'Batalkan persetujuan'
+  if (action === 'cancel_payroll') return 'Batalkan Penggajian'
+  return 'Hapus draf'
 }
 
 export function PayrollPage() {
@@ -135,7 +136,7 @@ export function PayrollPage() {
       toast.error('Catatan pengembalian wajib diisi.')
       return
     }
-    if ((pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') && !cancellationNote.trim()) {
+    if (pendingAction === 'cancel_payroll' && !cancellationNote.trim()) {
       setCancellationFieldErrors({ catatan: ['Catatan wajib diisi.'] })
       return
     }
@@ -144,11 +145,11 @@ export function PayrollPage() {
     try {
       if (pendingAction === 'return') {
         await returnPayrollPeriod(selectedPeriodId, { catatan: returnNote.trim() })
-      } else if (pendingAction === 'cancel_payment') {
-        await cancelPayrollPayment(selectedPeriodId, { catatan: cancellationNote.trim() })
+      } else if (pendingAction === 'cancel_payroll') {
+        await cancelPayroll(selectedPeriodId, { catatan: cancellationNote.trim() })
         notifyAccountingDataChanged()
-      } else if (pendingAction === 'cancel_approval') {
-        await cancelPayrollApproval(selectedPeriodId, { catatan: cancellationNote.trim() })
+      } else if (pendingAction === 'delete_draft') {
+        await deleteDraftPayroll(selectedPeriodId)
         notifyAccountingDataChanged()
       } else {
         let payment: PeriodeBayarRequest | undefined
@@ -166,14 +167,18 @@ export function PayrollPage() {
         }
         await updatePayrollStatus(role, pendingAction, payment, selectedPeriodId)
       }
-      if (pendingAction !== 'cancel_payment' && pendingAction !== 'cancel_approval') {
-        await load(selectedPeriodId)
-      }
-      toast.success('Status proses penggajian berhasil diperbarui.')
+      await load(pendingAction === 'delete_draft' ? undefined : selectedPeriodId)
+      toast.success(
+        pendingAction === 'cancel_payroll'
+          ? 'Penggajian berhasil dibatalkan.'
+          : pendingAction === 'delete_draft'
+            ? 'Draf penggajian berhasil dihapus.'
+            : 'Status proses penggajian berhasil diperbarui.',
+      )
       closeAction()
     } catch (actionError) {
       if (
-        (pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') &&
+        pendingAction === 'cancel_payroll' &&
         actionError instanceof ApiError &&
         actionError.status === 422 &&
         actionError.errors
@@ -236,8 +241,10 @@ export function PayrollPage() {
   if (role === 'admin' && period.status === 'Draft') actions.push('submit')
   if (role === 'keuangan' && period.status === 'Menunggu validasi keuangan') actions.push('return', 'approve')
   if (role === 'keuangan' && period.status === 'Disetujui') actions.push('pay')
-  if (role === 'keuangan' && period.status === 'Dibayar') actions.push('cancel_payment')
-  if (role === 'keuangan' && period.status === 'Disetujui') actions.push('cancel_approval')
+  const canCancelPayroll = (role === 'admin' || role === 'keuangan')
+    && (period.status === 'Disetujui' || period.status === 'Dibayar')
+    && !period.closed
+  const canDeleteDraft = role === 'admin' && period.status === 'Draft'
   const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
   return (
@@ -308,7 +315,7 @@ export function PayrollPage() {
                 <Button
                   key={action}
                   type="button"
-                  variant={action === 'pay' ? 'success' : action === 'return' || action.startsWith('cancel_') ? 'outline' : 'primary'}
+                  variant={action === 'pay' ? 'success' : action === 'return' ? 'outline' : 'primary'}
                   size="action"
                   disabled={cashAccountLoading}
                   onClick={() => void openAction(action)}
@@ -316,6 +323,24 @@ export function PayrollPage() {
                   {action === 'pay' && cashAccountLoading ? 'Memuat akun kas…' : actionLabel(action)}
                 </Button>
               ))}
+              {canCancelPayroll && (
+                <TableActionIcon
+                  label="Batalkan penggajian"
+                  ariaLabel={`Batalkan penggajian periode ${period.period}`}
+                  icon={Undo2}
+                  tone="amber"
+                  onClick={() => setPendingAction('cancel_payroll')}
+                />
+              )}
+              {canDeleteDraft && (
+                <TableActionIcon
+                  label="Hapus draf"
+                  ariaLabel={`Hapus draf periode ${period.period}`}
+                  icon={Trash2}
+                  tone="red"
+                  onClick={() => setPendingAction('delete_draft')}
+                />
+              )}
             </div>
           </div>
           {lines.length > 0
@@ -367,22 +392,32 @@ export function PayrollPage() {
         </DialogFooter>
       </Dialog>
 
-      <Dialog open={pendingAction !== null} onOpenChange={(open) => !open && closeAction()} label="Konfirmasi perubahan status penggajian">
+      <Dialog open={pendingAction !== null} onOpenChange={(open) => !open && closeAction()} label="Konfirmasi perubahan penggajian">
         <form onSubmit={(event) => { event.preventDefault(); void handleAction() }}>
           <DialogHeader
-            title={pendingAction === 'pay' ? 'Konfirmasi pembayaran' : pendingAction === 'return' ? 'Kembalikan periode' : pendingAction === 'cancel_payment' ? 'Batalkan pembayaran' : pendingAction === 'cancel_approval' ? 'Batalkan persetujuan' : 'Konfirmasi status penggajian'}
+            title={pendingAction === 'pay'
+              ? 'Konfirmasi pembayaran'
+              : pendingAction === 'return'
+                ? 'Kembalikan periode'
+                : pendingAction === 'cancel_payroll'
+                  ? 'Batalkan penggajian'
+                  : pendingAction === 'delete_draft'
+                    ? 'Hapus draf penggajian'
+                    : 'Konfirmasi status penggajian'}
             description={
               pendingAction === 'pay'
                 ? `Tandai ${period.period} sebesar ${formatRupiah(totals.net)} sebagai sudah dibayar?`
                 : pendingAction === 'return'
                   ? `Kembalikan periode ${period.period} untuk diperbaiki.`
-                  : pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval'
-                    ? `${actionLabel(pendingAction)} untuk periode ${period.period}?`
-                  : `${actionLabel(pendingAction ?? 'submit')} untuk periode ${period.period}?`
+                  : pendingAction === 'cancel_payroll'
+                    ? `Batalkan penggajian periode ${period.period}?`
+                    : pendingAction === 'delete_draft'
+                      ? `Hapus draf penggajian periode ${period.period} beserta rincian dan jurnalnya?`
+                      : `${actionLabel(pendingAction ?? 'submit')} untuk periode ${period.period}?`
             }
             onClose={closeAction}
           />
-          {(pendingAction === 'pay' || pendingAction === 'return' || pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') && (
+          {(pendingAction === 'pay' || pendingAction === 'return' || pendingAction === 'cancel_payroll') && (
             <div className="flex flex-col gap-4 p-5 sm:p-6">
               {pendingAction === 'pay' ? (
                 <>
@@ -410,11 +445,12 @@ export function PayrollPage() {
                   Catatan pengembalian
                   <textarea required value={returnNote} onChange={(event) => setReturnNote(event.target.value)} className={`${fieldClass} min-h-24 py-3`} />
                 </label>
-              ) : (
+              ) : pendingAction === 'cancel_payroll' ? (
                 <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
-                  Catatan
+                  Alasan pembatalan
                   <textarea
                     required
+                    maxLength={255}
                     value={cancellationNote}
                     onChange={(event) => {
                       setCancellationNote(event.target.value)
@@ -430,7 +466,7 @@ export function PayrollPage() {
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" size="action" onClick={closeAction}>Batal</Button>
+            <Button type="button" variant="outline" size="action" onClick={closeAction}>Kembali</Button>
             <Button
               type="submit"
               variant={pendingAction === 'pay' ? 'success' : 'primary'}

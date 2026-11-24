@@ -40,6 +40,10 @@ export type Jurnal = {
   sumber: 'otomatis' | 'manual'
   jenis: 'pengakuan_gaji' | 'pembayaran_gaji' | 'manual'
   status: 'aktif' | 'dibatalkan'
+  reversal_of: Id | null
+  cancelled_by: { id: Id; nama: string } | null
+  cancelled_at: string | null
+  cancel_reason: string | null
   dibatalkan_oleh: { id: Id; nama: string } | null
   dibatalkan_pada: string | null
   alasan_pembatalan: string | null

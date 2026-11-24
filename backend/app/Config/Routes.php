@@ -118,6 +118,12 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('periode-gaji/(:num)/ajukan-validasi', 'PeriodeGaji::ajukanValidasi/$1');
         });
 
+        // Pembatalan penggajian dan jurnal manual: admin_hrd dan keuangan.
+        $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan']], static function ($routes) {
+            $routes->post('periode-gaji/(:num)/batalkan', 'PeriodeGaji::batalkan/$1');
+            $routes->delete('jurnal/(:num)', 'Jurnal::delete/$1');
+        });
+
         // validasi, pembayaran, akun, dan jurnal: keuangan
         $routes->group('', ['filter' => ['auth', 'role:keuangan']], static function ($routes) {
             $routes->post('periode-gaji/(:num)/kembalikan', 'PeriodeGaji::kembalikan/$1');
@@ -133,7 +139,6 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
 
             $routes->post('jurnal', 'Jurnal::create');
             $routes->put('jurnal/(:num)', 'Jurnal::update/$1');
-            $routes->delete('jurnal/(:num)', 'Jurnal::delete/$1');
         });
 
         // ---- TULIS: hanya admin_hrd ----

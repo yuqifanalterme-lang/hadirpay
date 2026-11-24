@@ -38,6 +38,7 @@ import type { ReportDataset, ReportRow } from '@/lib/services/report-service'
 import type { ReportQuery } from '@/lib/services/laporan.service'
 import {
   getReportDataset,
+  isReportCurrencyKey,
   listReportCatalog,
   reportDepartmentOptions,
   reportOptions,
@@ -46,6 +47,54 @@ import {
 
 const initialPeriod = '2026-11'
 const reportPageSize = 20
+const currencyReports = new Set<ReportId>(['penggajian-bulanan', 'beban-gaji', 'jurnal-penggajian'])
+
+function formatPeriodLabel(value: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value
+  const [year, month] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('id-ID', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, 1))
+}
+
+function formatMillionTick(value: number) {
+  return `${new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value / 1_000_000)} jt`
+}
+
+function PeriodMonthInput({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="relative flex min-h-12 items-center rounded-xl border border-border bg-white px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary">
+      <span className="pointer-events-none flex-1 text-base font-normal text-heading">
+        {value ? formatPeriodLabel(value) : 'Pilih periode'}
+      </span>
+      <CalendarDays aria-hidden="true" className="pointer-events-none size-4 text-muted-foreground" />
+      <input
+        type="month"
+        lang="id-ID"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onClick={(event) => {
+          try {
+            event.currentTarget.showPicker?.()
+          } catch {
+            // fallback for browsers without showPicker
+          }
+        }}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 focus:outline-none"
+      />
+    </div>
+  )
+}
 
 const reportIcons = {
   kehadiran: CalendarCheck2,
@@ -71,8 +120,17 @@ function isReportId(value: string): value is ReportId {
   return reportOptions.some((report) => report.id === value)
 }
 
-function cellValue(value: ReportRow[string]) {
-  return typeof value === 'number' ? new Intl.NumberFormat('id-ID').format(value) : value
+function cellValue(value: ReportRow[string], columnKey?: string) {
+  if (typeof value === 'number') {
+    if (columnKey && isReportCurrencyKey(columnKey)) {
+      return formatRupiah(value)
+    }
+    if (columnKey === 'id' || columnKey?.endsWith('_id')) {
+      return String(value)
+    }
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value)
+  }
+  return value
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -226,10 +284,16 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
     [point.value, point.valueA, point.valueB].filter((value): value is number => typeof value === 'number'),
   )
   const hasTwoSeries = chartData.some((point) => point.valueA !== undefined || point.valueB !== undefined)
+  const isCurrencyChart = (reportKey !== null && currencyReports.has(reportKey)) || chartValues.some((value) => value >= 1_000_000)
   const filterLabel = filterMode === 'periode'
     ? period
     : filterMode === 'rentang_periode'
       ? `${periodFrom} s.d. ${periodTo}`
+      : `${dateFrom || '...'} s.d. ${dateTo || '...'}`
+  const displayFilterLabel = filterMode === 'periode'
+    ? formatPeriodLabel(period)
+    : filterMode === 'rentang_periode'
+      ? `${formatPeriodLabel(periodFrom)} s.d. ${formatPeriodLabel(periodTo)}`
       : `${dateFrom || '...'} s.d. ${dateTo || '...'}`
   const pageCount = Math.max(1, dataset?.pagination?.total_pages ?? 1)
 
@@ -280,7 +344,7 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           <div>
             <h2 className="text-xl font-bold text-heading">{dataset.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{dataset.description}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Periode {filterLabel} · {department}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Periode {displayFilterLabel} · {department}</p>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <div className="flex flex-wrap gap-3">
@@ -317,11 +381,9 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           {filterMode === 'periode' && (
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
               Periode
-              <input
-                type="month"
+              <PeriodMonthInput
                 value={period}
-                onChange={(event) => { setPeriod(event.target.value); setPage(1) }}
-                className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                onChange={(nextValue) => { setPeriod(nextValue); setPage(1) }}
               />
             </label>
           )}
@@ -329,11 +391,17 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
             <>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                 Periode dari
-                <input type="month" value={periodFrom} onChange={(event) => { setPeriodFrom(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+                <PeriodMonthInput
+                  value={periodFrom}
+                  onChange={(nextValue) => { setPeriodFrom(nextValue); setPage(1) }}
+                />
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                 Periode sampai
-                <input type="month" value={periodTo} onChange={(event) => { setPeriodTo(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
+                <PeriodMonthInput
+                  value={periodTo}
+                  onChange={(nextValue) => { setPeriodTo(nextValue); setPage(1) }}
+                />
               </label>
             </>
           )}
@@ -385,12 +453,20 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
-                    tickFormatter={(value: number) => value >= 1_000_000 ? `${Math.round(value / 1_000_000)} jt` : String(value)}
-                    width={48}
+                    tickFormatter={(value: number) =>
+                      value >= 1_000_000
+                        ? formatMillionTick(value)
+                        : isCurrencyChart
+                          ? formatRupiah(value)
+                          : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value)
+                    }
+                    width={64}
                   />
                   <Tooltip
                     formatter={(value, name) => [
-                      typeof value === 'number' && value >= 1_000_000 ? formatRupiah(value) : value,
+                      typeof value === 'number'
+                        ? (isCurrencyChart ? formatRupiah(value) : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value))
+                        : value,
                       name === 'valueA' ? 'Nilai A' : name === 'valueB' ? 'Nilai B' : 'Nilai',
                     ]}
                     contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', fontSize: 13 }}
@@ -416,14 +492,14 @@ export function ReportDetailPage({ reportId }: { reportId: string }) {
           {dataAvailable && dataset.columns.length ? (
             <div className="no-scrollbar overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
-                <caption className="sr-only">{dataset.title}, periode {filterLabel}</caption>
+                <caption className="sr-only">{dataset.title}, periode {displayFilterLabel}</caption>
                 <thead className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <tr>{dataset.columns.map((column) => <th key={column.key} scope="col" className="px-3 py-3">{column.label}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {dataset.rows.map((row, index) => (
                     <tr key={`${reportId}-${index}`} className="text-foreground">
-                      {dataset.columns.map((column) => <td key={column.key} className="px-3 py-3 align-top">{cellValue(row[column.key] ?? '')}</td>)}
+                      {dataset.columns.map((column) => <td key={column.key} className="px-3 py-3 align-top">{cellValue(row[column.key] ?? '', column.key)}</td>)}
                     </tr>
                   ))}
                 </tbody>

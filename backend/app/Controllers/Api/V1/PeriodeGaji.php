@@ -9,6 +9,7 @@ use App\Libraries\Tanggal;
 use App\Models\NotifikasiModel;
 use App\Models\PeriodeGajiModel;
 use App\Services\AccountingService;
+use App\Services\PayrollCancellationPolicy;
 use App\Services\PayrollService;
 
 class PeriodeGaji extends BaseController
@@ -60,6 +61,7 @@ class PeriodeGaji extends BaseController
             'tanggal_tutup' => $r['tanggal_tutup'],
             'hari_kerja' => (int) $r['hari_kerja'],
             'status' => $r['status'],
+            'ditutup' => (bool) ($r['ditutup'] ?? false),
             'jumlah_karyawan' => (int) $r['jumlah_karyawan'],
             'total_pendapatan' => (float) $r['total_pendapatan'],
             'total_potongan' => (float) $r['total_potongan'],
@@ -152,24 +154,34 @@ class PeriodeGaji extends BaseController
     // DELETE /api/v1/periode-gaji/(:num)   (hanya draft)
     public function delete($id = null)
     {
-        $p = $this->model->find($id);
-        if (!$p) {
-            return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
-        }
-        if ($p['status'] !== 'draft') {
-            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Hanya periode berstatus draft yang bisa dihapus', null, 409);
-        }
-
         $db = db_connect();
-        $db->table('periode_gaji')->where('id', (int) $id)->update([
-            'jurnal_pengakuan_id' => null,
-            'jurnal_pembayaran_id' => null,
-        ]);
-        $db->table('jurnal')->where('periode_gaji_id', (int) $id)->where('status', 'dibatalkan')->update([
-            'periode_gaji_id' => null,
-        ]);
+        $db->transBegin();
+        try {
+            $p = $db->query('SELECT * FROM periode_gaji WHERE id = ? FOR UPDATE', [(int) $id])->getRowArray();
+            if (! $p) {
+                $db->transRollback();
+                return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
+            }
+            if ($p['status'] !== 'draft') {
+                $db->transRollback();
+                return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Hanya periode berstatus draft yang bisa dihapus', null, 409);
+            }
 
-        $this->model->delete($id);
+            $db->table('periode_gaji')->where('id', (int) $id)->update([
+                'jurnal_pengakuan_id' => null,
+                'jurnal_pembayaran_id' => null,
+            ]);
+            $db->table('jurnal')->where('periode_gaji_id', (int) $id)->where('status', 'dibatalkan')->update([
+                'periode_gaji_id' => null,
+            ]);
+            $this->model->delete($id);
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Gagal menghapus periode draft: ' . $e->getMessage());
+            return ApiResponse::error('SERVER_ERROR', 'Gagal menghapus periode draft', null, 500);
+        }
+
         return ApiResponse::success(null, 'Periode gaji dihapus');
     }
 
@@ -425,6 +437,91 @@ class PeriodeGaji extends BaseController
         return ApiResponse::success($this->detail((int) $id), 'Persetujuan gaji dibatalkan, jurnal pengakuan dibatalkan dan slip gaji ditarik');
     }
 
+    // POST /api/v1/periode-gaji/(:num)/batalkan body: {"catatan":"..."}
+    public function batalkan($id = null)
+    {
+        $catatan = trim((string) ($this->body()['catatan'] ?? ''));
+        $db = db_connect();
+        $db->transBegin();
+
+        try {
+            $p = $db->query('SELECT * FROM periode_gaji WHERE id = ? FOR UPDATE', [(int) $id])->getRowArray();
+            if (! $p) {
+                $db->transRollback();
+                return ApiResponse::error('NOT_FOUND', 'Periode gaji tidak ditemukan', null, 404);
+            }
+
+            $failure = PayrollCancellationPolicy::error(
+                (string) (JwtService::$user['role'] ?? ''),
+                $p,
+                $catatan
+            );
+            if ($failure) {
+                $db->transRollback();
+                return ApiResponse::error(
+                    $failure['code'],
+                    $failure['message'],
+                    $failure['errors'] ?? null,
+                    $failure['status']
+                );
+            }
+
+            $journals = $db->query(
+                "SELECT * FROM jurnal
+                 WHERE periode_gaji_id = ? AND sumber = 'otomatis' AND status = 'aktif'
+                 ORDER BY id ASC FOR UPDATE",
+                [(int) $id]
+            )->getResultArray();
+            if (! $journals) {
+                $db->transRollback();
+                return ApiResponse::error(
+                    'JOURNAL_NOT_FOUND',
+                    'Tidak ada jurnal otomatis aktif untuk periode penggajian ini',
+                    null,
+                    409
+                );
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->userId();
+            $db->table('periode_gaji')->where('id', (int) $id)->update([
+                'status' => 'dibatalkan',
+                'updated_at' => $now,
+            ]);
+            $db->table('periode_status_log')->insert([
+                'periode_gaji_id' => (int) $id,
+                'status' => 'dibatalkan',
+                'oleh' => $userId,
+                'catatan' => mb_substr($catatan, 0, 255),
+                'created_at' => $now,
+            ]);
+
+            foreach ($journals as $journal) {
+                AccountingService::batalkanJurnal($db, (int) $journal['id'], $userId, $catatan, $now);
+                AccountingService::jurnalPembalik($db, $journal, (int) $userId, $now);
+            }
+
+            $payrollIds = array_map('intval', array_column(
+                $db->table('penggajian')->select('id')->where('periode_gaji_id', (int) $id)->get()->getResultArray(),
+                'id'
+            ));
+            if ($payrollIds) {
+                $db->table('slip_gaji')->whereIn('penggajian_id', $payrollIds)->delete();
+            }
+
+            $db->transCommit();
+        } catch (\DomainException $e) {
+            $db->transRollback();
+            return ApiResponse::error('UNPROCESSABLE', $e->getMessage(), null, 422);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Gagal membatalkan penggajian: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            return ApiResponse::error('SERVER_ERROR', 'Gagal membatalkan penggajian', null, 500);
+        }
+
+        return ApiResponse::success($this->detail((int) $id), 'Penggajian dibatalkan dan jurnal pembalik dibuat');
+    }
+
     // ---------- helper ----------
 
     private function detail(int $id): ?array
@@ -459,6 +556,7 @@ class PeriodeGaji extends BaseController
             'tanggal_tutup' => $p['tanggal_tutup'],
             'hari_kerja' => (int) $p['hari_kerja'],
             'status' => $p['status'],
+            'ditutup' => (bool) ($p['ditutup'] ?? false),
             'dihitung_pada' => $p['dihitung_pada'],
             'tanggal_bayar' => $p['tanggal_bayar'],
             'dibuat_oleh' => $pembuat['nama'] ?? null,

@@ -12,10 +12,10 @@ class PeriodeGajiModel extends Model
     protected $useTimestamps = true;
     protected $allowedFields = [
         'periode', 'tanggal_mulai', 'tanggal_selesai', 'tanggal_tutup', 'hari_kerja',
-        'status', 'tanggal_bayar', 'dibuat_oleh', 'dihitung_pada',
+        'status', 'tanggal_bayar', 'dibuat_oleh', 'dihitung_pada', 'ditutup',
     ];
 
-    public const STATUS = ['draft', 'menunggu_validasi', 'disetujui', 'dibayar'];
+    public const STATUS = ['draft', 'menunggu_validasi', 'disetujui', 'dibayar', 'dibatalkan'];
 
     public static function format(array $r): array
     {

@@ -69,6 +69,7 @@ class AccountingService
             'sumber'          => $header['sumber'],
             'jenis'           => $header['jenis'],
             'periode_gaji_id' => $header['periode_gaji_id'] ?? null,
+            'reversal_of'     => $header['reversal_of'] ?? null,
             'total_debit'     => $d / 100,
             'total_kredit'    => $k / 100,
             'status'          => 'aktif',
@@ -91,8 +92,64 @@ class AccountingService
             'dibatalkan_oleh'   => ($userId !== null && $userId > 0) ? $userId : null,
             'dibatalkan_pada'   => $waktu,
             'alasan_pembatalan' => mb_substr(trim($alasan), 0, 255),
+            'cancelled_by'      => ($userId !== null && $userId > 0) ? $userId : null,
+            'cancelled_at'      => $waktu,
+            'cancel_reason'     => mb_substr(trim($alasan), 0, 255),
             'updated_at'        => $waktu,
         ]);
+    }
+
+    /** @param list<array{akun_id:int, debit:mixed, kredit:mixed}> $lines */
+    public static function barisPembalik(array $lines): array
+    {
+        return array_map(static fn ($line) => [
+            'akun_id' => (int) $line['akun_id'],
+            'debit'   => $line['kredit'],
+            'kredit'  => $line['debit'],
+        ], $lines);
+    }
+
+    public static function jurnalPembalik($db, array $original, int $userId, string $now): int
+    {
+        $rows = $db->table('detail_jurnal')
+            ->select('akun_id, debit, kredit')
+            ->where('jurnal_id', (int) $original['id'])
+            ->orderBy('urutan', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+        if (! $rows) {
+            throw new \DomainException('Jurnal otomatis tidak memiliki rincian untuk dibalik');
+        }
+
+        return self::simpanJurnal($db, [
+            'tanggal'         => substr($now, 0, 10),
+            'keterangan'      => 'Pembalik: ' . $original['keterangan'],
+            'sumber'          => $original['sumber'],
+            'jenis'           => $original['jenis'],
+            'periode_gaji_id' => $original['periode_gaji_id'],
+            'reversal_of'     => (int) $original['id'],
+            'dibuat_oleh'     => $userId > 0 ? $userId : null,
+        ], self::barisPembalik($rows));
+    }
+
+    /** @return array{code:string, message:string, status:int}|null */
+    public static function errorHapusJurnalLangsung(array $jurnal): ?array
+    {
+        if ($jurnal['sumber'] !== 'manual') {
+            return [
+                'code'    => 'FORBIDDEN',
+                'message' => 'Jurnal otomatis tidak boleh diubah atau dihapus',
+                'status'  => 403,
+            ];
+        }
+        if (($jurnal['status'] ?? 'aktif') === 'dibatalkan') {
+            return [
+                'code'    => 'INVALID_STATUS_TRANSITION',
+                'message' => 'Jurnal sudah dibatalkan',
+                'status'  => 409,
+            ];
+        }
+        return null;
     }
 
     /** @param list<array{akun_id:int, debit:mixed, kredit:mixed}> $lines */

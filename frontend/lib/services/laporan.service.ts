@@ -31,6 +31,34 @@ const endpointByReport: Record<ReportId, string> = {
   'jurnal-penggajian': 'jurnal-penggajian',
 }
 
+const CURRENCY_KEYS = new Set([
+  'gaji_pokok',
+  'tunjangan',
+  'tunjangan_tetap',
+  'upah_lembur',
+  'total_upah',
+  'total_pendapatan',
+  'pendapatan',
+  'total_potongan',
+  'potongan',
+  'gaji_bersih',
+  'total_gaji_bersih',
+  'total_beban_gaji',
+  'rata_rata_per_bulan',
+  'total_debit',
+  'total_kredit',
+  'debit',
+  'kredit',
+  'gajiBersih',
+  'biayaGaji',
+])
+
+export function isReportCurrencyKey(key: string): boolean {
+  if (key === 'id' || key.endsWith('_id')) return false
+  if (CURRENCY_KEYS.has(key)) return true
+  return /(^|_)(gaji|upah|beban|tunjangan|pendapatan|potongan|debit|kredit)($|_)/.test(key)
+}
+
 function titleCase(value: string) {
   return value
     .replaceAll('_', ' ')
@@ -41,17 +69,26 @@ function metricIcon(key: string): ReportMetric['icon'] {
   if (key.includes('hadir')) return 'check'
   if (key.includes('terlambat') || key.includes('menit') || key.includes('kejadian')) return 'clock'
   if (key.includes('periode') || key.includes('hari') || key.includes('jam')) return 'calendar'
-  if (key.includes('gaji') || key.includes('upah') || key.includes('beban') || key.includes('debit') || key.includes('kredit')) return 'wallet'
+  if (isReportCurrencyKey(key)) return 'wallet'
   if (key.includes('karyawan') || key.includes('jumlah')) return 'users'
   return 'file'
 }
 
 function toRows(data: LaporanData): { columns: ReportDataset['columns']; rows: ReportRow[] } {
   const keys = [...new Set(data.tabel.flatMap((row) => Object.keys(row)))]
-  const rows = [...data.tabel] as ReportRow[]
-  if (rows.some((row) => typeof row.karyawan_id === 'number')) {
-    rows.sort((a, b) => Number(a.karyawan_id) - Number(b.karyawan_id))
+  const rawRows = [...data.tabel] as ReportRow[]
+  if (rawRows.some((row) => typeof row.karyawan_id === 'number')) {
+    rawRows.sort((a, b) => Number(a.karyawan_id) - Number(b.karyawan_id))
   }
+  const rows = rawRows.map((row) => {
+    const formatted: ReportRow = {}
+    for (const [key, value] of Object.entries(row)) {
+      formatted[key] = typeof value === 'number' && isReportCurrencyKey(key)
+        ? formatRupiah(value)
+        : (value ?? '')
+    }
+    return formatted
+  })
   return {
     columns: keys.map((key) => ({ key, label: titleCase(key) })),
     rows,
@@ -130,8 +167,10 @@ export async function getReportDataset(
   const { columns, rows } = toRows(result.data)
   const metrics = Object.entries(result.data.ringkasan).map(([key, value]) => ({
     label: titleCase(key),
-    value: typeof value === 'number' && (key.includes('gaji') || key.includes('upah') || key.includes('beban'))
-      ? formatRupiah(value)
+    value: typeof value === 'number'
+      ? (isReportCurrencyKey(key)
+          ? formatRupiah(value)
+          : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value))
       : String(value ?? ''),
     hint: '',
     icon: metricIcon(key),

@@ -5,6 +5,7 @@ export type PayrollPeriodStatus =
   | 'Menunggu validasi keuangan'
   | 'Disetujui'
   | 'Dibayar'
+  | 'Dibatalkan'
 
 export type PayrollComponentCategory = 'pendapatan' | 'potongan'
 export type PayrollComponentMethod = 'nominal tetap' | 'persen' | 'per hari' | 'per jam' | 'per menit'
@@ -29,6 +30,7 @@ export type PayrollPeriod = {
   employeeCount: number
   totalNetPay: number
   status: PayrollPeriodStatus
+  closed?: boolean
   isMock: boolean
 }
 

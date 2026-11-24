@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { NotebookPen, Plus, ReceiptText, Trash2 } from 'lucide-react'
+import { Lock, NotebookPen, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { AccountingAccess, AccountingPageTitle } from './accounting-shared'
 import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import { formatAccountingDate } from '@/lib/accounting/journal'
@@ -83,7 +84,8 @@ export function JournalPage() {
   const [debitAccountCode, setDebitAccountCode] = useState('')
   const [creditAccountCode, setCreditAccountCode] = useState('')
   const [amount, setAmount] = useState('')
-  const canManage = role === 'keuangan'
+  const canCreate = role === 'keuangan'
+  const canDelete = role === 'admin' || role === 'keuangan'
   const amountError = [
     'detail.0.debit',
     'detail.0.kredit',
@@ -243,7 +245,7 @@ export function JournalPage() {
           <AccountingPageTitle
             title="Jurnal umum"
             description="Catat jurnal manual atau telusuri jurnal otomatis dari proses penggajian."
-            action={canManage ? (
+            action={canCreate ? (
               <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>
                 <Plus aria-hidden="true" />
                 Buat jurnal manual
@@ -300,7 +302,7 @@ export function JournalPage() {
                 title="Belum ada jurnal"
                 description="Jurnal payroll otomatis muncul setelah penggajian disetujui. Anda juga dapat membuat jurnal manual."
                 icon={ReceiptText}
-                action={canManage ? <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>Buat jurnal manual</Button> : undefined}
+                action={canCreate ? <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>Buat jurnal manual</Button> : undefined}
               />
             ) : (
               <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
@@ -329,10 +331,10 @@ export function JournalPage() {
                         <td className="whitespace-nowrap px-3 py-3 font-semibold tabular-nums text-heading">{index === 0 ? entry.voucherNumber : ''}</td>
                         <td className="px-3 py-3">{index === 0 && <StatusBadge status={entry.type} />}</td>
                         <td className="px-3 py-3"><span className="font-medium text-heading">{line.accountCode}</span><span className="ml-2">{line.accountName}</span></td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{line.debit ? formatRupiah(line.debit) : '-'}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{line.credit ? formatRupiah(line.credit) : '-'}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{index === 0 && entry.totalDebit !== undefined ? formatRupiah(entry.totalDebit) : index === 0 ? '-' : ''}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{index === 0 && entry.totalCredit !== undefined ? formatRupiah(entry.totalCredit) : index === 0 ? '-' : ''}</td>
+                        <td className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${entry.status === 'dibatalkan' ? 'line-through' : ''}`}>{line.debit ? formatRupiah(line.debit) : '-'}</td>
+                        <td className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${entry.status === 'dibatalkan' ? 'line-through' : ''}`}>{line.credit ? formatRupiah(line.credit) : '-'}</td>
+                        <td className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${entry.status === 'dibatalkan' ? 'line-through' : ''}`}>{index === 0 && entry.totalDebit !== undefined ? formatRupiah(entry.totalDebit) : index === 0 ? '-' : ''}</td>
+                        <td className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${entry.status === 'dibatalkan' ? 'line-through' : ''}`}>{index === 0 && entry.totalCredit !== undefined ? formatRupiah(entry.totalCredit) : index === 0 ? '-' : ''}</td>
                         <td className="px-3 py-3">{index === 0 ? entry.description : ''}</td>
                         <td className="px-3 py-3">
                           {index === 0 && entry.sourcePeriodId && entry.sourcePeriodLabel ? (
@@ -352,15 +354,27 @@ export function JournalPage() {
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          {index === 0 && canManage && entry.type === 'Manual' && entry.status === 'aktif' && (
-                            <Button type="button" variant="outline" size="action" onClick={() => {
+                          {index === 0 && entry.type === 'Otomatis' && (
+                            <TableActionIcon
+                              label="Jurnal otomatis dari Penggajian. Batalkan lewat halaman Penggajian."
+                              ariaLabel="Jurnal otomatis dari Penggajian. Batalkan lewat halaman Penggajian."
+                              icon={Lock}
+                              tone="blue"
+                              readOnly
+                            />
+                          )}
+                          {index === 0 && canDelete && entry.type === 'Manual' && entry.status === 'aktif' && (
+                            <TableActionIcon
+                              label="Hapus jurnal"
+                              ariaLabel={`Hapus jurnal ${entry.voucherNumber}`}
+                              icon={Trash2}
+                              tone="red"
+                              onClick={() => {
                               setCancelDialogEntry(entry)
                               setCancelFieldErrors({})
                               setCancelError('')
-                            }}>
-                              <Trash2 aria-hidden="true" />
-                              Hapus
-                            </Button>
+                              }}
+                            />
                           )}
                         </td>
                       </tr>

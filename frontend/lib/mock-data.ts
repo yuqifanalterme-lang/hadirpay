@@ -11,11 +11,12 @@ export type AttendanceStatus =
   | 'Ditolak'
 
 export function formatRupiah(value: number) {
-  const hasDecimals = !Number.isInteger(value)
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100
+  const hasDecimals = !Number.isInteger(rounded)
   return `Rp${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: hasDecimals ? 2 : 0,
     maximumFractionDigits: 2,
-  }).format(value)}`
+  }).format(rounded)}`
 }
 
 export const adminUser = { name: 'Rina Kartika', role: 'Admin HRD', initials: 'RK' }

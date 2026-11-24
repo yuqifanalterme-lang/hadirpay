@@ -27,6 +27,7 @@ class Jurnal extends BaseController
         $dasar = function () use ($db, $dari, $sampai, $sumber, $pid, $q, $status) {
             $b = $db->table('jurnal j')
                 ->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
+                ->join('users uc', 'uc.id = j.cancelled_by', 'left')
                 ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left')
                 ->where('j.status', $status);
             if ($dari) {
@@ -49,7 +50,7 @@ class Jurnal extends BaseController
 
         $total = $dasar()->countAllResults();
         $rows  = $dasar()
-            ->select('j.*, p.periode AS periode_kode, ub.nama AS dibatalkan_oleh_nama')
+            ->select('j.*, p.periode AS periode_kode, COALESCE(uc.nama, ub.nama) AS dibatalkan_oleh_nama', false)
             ->orderBy('j.tanggal', 'DESC')->orderBy('j.id', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->get()->getResultArray();
@@ -160,11 +161,9 @@ class Jurnal extends BaseController
         if (! $row) {
             return ApiResponse::error('NOT_FOUND', 'Jurnal tidak ditemukan', null, 404);
         }
-        if ($row['sumber'] !== 'manual') {
-            return ApiResponse::error('FORBIDDEN', 'Jurnal otomatis tidak boleh diubah atau dihapus', null, 403);
-        }
-        if (($row['status'] ?? 'aktif') === 'dibatalkan') {
-            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Jurnal sudah dibatalkan', null, 409);
+        $failure = AccountingService::errorHapusJurnalLangsung($row);
+        if ($failure) {
+            return ApiResponse::error($failure['code'], $failure['message'], null, $failure['status']);
         }
 
         $in     = $this->body();
@@ -185,8 +184,9 @@ class Jurnal extends BaseController
     private function satu(int $id): ?array
     {
         $row = db_connect()->table('jurnal j')
-            ->select('j.*, p.periode AS periode_kode, ub.nama AS dibatalkan_oleh_nama')
+            ->select('j.*, p.periode AS periode_kode, COALESCE(uc.nama, ub.nama) AS dibatalkan_oleh_nama', false)
             ->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
+            ->join('users uc', 'uc.id = j.cancelled_by', 'left')
             ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left')
             ->where('j.id', $id)
             ->get()->getRowArray();
@@ -228,12 +228,20 @@ class Jurnal extends BaseController
             'sumber'            => $r['sumber'],
             'jenis'             => $r['jenis'],
             'status'            => $r['status'] ?? 'aktif',
+            'reversal_of'       => isset($r['reversal_of']) ? (int) $r['reversal_of'] : null,
             'periode_gaji'      => $r['periode_gaji_id'] !== null ? ['id' => (int) $r['periode_gaji_id'], 'periode' => $r['periode_kode']] : null,
             'total_debit'       => (float) $r['total_debit'],
             'total_kredit'      => (float) $r['total_kredit'],
-            'dibatalkan_oleh'   => $r['dibatalkan_oleh'] !== null ? ['id' => (int) $r['dibatalkan_oleh'], 'nama' => $r['dibatalkan_oleh_nama']] : null,
-            'dibatalkan_pada'   => Tanggal::waktuIso($r['dibatalkan_pada'] ?? null),
-            'alasan_pembatalan' => $r['alasan_pembatalan'] ?? null,
+            'cancelled_by'      => ($r['cancelled_by'] ?? $r['dibatalkan_oleh'] ?? null) !== null
+                ? ['id' => (int) ($r['cancelled_by'] ?? $r['dibatalkan_oleh']), 'nama' => $r['dibatalkan_oleh_nama']]
+                : null,
+            'cancelled_at'      => Tanggal::waktuIso($r['cancelled_at'] ?? $r['dibatalkan_pada'] ?? null),
+            'cancel_reason'     => $r['cancel_reason'] ?? $r['alasan_pembatalan'] ?? null,
+            'dibatalkan_oleh'   => ($r['cancelled_by'] ?? $r['dibatalkan_oleh'] ?? null) !== null
+                ? ['id' => (int) ($r['cancelled_by'] ?? $r['dibatalkan_oleh']), 'nama' => $r['dibatalkan_oleh_nama']]
+                : null,
+            'dibatalkan_pada'   => Tanggal::waktuIso($r['cancelled_at'] ?? $r['dibatalkan_pada'] ?? null),
+            'alasan_pembatalan' => $r['cancel_reason'] ?? $r['alasan_pembatalan'] ?? null,
             'detail'            => $per[(int) $r['id']] ?? [],
         ], $rows);
     }
