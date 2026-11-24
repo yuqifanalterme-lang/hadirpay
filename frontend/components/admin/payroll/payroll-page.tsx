@@ -17,7 +17,10 @@ import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import type { PayrollLine, PayrollPeriod } from '@/lib/mock/payroll'
 import { config } from '@/lib/config'
+import { accountingDataChangedEvent, notifyAccountingDataChanged } from '@/lib/services/accounting-events'
 import {
+  cancelPayrollApproval,
+  cancelPayrollPayment,
   getPayrollPeriodById,
   listPayrollCashAccountOptions,
   listPayrollLines,
@@ -27,15 +30,18 @@ import {
   type PayrollCashAccountOption,
 } from '@/lib/services/penggajian.service'
 import type { PeriodeBayarRequest, PeriodeGaji } from '@/lib/types/penggajian'
+import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 
-type PayrollAction = 'submit' | 'return' | 'approve' | 'pay'
+type PayrollAction = 'submit' | 'return' | 'approve' | 'pay' | 'cancel_payment' | 'cancel_approval'
 const payrollPageSize = 10
 
 function actionLabel(action: PayrollAction) {
   if (action === 'submit') return 'Kirim ke validasi keuangan'
   if (action === 'return') return 'Kembalikan untuk diperbaiki'
   if (action === 'approve') return 'Setujui penggajian'
-  return 'Tandai sebagai dibayar'
+  if (action === 'pay') return 'Tandai sebagai dibayar'
+  if (action === 'cancel_payment') return 'Batalkan pembayaran'
+  return 'Batalkan persetujuan'
 }
 
 export function PayrollPage() {
@@ -56,6 +62,8 @@ export function PayrollPage() {
   const [cashAccountId, setCashAccountId] = useState('')
   const [paymentNote, setPaymentNote] = useState('')
   const [returnNote, setReturnNote] = useState('')
+  const [cancellationNote, setCancellationNote] = useState('')
+  const [cancellationFieldErrors, setCancellationFieldErrors] = useState<ApiErrorFields>({})
   const [busy, setBusy] = useState(false)
 
   async function load(preferredPeriodId?: string, requestedPage = page) {
@@ -105,6 +113,13 @@ export function PayrollPage() {
     else setLoading(false)
   }, [role, page])
 
+  useEffect(() => {
+    if (role !== 'admin' && role !== 'keuangan' && role !== 'pemilik') return
+    const refresh = () => { void load(selectedPeriodId, page) }
+    window.addEventListener(accountingDataChangedEvent, refresh)
+    return () => window.removeEventListener(accountingDataChangedEvent, refresh)
+  }, [role, selectedPeriodId, page])
+
   const totals = {
     net: period?.totalNetPay ?? 0,
     employees: period?.employeeCount ?? 0,
@@ -120,11 +135,21 @@ export function PayrollPage() {
       toast.error('Catatan pengembalian wajib diisi.')
       return
     }
+    if ((pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') && !cancellationNote.trim()) {
+      setCancellationFieldErrors({ catatan: ['Catatan wajib diisi.'] })
+      return
+    }
 
     setBusy(true)
     try {
       if (pendingAction === 'return') {
         await returnPayrollPeriod(selectedPeriodId, { catatan: returnNote.trim() })
+      } else if (pendingAction === 'cancel_payment') {
+        await cancelPayrollPayment(selectedPeriodId, { catatan: cancellationNote.trim() })
+        notifyAccountingDataChanged()
+      } else if (pendingAction === 'cancel_approval') {
+        await cancelPayrollApproval(selectedPeriodId, { catatan: cancellationNote.trim() })
+        notifyAccountingDataChanged()
       } else {
         let payment: PeriodeBayarRequest | undefined
         if (pendingAction === 'pay' && !config.mock.penggajian) {
@@ -141,10 +166,20 @@ export function PayrollPage() {
         }
         await updatePayrollStatus(role, pendingAction, payment, selectedPeriodId)
       }
-      await load(selectedPeriodId)
+      if (pendingAction !== 'cancel_payment' && pendingAction !== 'cancel_approval') {
+        await load(selectedPeriodId)
+      }
       toast.success('Status proses penggajian berhasil diperbarui.')
       closeAction()
     } catch (actionError) {
+      if (
+        (pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') &&
+        actionError instanceof ApiError &&
+        actionError.status === 422 &&
+        actionError.errors
+      ) {
+        setCancellationFieldErrors(actionError.errors)
+      }
       toast.error(actionError instanceof Error ? actionError.message : 'Status penggajian gagal diperbarui.')
     } finally {
       setBusy(false)
@@ -157,6 +192,8 @@ export function PayrollPage() {
     setCashAccountId('')
     setPaymentNote('')
     setReturnNote('')
+    setCancellationNote('')
+    setCancellationFieldErrors({})
   }
 
   async function openAction(action: PayrollAction) {
@@ -199,6 +236,8 @@ export function PayrollPage() {
   if (role === 'admin' && period.status === 'Draft') actions.push('submit')
   if (role === 'keuangan' && period.status === 'Menunggu validasi keuangan') actions.push('return', 'approve')
   if (role === 'keuangan' && period.status === 'Disetujui') actions.push('pay')
+  if (role === 'keuangan' && period.status === 'Dibayar') actions.push('cancel_payment')
+  if (role === 'keuangan' && period.status === 'Disetujui') actions.push('cancel_approval')
   const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
   return (
@@ -251,38 +290,38 @@ export function PayrollPage() {
       </div>
 
       <Panel title="Periode penggajian" description="Status mengikuti urutan pemeriksaan HRD, validasi Keuangan, lalu pembayaran.">
-        {!lines.length ? (
-          <EmptyState title="Rincian penggajian belum tersedia" description="Data periode ini belum memiliki rincian untuk ditampilkan." icon={FileCheck2} />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <StatIcon icon={FileCheck2} tone="primary" size="md" />
-                <div className="min-w-0">
-                  <p className="font-semibold text-heading">{period.period}</p>
-                  <p className="text-sm text-muted-foreground">{period.employeeCount} karyawan · tutup {period.cutoffDate}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge status={period.status} />
-                <Button type="button" variant="outline" size="action" onClick={() => setDetailOpen(true)}>Lihat rincian</Button>
-                {actions.map((action) => (
-                  <Button
-                    key={action}
-                    type="button"
-                    variant={action === 'pay' ? 'success' : action === 'return' ? 'outline' : 'primary'}
-                    size="action"
-                    disabled={cashAccountLoading}
-                    onClick={() => void openAction(action)}
-                  >
-                    {action === 'pay' && cashAccountLoading ? 'Memuat akun kas…' : actionLabel(action)}
-                  </Button>
-                ))}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <StatIcon icon={FileCheck2} tone="primary" size="md" />
+              <div className="min-w-0">
+                <p className="font-semibold text-heading">{period.period}</p>
+                <p className="text-sm text-muted-foreground">{period.employeeCount} karyawan · tutup {period.cutoffDate}</p>
               </div>
             </div>
-            <p className="text-right text-lg font-bold tabular-nums text-heading">{formatRupiah(totals.net)}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusBadge status={period.status} />
+              {lines.length > 0 && (
+                <Button type="button" variant="outline" size="action" onClick={() => setDetailOpen(true)}>Lihat rincian</Button>
+              )}
+              {actions.map((action) => (
+                <Button
+                  key={action}
+                  type="button"
+                  variant={action === 'pay' ? 'success' : action === 'return' || action.startsWith('cancel_') ? 'outline' : 'primary'}
+                  size="action"
+                  disabled={cashAccountLoading}
+                  onClick={() => void openAction(action)}
+                >
+                  {action === 'pay' && cashAccountLoading ? 'Memuat akun kas…' : actionLabel(action)}
+                </Button>
+              ))}
+            </div>
           </div>
-        )}
+          {lines.length > 0
+            ? <p className="text-right text-lg font-bold tabular-nums text-heading">{formatRupiah(totals.net)}</p>
+            : <EmptyState title="Rincian penggajian belum tersedia" description="Data periode ini belum memiliki rincian untuk ditampilkan." icon={FileCheck2} />}
+        </div>
       </Panel>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen} label={`Rincian penggajian ${period.period}`} size="drawer">
@@ -331,17 +370,19 @@ export function PayrollPage() {
       <Dialog open={pendingAction !== null} onOpenChange={(open) => !open && closeAction()} label="Konfirmasi perubahan status penggajian">
         <form onSubmit={(event) => { event.preventDefault(); void handleAction() }}>
           <DialogHeader
-            title={pendingAction === 'pay' ? 'Konfirmasi pembayaran' : pendingAction === 'return' ? 'Kembalikan periode' : 'Konfirmasi status penggajian'}
+            title={pendingAction === 'pay' ? 'Konfirmasi pembayaran' : pendingAction === 'return' ? 'Kembalikan periode' : pendingAction === 'cancel_payment' ? 'Batalkan pembayaran' : pendingAction === 'cancel_approval' ? 'Batalkan persetujuan' : 'Konfirmasi status penggajian'}
             description={
               pendingAction === 'pay'
                 ? `Tandai ${period.period} sebesar ${formatRupiah(totals.net)} sebagai sudah dibayar?`
                 : pendingAction === 'return'
                   ? `Kembalikan periode ${period.period} untuk diperbaiki.`
+                  : pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval'
+                    ? `${actionLabel(pendingAction)} untuk periode ${period.period}?`
                   : `${actionLabel(pendingAction ?? 'submit')} untuk periode ${period.period}?`
             }
             onClose={closeAction}
           />
-          {(pendingAction === 'pay' || pendingAction === 'return') && (
+          {(pendingAction === 'pay' || pendingAction === 'return' || pendingAction === 'cancel_payment' || pendingAction === 'cancel_approval') && (
             <div className="flex flex-col gap-4 p-5 sm:p-6">
               {pendingAction === 'pay' ? (
                 <>
@@ -364,10 +405,26 @@ export function PayrollPage() {
                     <textarea value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} className={`${fieldClass} min-h-24 py-3`} />
                   </label>
                 </>
-              ) : (
+              ) : pendingAction === 'return' ? (
                 <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                   Catatan pengembalian
                   <textarea required value={returnNote} onChange={(event) => setReturnNote(event.target.value)} className={`${fieldClass} min-h-24 py-3`} />
+                </label>
+              ) : (
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Catatan
+                  <textarea
+                    required
+                    value={cancellationNote}
+                    onChange={(event) => {
+                      setCancellationNote(event.target.value)
+                      setCancellationFieldErrors((current) => ({ ...current, catatan: [] }))
+                    }}
+                    aria-invalid={Boolean(cancellationFieldErrors.catatan?.length)}
+                    aria-describedby={cancellationFieldErrors.catatan?.length ? 'payroll-cancellation-note-error' : undefined}
+                    className={`${fieldClass} min-h-24 py-3`}
+                  />
+                  {cancellationFieldErrors.catatan?.[0] && <span id="payroll-cancellation-note-error" className="text-sm font-medium text-destructive" role="alert">{cancellationFieldErrors.catatan[0]}</span>}
                 </label>
               )}
             </div>

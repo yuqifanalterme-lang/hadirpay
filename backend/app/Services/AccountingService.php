@@ -71,6 +71,7 @@ class AccountingService
             'periode_gaji_id' => $header['periode_gaji_id'] ?? null,
             'total_debit'     => $d / 100,
             'total_kredit'    => $k / 100,
+            'status'          => 'aktif',
             'dibuat_oleh'     => $header['dibuat_oleh'] ?? null,
             'created_at'      => $now,
             'updated_at'      => $now,
@@ -80,6 +81,18 @@ class AccountingService
         self::isiDetail($db, $id, $lines);
 
         return $id;
+    }
+
+    public static function batalkanJurnal($db, int $jurnalId, ?int $userId, string $alasan, ?string $now = null): void
+    {
+        $waktu = $now ?? date('Y-m-d H:i:s');
+        $db->table('jurnal')->where('id', $jurnalId)->update([
+            'status'            => 'dibatalkan',
+            'dibatalkan_oleh'   => ($userId !== null && $userId > 0) ? $userId : null,
+            'dibatalkan_pada'   => $waktu,
+            'alasan_pembatalan' => mb_substr(trim($alasan), 0, 255),
+            'updated_at'        => $waktu,
+        ]);
     }
 
     /** @param list<array{akun_id:int, debit:mixed, kredit:mixed}> $lines */

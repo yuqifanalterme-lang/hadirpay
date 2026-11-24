@@ -19,6 +19,7 @@ export type JurnalListQuery = {
   tanggal_dari?: Tanggal
   tanggal_sampai?: Tanggal
   sumber?: 'otomatis' | 'manual'
+  status?: 'aktif' | 'dibatalkan'
   periode_gaji_id?: Id
   search?: string
   page?: number
@@ -38,11 +39,16 @@ export type Jurnal = {
   keterangan: string
   sumber: 'otomatis' | 'manual'
   jenis: 'pengakuan_gaji' | 'pembayaran_gaji' | 'manual'
+  status: 'aktif' | 'dibatalkan'
+  dibatalkan_oleh: { id: Id; nama: string } | null
+  dibatalkan_pada: string | null
+  alasan_pembatalan: string | null
   periode_gaji: { id: Id; periode: Periode } | null
   total_debit: Uang
   total_kredit: Uang
   detail: JurnalDetailItem[]
 }
+export type JurnalBatalkanRequest = { alasan: string }
 export type JurnalCreateRequest = {
   tanggal: Tanggal
   keterangan: string

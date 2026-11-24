@@ -15,6 +15,7 @@ import type {
   PeriodeKembalikanRequest,
   PeriodeRekapAbsensi,
   PeriodeListQuery,
+  PeriodePembatalanRequest,
   PeriodePayrollListQuery,
   PenggajianDetail,
   PenggajianListItem,
@@ -325,6 +326,22 @@ export async function returnPayrollPeriod(id: string | number, body: PeriodeKemb
     method: 'POST',
     body,
   })
+}
+
+export async function cancelPayrollPayment(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
+  const result = await apiRequest<PeriodeGajiDetail>(
+    `periode-gaji/${parseId(String(id))}/batalkan-pembayaran`,
+    { method: 'POST', body },
+  )
+  return result.data
+}
+
+export async function cancelPayrollApproval(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
+  const result = await apiRequest<PeriodeGajiDetail>(
+    `periode-gaji/${parseId(String(id))}/batalkan-persetujuan`,
+    { method: 'POST', body },
+  )
+  return result.data
 }
 
 function pageResult<T>(items: T[], page = 1, perPage = 10): PayrollPage<T> {

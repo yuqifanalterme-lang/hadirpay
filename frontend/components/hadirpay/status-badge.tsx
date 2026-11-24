@@ -15,6 +15,7 @@ export type StatusBadgeStatus =
   | 'Manual'
   | 'Aktif'
   | 'Nonaktif'
+  | 'Dibatalkan'
 
 const styles: Record<StatusBadgeStatus, string> = {
   Hadir: 'bg-success text-white',
@@ -33,6 +34,7 @@ const styles: Record<StatusBadgeStatus, string> = {
   Alpha: 'bg-red-600 text-white',
   Ditolak: 'bg-red-600 text-white',
   Nonaktif: 'bg-slate-600 text-white',
+  Dibatalkan: 'bg-slate-600 text-white',
   Izin: 'bg-sky-700 text-white',
   Sakit: 'bg-sky-700 text-white',
   Cuti: 'bg-violet-700 text-white',

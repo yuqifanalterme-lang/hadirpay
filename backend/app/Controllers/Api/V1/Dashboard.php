@@ -16,8 +16,11 @@ use App\Services\PayrollService;
 class Dashboard extends BaseController
 {
     private const JUDUL = [
-        'izin' => 'Izin', 'sakit' => 'Sakit', 'cuti' => 'Cuti tahunan',
-        'koreksi_absensi' => 'Koreksi absensi', 'lembur' => 'Lembur',
+        'izin' => 'Izin',
+        'sakit' => 'Sakit',
+        'cuti' => 'Cuti tahunan',
+        'koreksi_absensi' => 'Koreksi absensi',
+        'lembur' => 'Lembur',
     ];
     private const LABEL_ROLE = ['admin_hrd' => 'HRD', 'keuangan' => 'Keuangan', 'pemilik' => 'Pemilik', 'karyawan' => 'Karyawan'];
 
@@ -68,8 +71,8 @@ class Dashboard extends BaseController
             $j = [];
         }
         return [
-            'masuk'     => substr((string) ($j['jam_masuk'] ?? '08:00'), 0, 5),
-            'pulang'    => substr((string) ($j['jam_pulang'] ?? '17:00'), 0, 5),
+            'masuk' => substr((string) ($j['jam_masuk'] ?? '08:00'), 0, 5),
+            'pulang' => substr((string) ($j['jam_pulang'] ?? '17:00'), 0, 5),
             'toleransi' => (int) ($j['toleransi_menit'] ?? 0),
         ];
     }
@@ -110,7 +113,8 @@ class Dashboard extends BaseController
             ->select('COALESCE(SUM(dj.debit), 0) AS d, COALESCE(SUM(dj.kredit), 0) AS k', false)
             ->join('akun a', 'a.id = dj.akun_id')
             ->join('jurnal j', 'j.id = dj.jurnal_id')
-            ->where('a.kode', $kode);
+            ->where('a.kode', $kode)
+            ->where('j.status', 'aktif');
         if ($dari !== null) {
             $b->where('j.tanggal >=', $dari);
         }
@@ -127,8 +131,8 @@ class Dashboard extends BaseController
     private function totalGajiPeriode(string $ym, string $kolom): float
     {
         $db = db_connect();
-        $p  = $db->table('periode_gaji')->where('periode', $ym)->get()->getRowArray();
-        $t  = 0.0;
+        $p = $db->table('periode_gaji')->where('periode', $ym)->get()->getRowArray();
+        $t = 0.0;
         if ($p) {
             $r = $db->table('penggajian')->select('COALESCE(SUM(' . $kolom . '), 0) AS s', false)->where('periode_gaji_id', (int) $p['id'])->get()->getRowArray();
             $t = (float) ($r['s'] ?? 0);
@@ -148,17 +152,17 @@ class Dashboard extends BaseController
             return $e;
         }
         $tanggal = (string) ($this->request->getGet('tanggal') ?: date('Y-m-d'));
-        if (! $this->tglValid($tanggal)) {
+        if (!$this->tglValid($tanggal)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['tanggal' => 'Tanggal harus berformat YYYY-MM-DD'], 422);
         }
 
-        $db      = db_connect();
+        $db = db_connect();
         $payroll = new PayrollService();
-        $jadwal  = $this->jadwal();
-        $total   = $db->table('karyawan')->where('status', 'aktif')->countAllResults();
+        $jadwal = $this->jadwal();
+        $total = $db->table('karyawan')->where('status', 'aktif')->countAllResults();
 
         // hitung per status pada tanggal itu
-        $c    = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0];
+        $c = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0];
         $rows = $db->table('absensi a')->select('a.status AS st, COUNT(*) AS n', false)
             ->join('karyawan k', 'k.id = a.karyawan_id')
             ->where('k.status', 'aktif')->where('a.tanggal', $tanggal)
@@ -168,34 +172,34 @@ class Dashboard extends BaseController
                 $c[$r['st']] = (int) $r['n'];
             }
         }
-        $hadir       = $c['hadir'] + $c['terlambat'];
+        $hadir = $c['hadir'] + $c['terlambat'];
         $persenHadir = $this->persen($hadir, $total);
 
-        $ym      = substr($tanggal, 0, 7);
+        $ym = substr($tanggal, 0, 7);
         $periode = $db->table('periode_gaji')->where('periode', $ym)->get()->getRowArray();
         $menunggu = $db->table('pengajuan_izin')->where('status', 'menunggu')->countAllResults();
 
         // minggu berjalan (Senin sampai Jumat)
-        $dow    = (int) date('N', strtotime($tanggal));
-        $senin  = date('Y-m-d', strtotime('-' . ($dow - 1) . ' days', strtotime($tanggal)));
-        $jumat  = date('Y-m-d', strtotime($senin . ' +4 days'));
+        $dow = (int) date('N', strtotime($tanggal));
+        $senin = date('Y-m-d', strtotime('-' . ($dow - 1) . ' days', strtotime($tanggal)));
+        $jumat = date('Y-m-d', strtotime($senin . ' +4 days'));
         $minggu = $this->hadirPerTanggal($senin, $jumat);
-        $hari   = [];
+        $hari = [];
         for ($i = 0; $i < 5; $i++) {
-            $d      = date('Y-m-d', strtotime($senin . ' +' . $i . ' days'));
+            $d = date('Y-m-d', strtotime($senin . ' +' . $i . ' days'));
             $hari[] = [
-                'tanggal'      => $d,
+                'tanggal' => $d,
                 'persen_hadir' => $d > $tanggal ? null : $this->persen($minggu[$d]['hadir'] ?? 0, $total),
-                'status'       => $d < $tanggal ? 'selesai' : ($d === $tanggal ? 'hari_ini' : 'akan_datang'),
+                'status' => $d < $tanggal ? 'selesai' : ($d === $tanggal ? 'hari_ini' : 'akan_datang'),
             ];
         }
 
         // rata-rata minggu lalu (hanya hari kerja)
         $senin2 = date('Y-m-d', strtotime($senin . ' -7 days'));
         $jumat2 = date('Y-m-d', strtotime($senin2 . ' +4 days'));
-        $lalu   = $this->hadirPerTanggal($senin2, $jumat2);
-        $hk2    = $payroll->hariKerja($senin2, $jumat2);
-        $rata   = 0;
+        $lalu = $this->hadirPerTanggal($senin2, $jumat2);
+        $hk2 = $payroll->hariKerja($senin2, $jumat2);
+        $rata = 0;
         if ($hk2) {
             $jumlah = 0;
             foreach ($hk2 as $d) {
@@ -205,7 +209,7 @@ class Dashboard extends BaseController
         }
 
         // tren 7 hari kerja terakhir
-        $tren  = [];
+        $tren = [];
         $rentang = array_slice($payroll->hariKerja(date('Y-m-d', strtotime($tanggal . ' -20 days')), $tanggal), -7);
         if ($rentang) {
             $map = $this->hadirPerTanggal($rentang[0], end($rentang));
@@ -221,13 +225,13 @@ class Dashboard extends BaseController
             ->where('p.status', 'menunggu')
             ->orderBy('p.created_at', 'ASC')->orderBy('p.id', 'ASC')
             ->limit(5)->get()->getResultArray();
-        $listPengajuan = array_map(fn ($r) => [
-            'id'              => (int) $r['id'],
-            'jenis'           => $r['jenis'],
-            'karyawan'        => ['id' => (int) $r['karyawan_id'], 'nama' => $r['karyawan_nama'], 'inisial' => self::inisial($r['karyawan_nama'])],
-            'judul'           => self::JUDUL[$r['jenis']] ?? $r['jenis'],
-            'durasi_label'    => $this->durasiLabel($r),
-            'tanggal_mulai'   => $r['tanggal_mulai'],
+        $listPengajuan = array_map(fn($r) => [
+            'id' => (int) $r['id'],
+            'jenis' => $r['jenis'],
+            'karyawan' => ['id' => (int) $r['karyawan_id'], 'nama' => $r['karyawan_nama'], 'inisial' => self::inisial($r['karyawan_nama'])],
+            'judul' => self::JUDUL[$r['jenis']] ?? $r['jenis'],
+            'durasi_label' => $this->durasiLabel($r),
+            'tanggal_mulai' => $r['tanggal_mulai'],
             'tanggal_selesai' => $r['tanggal_selesai'],
         ], $pm);
 
@@ -238,40 +242,40 @@ class Dashboard extends BaseController
             ->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('a.tanggal', $tanggal)->where('a.jam_masuk IS NOT NULL', null, false)
             ->orderBy('a.jam_masuk', 'DESC')->limit(5)->get()->getResultArray();
-        $listAbsensi = array_map(fn ($r) => [
-            'karyawan'   => ['id' => (int) $r['kid'], 'nama' => $r['nama'], 'inisial' => self::inisial($r['nama'])],
+        $listAbsensi = array_map(fn($r) => [
+            'karyawan' => ['id' => (int) $r['kid'], 'nama' => $r['nama'], 'inisial' => self::inisial($r['nama'])],
             'departemen' => $r['dept'],
-            'jam_masuk'  => $this->jam($r['jam_masuk']),
+            'jam_masuk' => $this->jam($r['jam_masuk']),
             'jam_pulang' => $this->jam($r['jam_pulang']),
-            'status'     => $r['status'],
+            'status' => $r['status'],
         ], $at);
 
         return ApiResponse::success([
-            'tanggal'      => $tanggal,
+            'tanggal' => $tanggal,
             'sapaan_rekap' => [
-                'persen_terisi'      => $persenHadir,
+                'persen_terisi' => $persenHadir,
                 'pengajuan_menunggu' => $menunggu,
-                'periode_ditutup'    => $periode['tanggal_tutup'] ?? ($ym . '-25'),
+                'periode_ditutup' => $periode['tanggal_tutup'] ?? ($ym . '-25'),
             ],
-            'statistik'    => [
-                'total_karyawan'            => $total,
-                'hadir_hari_ini'            => $hadir,
-                'persen_hadir'              => $persenHadir,
-                'terlambat'                 => $c['terlambat'],
-                'batas_terlambat'           => date('H:i', strtotime($tanggal . ' ' . $jadwal['masuk'] . ' +' . $jadwal['toleransi'] . ' minutes')),
-                'tidak_hadir'               => [
+            'statistik' => [
+                'total_karyawan' => $total,
+                'hadir_hari_ini' => $hadir,
+                'persen_hadir' => $persenHadir,
+                'terlambat' => $c['terlambat'],
+                'batas_terlambat' => date('H:i', strtotime($tanggal . ' ' . $jadwal['masuk'] . ' +' . $jadwal['toleransi'] . ' minutes')),
+                'tidak_hadir' => [
                     'total' => $c['izin'] + $c['sakit'] + $c['cuti'] + $c['alpha'],
-                    'izin'  => $c['izin'] + $c['sakit'],
-                    'cuti'  => $c['cuti'],
+                    'izin' => $c['izin'] + $c['sakit'],
+                    'cuti' => $c['cuti'],
                     'alpha' => $c['alpha'],
                 ],
                 'total_gaji_bulan_berjalan' => round($this->totalGajiPeriode($ym, 'gaji_bersih'), 2),
-                'periode_gaji'              => $ym,
+                'periode_gaji' => $ym,
             ],
             'kehadiran_minggu_ini' => ['rata_rata_minggu_lalu' => $rata, 'hari' => $hari],
-            'tren_kehadiran'       => $tren,
-            'pengajuan_menunggu'   => $listPengajuan,
-            'absensi_terbaru'      => $listAbsensi,
+            'tren_kehadiran' => $tren,
+            'pengajuan_menunggu' => $listPengajuan,
+            'absensi_terbaru' => $listAbsensi,
         ]);
     }
 
@@ -282,26 +286,26 @@ class Dashboard extends BaseController
         if ($e = $this->izin(['karyawan', 'keuangan'])) {
             return $e;
         }
-        $u   = $this->user();
+        $u = $this->user();
         $kid = (int) ($u['karyawan_id'] ?? 0);
         $uid = (int) ($u['id'] ?? 0);
         if ($kid <= 0) {
             return ApiResponse::error('FORBIDDEN', 'Akun ini tidak terhubung dengan data karyawan', null, 403);
         }
 
-        $db      = db_connect();
+        $db = db_connect();
         $hariIni = date('Y-m-d');
-        $jadwal  = $this->jadwal();
+        $jadwal = $this->jadwal();
 
         $lok = $db->table('lokasi_absensi')->where('aktif', 1)->orderBy('id', 'ASC')->limit(1)->get()->getRowArray();
 
         $a = $db->table('absensi')->where('karyawan_id', $kid)->where('tanggal', $hariIni)->get()->getRowArray();
 
         // minggu berjalan
-        $dow   = (int) date('N');
+        $dow = (int) date('N');
         $senin = date('Y-m-d', strtotime('-' . ($dow - 1) . ' days'));
         $jumat = date('Y-m-d', strtotime($senin . ' +4 days'));
-        $rows  = $db->table('absensi')->select('tanggal, status')
+        $rows = $db->table('absensi')->select('tanggal, status')
             ->where('karyawan_id', $kid)->where('tanggal >=', $senin)->where('tanggal <=', $jumat)
             ->get()->getResultArray();
         $status = [];
@@ -311,7 +315,7 @@ class Dashboard extends BaseController
         $hari = [];
         $tercatat = $telat = 0;
         for ($i = 0; $i < 5; $i++) {
-            $d  = date('Y-m-d', strtotime($senin . ' +' . $i . ' days'));
+            $d = date('Y-m-d', strtotime($senin . ' +' . $i . ' days'));
             $st = $status[$d] ?? null;
             $hari[] = ['tanggal' => $d, 'status' => $st];
             if ($st === 'hadir' || $st === 'terlambat') {
@@ -335,7 +339,7 @@ class Dashboard extends BaseController
         $p = $db->table('pengajuan_izin')->where('karyawan_id', $kid)->where('status !=', 'dibatalkan')
             ->orderBy('created_at', 'DESC')->orderBy('id', 'DESC')->limit(1)->get()->getRowArray();
         $oleh = null;
-        if ($p && ! empty($p['diproses_oleh'])) {
+        if ($p && !empty($p['diproses_oleh'])) {
             $pu = $db->table('users')->select('nama, role')->where('id', (int) $p['diproses_oleh'])->get()->getRowArray();
             if ($pu) {
                 $oleh = $pu['nama'] . ' (' . (self::LABEL_ROLE[$pu['role']] ?? $pu['role']) . ')';
@@ -345,36 +349,36 @@ class Dashboard extends BaseController
         $notif = $db->table('notifikasi')->where('user_id', $uid)->where('dibaca_pada IS NULL', null, false)->countAllResults();
 
         return ApiResponse::success([
-            'tanggal'              => $hariIni,
-            'server_time'          => Tanggal::waktuIso(date('Y-m-d H:i:s')),
-            'jam_kerja'            => ['masuk' => $jadwal['masuk'], 'pulang' => $jadwal['pulang']],
-            'lokasi_kantor'        => $lok ? ['nama' => $lok['nama'], 'alamat' => $lok['alamat']] : null,
-            'absensi_hari_ini'     => [
-                'sudah_masuk'  => ! empty($a['jam_masuk']),
-                'sudah_pulang' => ! empty($a['jam_pulang']),
-                'jam_masuk'    => $this->jam($a['jam_masuk'] ?? null),
-                'jam_pulang'   => $this->jam($a['jam_pulang'] ?? null),
-                'status'       => $a['status'] ?? null,
+            'tanggal' => $hariIni,
+            'server_time' => Tanggal::waktuIso(date('Y-m-d H:i:s')),
+            'jam_kerja' => ['masuk' => $jadwal['masuk'], 'pulang' => $jadwal['pulang']],
+            'lokasi_kantor' => $lok ? ['nama' => $lok['nama'], 'alamat' => $lok['alamat']] : null,
+            'absensi_hari_ini' => [
+                'sudah_masuk' => !empty($a['jam_masuk']),
+                'sudah_pulang' => !empty($a['jam_pulang']),
+                'jam_masuk' => $this->jam($a['jam_masuk'] ?? null),
+                'jam_pulang' => $this->jam($a['jam_pulang'] ?? null),
+                'status' => $a['status'] ?? null,
             ],
             'kehadiran_minggu_ini' => ['tercatat' => $tercatat, 'total_hari' => 5, 'jumlah_terlambat' => $telat, 'hari' => $hari],
-            'slip_terakhir'        => $s ? [
-                'id'               => (int) $s['id'],
-                'periode'          => $s['periode'],
-                'tanggal_terbit'   => $s['tanggal_terbit'],
-                'gaji_bersih'      => (float) $s['gaji_bersih'],
+            'slip_terakhir' => $s ? [
+                'id' => (int) $s['id'],
+                'periode' => $s['periode'],
+                'tanggal_terbit' => $s['tanggal_terbit'],
+                'gaji_bersih' => (float) $s['gaji_bersih'],
                 'total_pendapatan' => (float) $s['total_pendapatan'],
-                'total_potongan'   => (float) $s['total_potongan'],
+                'total_potongan' => (float) $s['total_potongan'],
             ] : null,
-            'pengajuan_terakhir'   => $p ? [
-                'id'               => (int) $p['id'],
-                'jenis'            => $p['jenis'],
-                'judul'            => self::JUDUL[$p['jenis']] ?? $p['jenis'],
-                'tanggal_mulai'    => $p['tanggal_mulai'],
-                'status'           => $p['status'],
+            'pengajuan_terakhir' => $p ? [
+                'id' => (int) $p['id'],
+                'jenis' => $p['jenis'],
+                'judul' => self::JUDUL[$p['jenis']] ?? $p['jenis'],
+                'tanggal_mulai' => $p['tanggal_mulai'],
+                'status' => $p['status'],
                 'tanggal_diajukan' => substr((string) $p['created_at'], 0, 10),
-                'disetujui_oleh'   => $oleh,
+                'disetujui_oleh' => $oleh,
             ] : null,
-            'jumlah_notifikasi'    => $notif,
+            'jumlah_notifikasi' => $notif,
         ]);
     }
 
@@ -397,23 +401,23 @@ class Dashboard extends BaseController
 
         $j = $db->table('periode_gaji')->select('periode, tanggal_bayar, status')
             ->where('status', 'disetujui')->orderBy('periode', 'ASC')->limit(1)->get()->getRowArray();
-        if (! $j) {
+        if (!$j) {
             $j = $db->table('periode_gaji')->select('periode, tanggal_bayar, status')
                 ->where('status', 'dibayar')->orderBy('tanggal_bayar', 'DESC')->orderBy('periode', 'DESC')->limit(1)->get()->getRowArray();
         }
 
-        $awal  = date('Y-m-01');
+        $awal = date('Y-m-01');
         $akhir = date('Y-m-t');
 
         return ApiResponse::success([
-            'periode_menunggu_validasi'      => array_map(static fn ($r) => [
-                'id'                => (int) $r['id'],
-                'periode'           => $r['periode'],
+            'periode_menunggu_validasi' => array_map(static fn($r) => [
+                'id' => (int) $r['id'],
+                'periode' => $r['periode'],
                 'total_gaji_bersih' => (float) $r['total'],
-                'jumlah_karyawan'   => (int) $r['jml'],
+                'jumlah_karyawan' => (int) $r['jml'],
             ], $menunggu),
-            'jadwal_pembayaran'              => $j ? ['periode' => $j['periode'], 'tanggal_bayar' => $j['tanggal_bayar'], 'status' => $j['status']] : null,
-            'saldo_utang_gaji'               => round($this->saldoAkun('2-1100', 'kredit'), 2),
+            'jadwal_pembayaran' => $j ? ['periode' => $j['periode'], 'tanggal_bayar' => $j['tanggal_bayar'], 'status' => $j['status']] : null,
+            'saldo_utang_gaji' => round($this->saldoAkun('2-1100', 'kredit'), 2),
             'total_beban_gaji_bulan_berjalan' => round($this->saldoAkun('5-1100', 'debit', $awal, $akhir), 2),
         ]);
     }
@@ -425,11 +429,11 @@ class Dashboard extends BaseController
         if ($e = $this->izin(['pemilik'])) {
             return $e;
         }
-        $db      = db_connect();
+        $db = db_connect();
         $payroll = new PayrollService();
-        $awal    = date('Y-m-01');
+        $awal = date('Y-m-01');
         $hariIni = date('Y-m-d');
-        $ym      = date('Y-m');
+        $ym = date('Y-m');
 
         $tren = $db->table('periode_gaji pp')
             ->select('pp.periode, COALESCE(SUM(pg.total_pendapatan), 0) AS total', false)
@@ -441,8 +445,8 @@ class Dashboard extends BaseController
         $tren = array_reverse($tren);
 
         // kehadiran per departemen: bulan berjalan sampai hari ini
-        $n     = count($payroll->hariKerja($awal, $hariIni));
-        $dept  = $db->table('karyawan k')
+        $n = count($payroll->hariKerja($awal, $hariIni));
+        $dept = $db->table('karyawan k')
             ->select('d.id, d.nama, COUNT(k.id) AS jml', false)
             ->join('departemen d', 'd.id = k.departemen_id')
             ->where('k.status', 'aktif')
@@ -458,8 +462,8 @@ class Dashboard extends BaseController
         foreach ($hadirRows as $r) {
             $hadir[(int) $r['departemen_id']] = (int) $r['h'];
         }
-        $perDept = array_map(fn ($d) => [
-            'departemen'   => $d['nama'],
+        $perDept = array_map(fn($d) => [
+            'departemen' => $d['nama'],
             'persen_hadir' => $this->persen($hadir[(int) $d['id']] ?? 0, (int) $d['jml'] * $n),
         ], $dept);
 
@@ -474,14 +478,14 @@ class Dashboard extends BaseController
 
         return ApiResponse::success([
             'total_biaya_gaji_bulan_berjalan' => round($this->totalGajiPeriode($ym, 'total_pendapatan'), 2),
-            'tren_beban_gaji'                 => array_map(static fn ($r) => ['periode' => $r['periode'], 'total' => (float) $r['total']], $tren),
-            'kehadiran_per_departemen'        => $perDept,
-            'top_keterlambatan'               => array_map(static fn ($r) => [
-                'karyawan_id'      => (int) $r['id'],
-                'nama'             => $r['nama'],
-                'departemen'       => $r['dept'],
+            'tren_beban_gaji' => array_map(static fn($r) => ['periode' => $r['periode'], 'total' => (float) $r['total']], $tren),
+            'kehadiran_per_departemen' => $perDept,
+            'top_keterlambatan' => array_map(static fn($r) => [
+                'karyawan_id' => (int) $r['id'],
+                'nama' => $r['nama'],
+                'departemen' => $r['dept'],
                 'jumlah_terlambat' => (int) $r['jml'],
-                'total_menit'      => (int) $r['menit'],
+                'total_menit' => (int) $r['menit'],
             ], $top),
         ]);
     }

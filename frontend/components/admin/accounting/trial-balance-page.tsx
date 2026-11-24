@@ -10,6 +10,7 @@ import { PageLoadingSkeleton } from "@/components/ui/page-loading-skeleton";
 import { AccountingAccess, AccountingPageTitle } from "./accounting-shared";
 import { useAccountingRole } from "@/lib/hooks/use-accounting-role";
 import { formatRupiah } from "@/lib/mock-data";
+import { accountingDataChangedEvent } from "@/lib/services/accounting-events";
 import type { TrialBalanceReport } from "@/lib/services/akuntansi.service";
 import { getTrialBalance } from "@/lib/services/akuntansi.service";
 
@@ -41,11 +42,14 @@ export function TrialBalancePage() {
       }
     }
 
+    const refresh = () => void load();
+    window.addEventListener(accountingDataChangedEvent, refresh);
     if (role === "admin" || role === "keuangan" || role === "pemilik")
       void load();
     else if (role === "karyawan" || role === null) setLoading(false);
     return () => {
       active = false;
+      window.removeEventListener(accountingDataChangedEvent, refresh);
     };
   }, [role, period, retry]);
 

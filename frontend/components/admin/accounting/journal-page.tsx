@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { NotebookPen, Plus, ReceiptText } from 'lucide-react'
+import { NotebookPen, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -16,7 +16,8 @@ import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import { formatAccountingDate } from '@/lib/accounting/journal'
 import { formatRupiah } from '@/lib/mock-data'
 import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
-import { listAccounts, listJournalEntriesPage, saveManualJournal } from '@/lib/services/akuntansi.service'
+import { cancelManualJournal, listAccounts, listJournalEntriesPage, saveManualJournal } from '@/lib/services/akuntansi.service'
+import { accountingDataChangedEvent, notifyAccountingDataChanged } from '@/lib/services/accounting-events'
 import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 
 function FormAccountSelect({
@@ -62,6 +63,7 @@ export function JournalPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [source, setSource] = useState('')
+  const [status, setStatus] = useState<'aktif' | 'dibatalkan'>('aktif')
   const [periodId, setPeriodId] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -72,6 +74,10 @@ export function JournalPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<ApiErrorFields>({})
+  const [cancelDialogEntry, setCancelDialogEntry] = useState<JournalEntry | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelFieldErrors, setCancelFieldErrors] = useState<ApiErrorFields>({})
+  const [cancelError, setCancelError] = useState('')
   const [date, setDate] = useState('')
   const [description, setDescription] = useState('')
   const [debitAccountCode, setDebitAccountCode] = useState('')
@@ -100,6 +106,7 @@ export function JournalPage() {
           tanggal_dari: dateFrom || undefined,
           tanggal_sampai: dateTo || undefined,
           sumber: source === 'otomatis' || source === 'manual' ? source : undefined,
+          status,
           periode_gaji_id: periodGajiId,
           page,
           per_page: pageSize,
@@ -133,7 +140,14 @@ export function JournalPage() {
   useEffect(() => {
     if (role === 'admin' || role === 'keuangan' || role === 'pemilik') void load()
     else if (role === 'karyawan' || role === null) setLoading(false)
-  }, [role, debouncedSearch, dateFrom, dateTo, source, periodId, page, pageSize])
+  }, [role, debouncedSearch, dateFrom, dateTo, source, status, periodId, page, pageSize])
+
+  useEffect(() => {
+    if (role !== 'admin' && role !== 'keuangan' && role !== 'pemilik') return
+    const refresh = () => { void load() }
+    window.addEventListener(accountingDataChangedEvent, refresh)
+    return () => window.removeEventListener(accountingDataChangedEvent, refresh)
+  }, [role, debouncedSearch, dateFrom, dateTo, source, status, periodId, page, pageSize])
 
   function resetForm() {
     setDate('')
@@ -174,6 +188,54 @@ export function JournalPage() {
     }
   }
 
+  async function handleCancelJournal(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!cancelDialogEntry) return
+    const reason = cancelReason.trim()
+    if (!reason) {
+      setCancelFieldErrors({ alasan: ['Alasan wajib diisi.'] })
+      return
+    }
+
+    setSaving(true)
+    setCancelError('')
+    setCancelFieldErrors({})
+    try {
+      await cancelManualJournal(cancelDialogEntry.id, { alasan: reason })
+      setCancelDialogEntry(null)
+      setCancelReason('')
+      notifyAccountingDataChanged()
+      toast.success('Jurnal berhasil dibatalkan.')
+    } catch (cancelActionError) {
+      const message = cancelActionError instanceof Error ? cancelActionError.message : 'Jurnal gagal dibatalkan.'
+      setCancelError(message)
+      if (cancelActionError instanceof ApiError && cancelActionError.errors) {
+        setCancelFieldErrors(cancelActionError.errors)
+      }
+      toast.error(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function closeCancelJournal() {
+    if (saving) return
+    setCancelDialogEntry(null)
+    setCancelReason('')
+    setCancelFieldErrors({})
+    setCancelError('')
+  }
+
+  function formatCancellationDate(value: string) {
+    const dateValue = new Date(value)
+    if (Number.isNaN(dateValue.getTime())) return value
+    return new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Jakarta',
+    }).format(dateValue)
+  }
+
   return (
     <AccountingAccess role={role}>
       {loading ? <PageLoadingSkeleton label="jurnal umum" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : (
@@ -208,6 +270,13 @@ export function JournalPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Status
+                <select value={status} onChange={(event) => { setStatus(event.target.value as 'aktif' | 'dibatalkan'); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4">
+                  <option value="aktif">Aktif</option>
+                  <option value="dibatalkan">Dibatalkan</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                 ID periode gaji
                 <input type="number" min="1" step="1" value={periodId} onChange={(event) => { setPeriodId(event.target.value); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4" />
               </label>
@@ -235,7 +304,7 @@ export function JournalPage() {
               />
             ) : (
               <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
                   <caption className="sr-only">Rincian jurnal umum dan akun-akun yang terposting</caption>
                   <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
                     <tr>
@@ -249,11 +318,13 @@ export function JournalPage() {
                       <th scope="col" className="px-3 py-3 text-right">Total kredit</th>
                       <th scope="col" className="px-3 py-3">Keterangan</th>
                       <th scope="col" className="px-3 py-3">Sumber</th>
+                      <th scope="col" className="px-3 py-3">Status</th>
+                      <th scope="col" className="px-3 py-3">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {entries.flatMap((entry) => entry.lines.map((line, index) => (
-                      <tr key={`${entry.id}-${line.accountCode}`} className="hover:bg-surface/70">
+                      <tr key={`${entry.id}-${line.accountCode}`} className={entry.status === 'dibatalkan' ? 'bg-surface/70 text-muted-foreground' : 'hover:bg-surface/70'}>
                         <td className="whitespace-nowrap px-3 py-3">{index === 0 ? formatAccountingDate(entry.date) : ''}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-semibold tabular-nums text-heading">{index === 0 ? entry.voucherNumber : ''}</td>
                         <td className="px-3 py-3">{index === 0 && <StatusBadge status={entry.type} />}</td>
@@ -269,6 +340,28 @@ export function JournalPage() {
                               Penggajian {entry.sourcePeriodLabel}
                             </Link>
                           ) : index === 0 ? 'Jurnal manual' : ''}
+                        </td>
+                        <td className="px-3 py-3">
+                          {index === 0 && <StatusBadge status={entry.status === 'dibatalkan' ? 'Dibatalkan' : 'Aktif'} />}
+                          {index === 0 && entry.status === 'dibatalkan' && (
+                            <div className="mt-2 max-w-64 space-y-1 text-xs">
+                              <p>Alasan: {entry.alasan_pembatalan || '-'}</p>
+                              <p>Oleh: {entry.dibatalkan_oleh?.nama || '-'}</p>
+                              <p>Kapan: {entry.dibatalkan_pada ? formatCancellationDate(entry.dibatalkan_pada) : '-'}</p>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {index === 0 && canManage && entry.type === 'Manual' && entry.status === 'aktif' && (
+                            <Button type="button" variant="outline" size="action" onClick={() => {
+                              setCancelDialogEntry(entry)
+                              setCancelFieldErrors({})
+                              setCancelError('')
+                            }}>
+                              <Trash2 aria-hidden="true" />
+                              Hapus
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     )))}
@@ -318,6 +411,40 @@ export function JournalPage() {
                 <Button type="button" variant="outline" size="action" disabled={saving} onClick={() => setDialogOpen(false)}>Batal</Button>
                 <Button type="submit" variant="primary" size="action" disabled={saving || !accounts.length}>
                   {saving ? 'Menyimpan…' : 'Simpan jurnal'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Dialog>
+
+          <Dialog open={cancelDialogEntry !== null} onOpenChange={(open) => !open && closeCancelJournal()} label="Konfirmasi pembatalan jurnal">
+            <form onSubmit={(event) => void handleCancelJournal(event)}>
+              <DialogHeader
+                title="Batalkan jurnal manual"
+                description={cancelDialogEntry ? `Jurnal ${cancelDialogEntry.voucherNumber} akan dibatalkan.` : undefined}
+                onClose={closeCancelJournal}
+              />
+              <div className="flex flex-col gap-4 p-5 sm:p-6">
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Alasan pembatalan
+                  <textarea
+                    value={cancelReason}
+                    onChange={(event) => {
+                      setCancelReason(event.target.value)
+                      setCancelFieldErrors((current) => ({ ...current, alasan: [] }))
+                    }}
+                    aria-invalid={Boolean(cancelFieldErrors.alasan?.length)}
+                    aria-describedby={cancelFieldErrors.alasan?.length ? 'journal-cancel-reason-error' : undefined}
+                    required
+                    className="min-h-24 rounded-xl border border-border bg-white px-4 py-3 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                  />
+                  {cancelFieldErrors.alasan?.[0] && <span id="journal-cancel-reason-error" className="text-sm font-medium text-destructive" role="alert">{cancelFieldErrors.alasan[0]}</span>}
+                </label>
+                {cancelError && <p className="text-sm font-medium text-destructive" role="alert">{cancelError}</p>}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" size="action" disabled={saving} onClick={closeCancelJournal}>Batal</Button>
+                <Button type="submit" variant="primary" size="action" disabled={saving}>
+                  {saving ? 'Memproses…' : 'Konfirmasi pembatalan'}
                 </Button>
               </DialogFooter>
             </form>

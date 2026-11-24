@@ -129,6 +129,7 @@ export type PenggajianDetail = {
   gaji_bersih: Uang
 }
 export type PeriodeKembalikanRequest = { catatan: string }
+export type PeriodePembatalanRequest = { catatan: string }
 export type PeriodeBayarRequest = { tanggal_bayar: Tanggal; akun_kas_id: Id; catatan?: string }
 export type SlipListQuery = {
   karyawan_id?: Id

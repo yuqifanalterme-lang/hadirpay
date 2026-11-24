@@ -1,7 +1,7 @@
 import { apiRequest, ApiError, type ApiMeta } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
-import type { Akun, BukuBesar, Jurnal, JurnalCreateRequest, JurnalListQuery, NeracaSaldo } from '@/lib/types/akuntansi'
+import type { Akun, BukuBesar, Jurnal, JurnalBatalkanRequest, JurnalCreateRequest, JurnalListQuery, NeracaSaldo } from '@/lib/types/akuntansi'
 import {
   createAccount as createAccountMock,
   deleteAccount as deleteAccountMock,
@@ -69,6 +69,10 @@ function toJournal(entry: Jurnal): JournalEntry {
     voucherNumber: entry.nomor_bukti,
     description: entry.keterangan,
     type: entry.sumber === 'otomatis' ? 'Otomatis' : 'Manual',
+    status: entry.status,
+    dibatalkan_oleh: entry.dibatalkan_oleh,
+    dibatalkan_pada: entry.dibatalkan_pada,
+    alasan_pembatalan: entry.alasan_pembatalan,
     sourcePeriodId: entry.periode_gaji ? String(entry.periode_gaji.id) : null,
     sourcePeriodLabel: entry.periode_gaji?.periode ?? null,
     totalDebit: entry.total_debit,
@@ -133,7 +137,7 @@ export async function listPayrollCashAccounts(): Promise<Akun[]> {
 
 export async function listJournalEntries(): Promise<JournalEntry[]> {
   if (config.mock.akuntansi) return (await listJournalEntriesMock()).map(withMockJournalTotals)
-  const result = await apiRequest<Jurnal[]>('jurnal')
+  const result = await apiRequest<Jurnal[]>('jurnal', { params: { status: 'aktif' } })
   return result.data.map(toJournal)
 }
 
@@ -151,8 +155,13 @@ export async function listJournalEntriesPage(query: JurnalListQuery = {}): Promi
     )
     return pageResult(filtered, query.page, query.per_page)
   }
-  const result = await apiRequest<Jurnal[]>('jurnal', { params: query })
+  const result = await apiRequest<Jurnal[]>('jurnal', { params: { ...query, status: query.status ?? 'aktif' } })
   return { items: result.data.map(toJournal), meta: requireMeta(result.meta) }
+}
+
+export async function cancelManualJournal(id: string | number, body: JurnalBatalkanRequest): Promise<Jurnal> {
+  const result = await apiRequest<Jurnal>(`jurnal/${parseId(String(id))}`, { method: 'DELETE', body })
+  return result.data
 }
 
 export async function saveManualJournal(input: {

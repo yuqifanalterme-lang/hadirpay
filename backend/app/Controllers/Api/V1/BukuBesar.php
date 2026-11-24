@@ -33,6 +33,7 @@ class BukuBesar extends BaseController
                 ->select('COALESCE(SUM(dj.debit),0) AS d, COALESCE(SUM(dj.kredit),0) AS k', false)
                 ->join('jurnal j', 'j.id = dj.jurnal_id')
                 ->where('dj.akun_id', $akunId)
+                ->where('j.status', 'aktif')
                 ->where('j.tanggal <', $dari)
                 ->get()->getRowArray();
             $saldo = $hitung(AccountingService::sen($aw['d']), AccountingService::sen($aw['k']));
@@ -42,7 +43,8 @@ class BukuBesar extends BaseController
         $b = $db->table('detail_jurnal dj')
             ->select('j.id AS jurnal_id, j.tanggal, j.nomor_bukti, j.keterangan, dj.debit, dj.kredit')
             ->join('jurnal j', 'j.id = dj.jurnal_id')
-            ->where('dj.akun_id', $akunId);
+            ->where('dj.akun_id', $akunId)
+            ->where('j.status', 'aktif');
         if ($dari) {
             $b->where('j.tanggal >=', $dari);
         }

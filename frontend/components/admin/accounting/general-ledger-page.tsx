@@ -12,6 +12,7 @@ import { AccountingAccess, AccountingPageTitle } from "./accounting-shared";
 import { useAccountingRole } from "@/lib/hooks/use-accounting-role";
 import { formatAccountingDate } from "@/lib/accounting/journal";
 import { formatRupiah } from "@/lib/mock-data";
+import { accountingDataChangedEvent } from "@/lib/services/accounting-events";
 import type { AccountingAccount } from "@/lib/mock/accounting";
 import type { LedgerReport } from "@/lib/services/akuntansi.service";
 import {
@@ -77,11 +78,14 @@ export function GeneralLedgerPage() {
       }
     }
 
+    const refresh = () => void load();
+    window.addEventListener(accountingDataChangedEvent, refresh);
     if (role === "admin" || role === "keuangan" || role === "pemilik")
       void load();
     else if (role === "karyawan" || role === null) setLoading(false);
     return () => {
       active = false;
+      window.removeEventListener(accountingDataChangedEvent, refresh);
     };
   }, [role, accountCode, period, retry]);
 

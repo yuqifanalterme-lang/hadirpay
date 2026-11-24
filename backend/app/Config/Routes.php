@@ -123,6 +123,8 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('periode-gaji/(:num)/kembalikan', 'PeriodeGaji::kembalikan/$1');
             $routes->post('periode-gaji/(:num)/setujui', 'PeriodeGaji::setujui/$1');
             $routes->post('periode-gaji/(:num)/bayar', 'PeriodeGaji::bayar/$1');
+            $routes->post('periode-gaji/(:num)/batalkan-pembayaran', 'PeriodeGaji::batalkanPembayaran/$1');
+            $routes->post('periode-gaji/(:num)/batalkan-persetujuan', 'PeriodeGaji::batalkanPersetujuan/$1');
 
             $routes->post('akun', 'Akun::create');
             $routes->get('dashboard/keuangan', 'Dashboard::keuangan');

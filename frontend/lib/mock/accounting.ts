@@ -27,6 +27,10 @@ export type JournalEntry = {
   voucherNumber: string
   description: string
   type: JournalType
+  status?: 'aktif' | 'dibatalkan'
+  dibatalkan_oleh?: { id: number; nama: string } | null
+  dibatalkan_pada?: string | null
+  alasan_pembatalan?: string | null
   sourcePeriodId: string | null
   sourcePeriodLabel: string | null
   totalDebit?: number

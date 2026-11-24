@@ -18,6 +18,7 @@ class NeracaSaldo extends BaseController
             ->select('a.id, a.kode, a.nama, COALESCE(SUM(dj.debit),0) AS d, COALESCE(SUM(dj.kredit),0) AS k', false)
             ->join('detail_jurnal dj', 'dj.akun_id = a.id')
             ->join('jurnal j', 'j.id = dj.jurnal_id')
+            ->where('j.status', 'aktif')
             ->where('j.tanggal <=', $sampai)
             ->groupBy('a.id, a.kode, a.nama')
             ->orderBy('a.kode', 'ASC')

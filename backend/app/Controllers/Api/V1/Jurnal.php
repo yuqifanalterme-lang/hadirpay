@@ -5,11 +5,12 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\BaseController;
 use App\Libraries\ApiResponse;
 use App\Libraries\JwtService;
+use App\Libraries\Tanggal;
 use App\Services\AccountingService;
 
 class Jurnal extends BaseController
 {
-    // GET /api/v1/jurnal?tanggal_dari=&tanggal_sampai=&sumber=&periode_gaji_id=&search=&page=1&per_page=10
+    // GET /api/v1/jurnal?tanggal_dari=&tanggal_sampai=&sumber=&periode_gaji_id=&status=aktif&search=&page=1&per_page=10
     public function index()
     {
         $db      = db_connect();
@@ -20,9 +21,14 @@ class Jurnal extends BaseController
         $sumber  = (string) $this->request->getGet('sumber');
         $pid     = (int) $this->request->getGet('periode_gaji_id');
         $q       = trim((string) $this->request->getGet('search'));
+        $stParam = trim((string) ($this->request->getGet('status') ?? ''));
+        $status  = in_array($stParam, ['aktif', 'dibatalkan'], true) ? $stParam : 'aktif';
 
-        $dasar = function () use ($db, $dari, $sampai, $sumber, $pid, $q) {
-            $b = $db->table('jurnal j')->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left');
+        $dasar = function () use ($db, $dari, $sampai, $sumber, $pid, $q, $status) {
+            $b = $db->table('jurnal j')
+                ->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
+                ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left')
+                ->where('j.status', $status);
             if ($dari) {
                 $b->where('j.tanggal >=', $dari);
             }
@@ -43,7 +49,7 @@ class Jurnal extends BaseController
 
         $total = $dasar()->countAllResults();
         $rows  = $dasar()
-            ->select('j.*, p.periode AS periode_kode')
+            ->select('j.*, p.periode AS periode_kode, ub.nama AS dibatalkan_oleh_nama')
             ->orderBy('j.tanggal', 'DESC')->orderBy('j.id', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->get()->getResultArray();
@@ -110,6 +116,9 @@ class Jurnal extends BaseController
         if ($row['sumber'] !== 'manual') {
             return ApiResponse::error('FORBIDDEN', 'Jurnal otomatis tidak boleh diubah atau dihapus', null, 403);
         }
+        if (($row['status'] ?? 'aktif') === 'dibatalkan') {
+            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Jurnal yang sudah dibatalkan tidak boleh diubah', null, 409);
+        }
 
         $in = $this->body();
         [$errors, $lines, $tanggal, $ket] = $this->validasi($in);
@@ -143,7 +152,7 @@ class Jurnal extends BaseController
         return ApiResponse::success($this->satu((int) $row['id']), 'Jurnal diperbarui');
     }
 
-    // DELETE /api/v1/jurnal/(:num)   (hanya jurnal manual)
+    // DELETE /api/v1/jurnal/(:num)   (hanya jurnal manual, soft delete -> status = dibatalkan)
     public function delete($id = null)
     {
         $db  = db_connect();
@@ -154,9 +163,21 @@ class Jurnal extends BaseController
         if ($row['sumber'] !== 'manual') {
             return ApiResponse::error('FORBIDDEN', 'Jurnal otomatis tidak boleh diubah atau dihapus', null, 403);
         }
+        if (($row['status'] ?? 'aktif') === 'dibatalkan') {
+            return ApiResponse::error('INVALID_STATUS_TRANSITION', 'Jurnal sudah dibatalkan', null, 409);
+        }
 
-        $db->table('jurnal')->where('id', (int) $id)->delete();
-        return ApiResponse::success(null, 'Jurnal dihapus');
+        $in     = $this->body();
+        $alasan = trim((string) ($in['alasan'] ?? ''));
+        if ($alasan === '' || mb_strlen($alasan) > 255) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'alasan' => 'Alasan pembatalan wajib diisi (maksimal 255 karakter)',
+            ], 422);
+        }
+
+        AccountingService::batalkanJurnal($db, (int) $id, $this->userId(), $alasan);
+
+        return ApiResponse::success($this->satu((int) $id), 'Jurnal dibatalkan');
     }
 
     // ---------- helper ----------
@@ -164,8 +185,9 @@ class Jurnal extends BaseController
     private function satu(int $id): ?array
     {
         $row = db_connect()->table('jurnal j')
-            ->select('j.*, p.periode AS periode_kode')
+            ->select('j.*, p.periode AS periode_kode, ub.nama AS dibatalkan_oleh_nama')
             ->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
+            ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left')
             ->where('j.id', $id)
             ->get()->getRowArray();
 
@@ -199,16 +221,20 @@ class Jurnal extends BaseController
         }
 
         return array_map(static fn ($r) => [
-            'id'           => (int) $r['id'],
-            'nomor_bukti'  => $r['nomor_bukti'],
-            'tanggal'      => $r['tanggal'],
-            'keterangan'   => $r['keterangan'],
-            'sumber'       => $r['sumber'],
-            'jenis'        => $r['jenis'],
-            'periode_gaji' => $r['periode_gaji_id'] !== null ? ['id' => (int) $r['periode_gaji_id'], 'periode' => $r['periode_kode']] : null,
-            'total_debit'  => (float) $r['total_debit'],
-            'total_kredit' => (float) $r['total_kredit'],
-            'detail'       => $per[(int) $r['id']] ?? [],
+            'id'                => (int) $r['id'],
+            'nomor_bukti'       => $r['nomor_bukti'],
+            'tanggal'           => $r['tanggal'],
+            'keterangan'        => $r['keterangan'],
+            'sumber'            => $r['sumber'],
+            'jenis'             => $r['jenis'],
+            'status'            => $r['status'] ?? 'aktif',
+            'periode_gaji'      => $r['periode_gaji_id'] !== null ? ['id' => (int) $r['periode_gaji_id'], 'periode' => $r['periode_kode']] : null,
+            'total_debit'       => (float) $r['total_debit'],
+            'total_kredit'      => (float) $r['total_kredit'],
+            'dibatalkan_oleh'   => $r['dibatalkan_oleh'] !== null ? ['id' => (int) $r['dibatalkan_oleh'], 'nama' => $r['dibatalkan_oleh_nama']] : null,
+            'dibatalkan_pada'   => Tanggal::waktuIso($r['dibatalkan_pada'] ?? null),
+            'alasan_pembatalan' => $r['alasan_pembatalan'] ?? null,
+            'detail'            => $per[(int) $r['id']] ?? [],
         ], $rows);
     }
 
@@ -306,10 +332,20 @@ class Jurnal extends BaseController
     private function body(): array
     {
         try {
-            return $this->request->getJSON(true) ?? [];
+            $json = $this->request->getJSON(true);
+            if (is_array($json)) {
+                return $json;
+            }
         } catch (\Throwable $e) {
-            return [];
         }
+        $raw = (string) $this->request->getBody();
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+        return $this->request->getRawInput() ?: [];
     }
 
     private function userId(): ?int

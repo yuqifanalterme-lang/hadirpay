@@ -286,6 +286,7 @@ class Laporan extends BaseController
         [$dari, $sampai, $periode] = $this->periode();
         $db = db_connect();
         $rows = $db->table('jurnal j')->select('j.*, p.periode', false)->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
+            ->where('j.status', 'aktif')
             ->where('j.jenis !=', 'manual')->where('p.periode', $periode)
             ->orderBy('j.tanggal', 'DESC')->get()->getResultArray();
         $debit = round(array_sum(array_column($rows, 'total_debit')), 2);
