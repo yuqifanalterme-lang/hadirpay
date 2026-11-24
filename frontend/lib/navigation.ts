@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   ClipboardList,
   Building2,
+  FileCheck2,
   FileChartColumn,
   Fingerprint,
   History,
@@ -38,6 +39,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
       label: 'Keuangan',
       items: [
         { label: 'Penggajian', href: '/app/penggajian', icon: Wallet, ready: true },
+        { label: 'Proses Penggajian', href: '/app/penggajian/proses', icon: FileCheck2, ready: true },
         { label: 'Slip Gaji', href: '/app/slip-gaji', icon: ReceiptText, ready: true },
         { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn, ready: true },
       ],
@@ -87,6 +89,7 @@ export const navGroupsByRole: Record<Role, NavGroup[]> = {
       label: 'Keuangan',
       items: [
         { label: 'Penggajian', href: '/app/penggajian', icon: Wallet, ready: true },
+        { label: 'Proses Penggajian', href: '/app/penggajian/proses', icon: FileCheck2, ready: true },
         { label: 'Slip Gaji', href: '/app/slip-gaji', icon: ReceiptText, ready: true },
         { label: 'Laporan', href: '/app/laporan', icon: FileChartColumn, ready: true },
       ],
