@@ -7,6 +7,7 @@ use App\Libraries\ApiResponse;
 use App\Libraries\JwtService;
 use App\Libraries\Tanggal;
 use App\Services\AccountingService;
+use App\Services\JournalSummary;
 
 class Jurnal extends BaseController
 {
@@ -50,8 +51,9 @@ class Jurnal extends BaseController
             return $b;
         };
 
-        $total = $dasar()->countAllResults();
-        $rows  = $dasar()
+        $total     = $dasar()->countAllResults();
+        $ringkasan = JournalSummary::fromFilteredQuery(static fn () => $dasar());
+        $rows      = $dasar()
             ->select('j.*, p.periode AS periode_kode, COALESCE(uc.nama, ub.nama) AS dibatalkan_oleh_nama', false)
             ->orderBy('j.tanggal', 'DESC')->orderBy('j.id', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
@@ -62,7 +64,7 @@ class Jurnal extends BaseController
             'per_page'    => $perPage,
             'total'       => $total,
             'total_pages' => (int) ceil($total / $perPage),
-        ]);
+        ], 200, ['ringkasan' => $ringkasan]);
     }
 
     // GET /api/v1/jurnal/(:num)

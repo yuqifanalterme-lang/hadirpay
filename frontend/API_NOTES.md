@@ -19,7 +19,7 @@ not used as the source of truth.
 | Pengajuan | SELESAI | Employee/admin lists call `/pengajuan` with UI filters, 300 ms debounced search, date range, and pagination; status summary cards use response `ringkasan`. The create adapter sends distinct contract bodies: izin/sakit/cuti include `tanggal_selesai` and optional `lampiran`; koreksi_absensi and lembur omit `tanggal_selesai` and send their respective time fields. Approval/rejection, bulk approval, cancellation, and quota use service adapters. API validation errors are shown on matching form fields. | Mock mode applies the same filters and pagination in the adapter. Bulk rejection is not exposed as a screen action; single-item rejection requires `alasan_penolakan`. |
 | Dashboard | SELESAI | Admin, employee, finance, and owner dashboards call the role endpoint through the dashboard service. Dashboard request `jenis` fields use the contract enum; live screens use values returned by the API; greetings use `/auth/me`, and admin/employee topbar dates use dashboard response dates. | `NEXT_PUBLIC_MOCK_DASHBOARD` controls the module and falls back to `NEXT_PUBLIC_USE_MOCK`. Mock greetings/date and the employee attendance clock remain unchanged. Finance/owner dashboard contracts have no date/time field, so live topbar dates are omitted rather than taken from the browser or an unconfirmed endpoint. |
 | Penggajian | SELESAI | Ringkasan memilih periode dari `GET /periode-gaji` dan memuat rincian sesuai periode terpilih. Komponen gaji mempertahankan `kode`, `nilai` null, dan `keterangan` dari API; PUT hanya mengirim field yang berubah. Daftar hasil per periode dan daftar slip meneruskan `page`/`per_page`, membawa `meta` ke halaman, dan menampilkan pagination. Detail periode, rekap absensi, hitung, ajukan-validasi, kembalikan, setujui, bayar, pembatalan pembayaran/persetujuan, detail slip, dan PDF memakai service pada live mode. | Mock mode tetap memakai data contoh dan service daftar hasil memaginasi data demo. Tidak ada successful live round-trip yang tervalidasi. |
-| Akuntansi | SELESAI | `GET /akun` dipanggil tanpa query dan tanpa ketergantungan pada `meta`; pencarian dan pagination akun dilakukan di sisi klien. Daftar jurnal meneruskan `search`, rentang tanggal, `sumber`, `status`, `periode_gaji_id`, `page`, dan `per_page`; status default `aktif`, sedangkan metadata pembatalan ditampilkan pada jurnal berstatus `dibatalkan`. Pembatalan jurnal manual memakai `DELETE /jurnal/{id}` dengan `alasan` wajib. Total debit/kredit per jurnal berasal dari respons jurnal, sedangkan status seimbang hanya dari neraca-saldo. Error validasi jurnal manual dipetakan ke tanggal, keterangan, akun, atau nominal. CRUD akun serta jurnal manual hanya tersedia bagi Keuangan. | Admin/HRD dan Pemilik read-only. Adapter mock mempertahankan daftar akun dan jurnal demo serta pagination di sisi klien; akun yang sudah dipakai jurnal tidak dapat dihapus. |
+| Akuntansi | SELESAI | `GET /akun` dipanggil tanpa query dan tanpa ketergantungan pada `meta`; pencarian dan pagination akun dilakukan di sisi klien. Daftar jurnal meneruskan `search`, rentang tanggal, `sumber`, `status`, `periode_gaji_id`, `page`, dan `per_page`; status default `aktif`, sedangkan metadata pembatalan ditampilkan pada jurnal berstatus `dibatalkan`. Respons daftar jurnal menyertakan `ringkasan` debit, kredit, selisih, status seimbang, dan jumlah jurnal dari seluruh hasil filter sebelum pagination, tanpa jurnal dibatalkan. Nominal ringkasan memakai string desimal dua digit agar tetap presisi. Footer total tampil pada daftar berisi maupun kosong. Pembatalan jurnal manual memakai `DELETE /jurnal/{id}` dengan `alasan` wajib. Error validasi jurnal manual dipetakan ke tanggal, keterangan, akun, atau nominal. CRUD akun serta jurnal manual hanya tersedia bagi Keuangan. | Admin/HRD dan Pemilik read-only. Adapter mock mempertahankan daftar akun dan jurnal demo serta pagination di sisi klien; akun yang sudah dipakai jurnal tidak dapat dihapus. |
 | Laporan | SELESAI | Tujuh laporan memanggil service dengan filter `periode` atau rentang periode/tanggal, `departemen_id`, `page`, dan `per_page`. Grafik memetakan `nilai_a` dan `nilai_b` ke dua seri dengan legend. | Katalog tetap mock karena kontrak tidak menyediakan endpoint katalog. Demo mendukung pilihan satu periode; rentang yang tidak dapat direpresentasikan oleh data demo menghasilkan keadaan kosong. |
 | Notifikasi | SELESAI | Topbar memanggil `GET /notifikasi` dengan `page`/`per_page`, menambah halaman berikutnya tanpa duplikasi, menampilkan `jumlah_belum_dibaca`, dan memakai service untuk aksi baca satu/semua. | Mock mode memakai data demo dan pagination di adapter. |
 | Pengaturan | SEBAGIAN | Live settings, holidays, users/role/status changes, logo upload, and password reset use service calls. NPWP, kuota cuti, pembagi hari kerja, and potongan izin tanpa surat are mapped through GET/PUT. Seluruh `lokasi_absensi` disimpan di adapter; PUT mengirim kembali array lengkap dan hanya memperbarui lokasi yang diedit. API validation errors for settings map to related fields; general errors remain visible. | Metode potongan alpha tetap read-only karena belum ada pemetaan UI yang disepakati. Backend routes are not registered in the checked-in routes. |
@@ -70,19 +70,19 @@ not used as the source of truth.
   `JOURNAL_NOT_BALANCED`, and `INVALID_CREDENTIALS`.
 - Dashboard pengajuan `jenis` fields use the `JenisPengajuan` contract enum.
   `NotifikasiList` includes its `ApiListMeta` pagination metadata.
-- Assumption: status summary cards represent the filtered set before the selected
-  status filter, so changing `status` does not change `ringkasan`. Confirm this
-  behavior with the backend.
 - User reset-password displays the temporary password returned by the API in a
   success toast. Confirm with backend whether this response should instead be
   delivered through a one-time secure channel.
 - `GET /akun` follows contract section 8.1: it returns a plain list with no query
   parameters or pagination metadata. Search and paging are client-side.
-  `GET /jurnal` remains a paged list and requires its contract `meta`; each journal's
-  debit and credit totals are displayed from its response. Balance status is shown
-  only from `GET /neraca-saldo`.
-- Journal lists send `status=aktif` by default, or `status=dibatalkan` when selected.
-  The contract's `status`, `dibatalkan_oleh`, `dibatalkan_pada`, and
+  `GET /jurnal` remains a paged list and requires its contract `meta`. Its top-level
+  `ringkasan` aggregates integer cents with SQL `SUM` across every matching journal
+  before pagination, honors the active date/search/source/period/status filters, and
+  excludes cancelled journals. Its monetary fields are decimal strings with exactly
+  two fractional digits. The footer displays the balance status for the filtered set.
+- Journal lists send `status=aktif` by default, or `status=dibatalkan` or `status=semua`
+  when selected. The summary still excludes cancelled journals. The contract's
+  `status`, `dibatalkan_oleh`, `dibatalkan_pada`, and
   `alasan_pembatalan` fields are retained and shown for cancelled entries. Manual
   journal cancellation sends `DELETE /jurnal/{id}` with `{ alasan }`.
 - Payroll cancellation sends `POST /periode-gaji/{id}/batalkan-pembayaran` or

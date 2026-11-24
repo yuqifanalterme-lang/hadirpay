@@ -19,6 +19,15 @@ export function formatRupiah(value: number) {
   }).format(rounded)}`
 }
 
+export function formatRupiahDecimal(value: string) {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value)
+  if (!match) throw new RangeError('Nominal harus berupa angka dengan maksimal dua desimal.')
+
+  const integer = match[2].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const fraction = (match[3] ?? '').padEnd(2, '0')
+  return `Rp${match[1]}${integer}${fraction === '00' ? '' : `,${fraction}`}`
+}
+
 export const adminUser = { name: 'Rina Kartika', role: 'Admin HRD', initials: 'RK' }
 export const employeeUser = { name: 'Andi Wijaya', role: 'Staf Keuangan', initials: 'AW' }
 

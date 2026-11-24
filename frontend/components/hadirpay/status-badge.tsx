@@ -1,4 +1,5 @@
 import type { AttendanceStatus } from '@/lib/mock-data'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 export type StatusBadgeStatus =
@@ -44,9 +45,11 @@ const styles: Record<StatusBadgeStatus, string> = {
 export function StatusBadge({
   status,
   className,
+  children,
 }: {
   status: StatusBadgeStatus
   className?: string
+  children?: ReactNode
 }) {
   return (
     <span
@@ -56,7 +59,7 @@ export function StatusBadge({
         className,
       )}
     >
-      {status}
+      {children ?? status}
     </span>
   )
 }

@@ -25,6 +25,13 @@ export type JurnalListQuery = {
   page?: number
   per_page?: number
 }
+export type JurnalRingkasan = {
+  total_debit: string
+  total_kredit: string
+  selisih: string
+  seimbang: boolean
+  jumlah_jurnal: number
+}
 export type JurnalDetailItem = {
   akun_id: Id
   kode_akun: string
