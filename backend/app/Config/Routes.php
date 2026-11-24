@@ -113,13 +113,13 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
         // buat periode, hitung, ajukan validasi: admin_hrd
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd']], static function ($routes) {
             $routes->post('periode-gaji', 'PeriodeGaji::create');
-            $routes->delete('periode-gaji/(:num)', 'PeriodeGaji::delete/$1');
             $routes->post('periode-gaji/(:num)/hitung', 'PeriodeGaji::hitung/$1');
             $routes->post('periode-gaji/(:num)/ajukan-validasi', 'PeriodeGaji::ajukanValidasi/$1');
         });
 
-        // Pembatalan penggajian dan jurnal manual: admin_hrd dan keuangan.
+        // Pembatalan penggajian, hapus draf, dan hapus jurnal manual: admin_hrd dan keuangan.
         $routes->group('', ['filter' => ['auth', 'role:admin_hrd,keuangan']], static function ($routes) {
+            $routes->delete('periode-gaji/(:num)', 'PeriodeGaji::delete/$1');
             $routes->post('periode-gaji/(:num)/batalkan', 'PeriodeGaji::batalkan/$1');
             $routes->delete('jurnal/(:num)', 'Jurnal::delete/$1');
         });

@@ -1,7 +1,7 @@
 import { apiRequest, ApiError, type ApiMeta } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
-import type { Akun, BukuBesar, Jurnal, JurnalBatalkanRequest, JurnalCreateRequest, JurnalListQuery, NeracaSaldo } from '@/lib/types/akuntansi'
+import type { Akun, BukuBesar, Jurnal, JurnalBatalkanRequest, JurnalCreateRequest, JurnalListQuery, JurnalRingkasan, NeracaSaldo } from '@/lib/types/akuntansi'
 import {
   createAccount as createAccountMock,
   deleteAccount as deleteAccountMock,
@@ -13,7 +13,7 @@ import {
   updateAccount as updateAccountMock,
 } from './accounting-service'
 
-export type AccountingPage<T> = { items: T[]; meta: ApiMeta }
+export type AccountingPage<T> = { items: T[]; meta: ApiMeta; ringkasan: JurnalRingkasan }
 
 export type LedgerMovement = {
   entry: JournalEntry
@@ -111,7 +111,47 @@ function requireMeta(meta: ApiMeta | undefined): ApiMeta {
   return meta
 }
 
-function pageResult<T>(items: T[], page = 1, perPage = 10): AccountingPage<T> {
+function isJurnalRingkasan(value: unknown): value is JurnalRingkasan {
+  if (typeof value !== 'object' || value === null) return false
+  const ringkasan = value as Record<string, unknown>
+  const nominalValid = (nominal: unknown) =>
+    typeof nominal === 'string' && /^-?\d+\.\d{2}$/.test(nominal)
+  return nominalValid(ringkasan.total_debit) &&
+    nominalValid(ringkasan.total_kredit) &&
+    nominalValid(ringkasan.selisih) &&
+    typeof ringkasan.seimbang === 'boolean' &&
+    typeof ringkasan.jumlah_jurnal === 'number' &&
+    Number.isSafeInteger(ringkasan.jumlah_jurnal)
+}
+
+function requireRingkasan(value: unknown): JurnalRingkasan {
+  if (!isJurnalRingkasan(value)) {
+    throw new ApiError(200, 'INVALID_RESPONSE', 'Respons daftar jurnal tidak menyertakan ringkasan yang valid.')
+  }
+  return value
+}
+
+function amountFromCents(cents: number) {
+  const absolute = Math.abs(cents)
+  return `${cents < 0 ? '-' : ''}${Math.floor(absolute / 100)}.${String(absolute % 100).padStart(2, '0')}`
+}
+
+function summarizeJournalEntries(entries: JournalEntry[]): JurnalRingkasan {
+  const activeEntries = entries.filter((entry) => entry.status !== 'dibatalkan')
+  const debitCents = activeEntries.reduce((sum, entry) => sum + Math.round((entry.totalDebit ?? 0) * 100), 0)
+  const creditCents = activeEntries.reduce((sum, entry) => sum + Math.round((entry.totalCredit ?? 0) * 100), 0)
+  const differenceCents = Math.abs(debitCents - creditCents)
+
+  return {
+    total_debit: amountFromCents(debitCents),
+    total_kredit: amountFromCents(creditCents),
+    selisih: amountFromCents(differenceCents),
+    seimbang: differenceCents === 0,
+    jumlah_jurnal: activeEntries.length,
+  }
+}
+
+function pageResult<T>(items: T[], ringkasan: JurnalRingkasan, page = 1, perPage = 10): AccountingPage<T> {
   const start = (page - 1) * perPage
   return {
     items: items.slice(start, start + perPage),
@@ -121,6 +161,7 @@ function pageResult<T>(items: T[], page = 1, perPage = 10): AccountingPage<T> {
       total: items.length,
       total_pages: Math.max(1, Math.ceil(items.length / perPage)),
     },
+    ringkasan,
   }
 }
 
@@ -146,6 +187,7 @@ export async function listJournalEntriesPage(query: JurnalListQuery = {}): Promi
     const entries = (await listJournalEntriesMock()).map(withMockJournalTotals)
     const search = query.search?.trim().toLocaleLowerCase('id-ID')
     const filtered = entries.filter((entry) =>
+      (query.status === 'semua' || (entry.status ?? 'aktif') === (query.status ?? 'aktif')) &&
       (!query.tanggal_dari || entry.date >= query.tanggal_dari) &&
       (!query.tanggal_sampai || entry.date <= query.tanggal_sampai) &&
       (!query.sumber || entry.type.toLocaleLowerCase('id-ID') === query.sumber) &&
@@ -153,10 +195,14 @@ export async function listJournalEntriesPage(query: JurnalListQuery = {}): Promi
       (!search || [entry.voucherNumber, entry.description, ...entry.lines.flatMap((line) => [line.accountCode, line.accountName])]
         .some((value) => value.toLocaleLowerCase('id-ID').includes(search))),
     )
-    return pageResult(filtered, query.page, query.per_page)
+    return pageResult(filtered, summarizeJournalEntries(filtered), query.page, query.per_page)
   }
-  const result = await apiRequest<Jurnal[]>('jurnal', { params: { ...query, status: query.status ?? 'aktif' } })
-  return { items: result.data.map(toJournal), meta: requireMeta(result.meta) }
+  const result = await apiRequest<Jurnal[], { ringkasan: JurnalRingkasan }>('jurnal', { params: { ...query, status: query.status ?? 'aktif' } })
+  return {
+    items: result.data.map(toJournal),
+    meta: requireMeta(result.meta),
+    ringkasan: requireRingkasan(result.ringkasan),
+  }
 }
 
 export async function cancelManualJournal(id: string | number, body: JurnalBatalkanRequest): Promise<Jurnal> {

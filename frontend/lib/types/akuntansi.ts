@@ -19,11 +19,18 @@ export type JurnalListQuery = {
   tanggal_dari?: Tanggal
   tanggal_sampai?: Tanggal
   sumber?: 'otomatis' | 'manual'
-  status?: 'aktif' | 'dibatalkan'
+  status?: 'aktif' | 'dibatalkan' | 'semua'
   periode_gaji_id?: Id
   search?: string
   page?: number
   per_page?: number
+}
+export type JurnalRingkasan = {
+  total_debit: string
+  total_kredit: string
+  selisih: string
+  seimbang: boolean
+  jumlah_jurnal: number
 }
 export type JurnalDetailItem = {
   akun_id: Id

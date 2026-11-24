@@ -15,11 +15,12 @@ import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { AccountingAccess, AccountingPageTitle } from './accounting-shared'
 import { useAccountingRole } from '@/lib/hooks/use-accounting-role'
 import { formatAccountingDate } from '@/lib/accounting/journal'
-import { formatRupiah } from '@/lib/mock-data'
+import { formatRupiah, formatRupiahDecimal } from '@/lib/mock-data'
 import type { AccountingAccount, JournalEntry } from '@/lib/mock/accounting'
 import { cancelManualJournal, listAccounts, listJournalEntriesPage, saveManualJournal } from '@/lib/services/akuntansi.service'
 import { accountingDataChangedEvent, notifyAccountingDataChanged } from '@/lib/services/accounting-events'
 import { ApiError, type ApiErrorFields } from '@/lib/api/client'
+import type { JurnalRingkasan } from '@/lib/types/akuntansi'
 
 function FormAccountSelect({
   label,
@@ -59,12 +60,13 @@ export function JournalPage() {
   const role = useAccountingRole()
   const [accounts, setAccounts] = useState<AccountingAccount[]>([])
   const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [summary, setSummary] = useState<JurnalRingkasan | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [source, setSource] = useState('')
-  const [status, setStatus] = useState<'aktif' | 'dibatalkan'>('aktif')
+  const [status, setStatus] = useState<'aktif' | 'dibatalkan' | 'semua'>('aktif')
   const [periodId, setPeriodId] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -95,6 +97,14 @@ export function JournalPage() {
     'total_kredit',
     'nominal',
   ].flatMap((field) => fieldErrors[field] ?? []).filter((message) => message.trim()).join(' ')
+  const hasFilters = Boolean(
+    debouncedSearch.trim() ||
+    dateFrom ||
+    dateTo ||
+    source ||
+    (periodId && Number(periodId) > 0) ||
+    status !== 'aktif',
+  )
 
   async function load() {
     setLoading(true)
@@ -121,6 +131,7 @@ export function JournalPage() {
       }
       setAccounts(nextAccounts)
       setEntries(journalPage.items)
+      setSummary(journalPage.ringkasan)
       setMeta({ total: journalPage.meta.total, total_pages: totalPages })
       setDebitAccountCode((current) => current || nextAccounts[0]?.code || '')
       setCreditAccountCode((current) => current || nextAccounts[1]?.code || '')
@@ -240,7 +251,7 @@ export function JournalPage() {
 
   return (
     <AccountingAccess role={role}>
-      {loading ? <PageLoadingSkeleton label="jurnal umum" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : (
+      {loading ? <PageLoadingSkeleton label="jurnal umum" /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : !summary ? <ErrorState message="Ringkasan jurnal tidak tersedia." onRetry={() => void load()} /> : (
         <div className="flex flex-col gap-6">
           <AccountingPageTitle
             title="Jurnal umum"
@@ -273,9 +284,10 @@ export function JournalPage() {
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                 Status
-                <select value={status} onChange={(event) => { setStatus(event.target.value as 'aktif' | 'dibatalkan'); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4">
+                <select value={status} onChange={(event) => { setStatus(event.target.value as 'aktif' | 'dibatalkan' | 'semua'); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4">
                   <option value="aktif">Aktif</option>
                   <option value="dibatalkan">Dibatalkan</option>
+                  <option value="semua">Semua status</option>
                 </select>
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
@@ -297,35 +309,35 @@ export function JournalPage() {
                 </select>
               </label>
             </div>
-            {entries.length === 0 ? (
+            {entries.length === 0 && (
               <EmptyState
                 title="Belum ada jurnal"
                 description="Jurnal payroll otomatis muncul setelah penggajian disetujui. Anda juga dapat membuat jurnal manual."
                 icon={ReceiptText}
                 action={canCreate ? <Button type="button" variant="primary" size="action" onClick={() => setDialogOpen(true)}>Buat jurnal manual</Button> : undefined}
               />
-            ) : (
-              <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
-                  <caption className="sr-only">Rincian jurnal umum dan akun-akun yang terposting</caption>
-                  <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
-                    <tr>
-                      <th scope="col" className="px-3 py-3">Tanggal</th>
-                      <th scope="col" className="px-3 py-3">No. bukti</th>
-                      <th scope="col" className="px-3 py-3">Jenis</th>
-                      <th scope="col" className="px-3 py-3">Akun</th>
-                      <th scope="col" className="px-3 py-3 text-right">Debit</th>
-                      <th scope="col" className="px-3 py-3 text-right">Kredit</th>
-                      <th scope="col" className="px-3 py-3 text-right">Total debit</th>
-                      <th scope="col" className="px-3 py-3 text-right">Total kredit</th>
-                      <th scope="col" className="px-3 py-3">Keterangan</th>
-                      <th scope="col" className="px-3 py-3">Sumber</th>
-                      <th scope="col" className="px-3 py-3">Status</th>
-                      <th scope="col" className="px-3 py-3">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {entries.flatMap((entry) => entry.lines.map((line, index) => (
+            )}
+            <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
+                <caption className="sr-only">Rincian jurnal umum dan akun-akun yang terposting</caption>
+                <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-3 py-3">Tanggal</th>
+                    <th scope="col" className="px-3 py-3">No. bukti</th>
+                    <th scope="col" className="px-3 py-3">Jenis</th>
+                    <th scope="col" className="px-3 py-3">Akun</th>
+                    <th scope="col" className="px-3 py-3 text-right">Debit</th>
+                    <th scope="col" className="px-3 py-3 text-right">Kredit</th>
+                    <th scope="col" className="px-3 py-3 text-right">Total debit</th>
+                    <th scope="col" className="px-3 py-3 text-right">Total kredit</th>
+                    <th scope="col" className="px-3 py-3">Keterangan</th>
+                    <th scope="col" className="px-3 py-3">Sumber</th>
+                    <th scope="col" className="px-3 py-3">Status</th>
+                    <th scope="col" className="px-3 py-3">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {entries.flatMap((entry) => entry.lines.map((line, index) => (
                       <tr key={`${entry.id}-${line.accountCode}`} className={entry.status === 'dibatalkan' ? 'bg-surface/70 text-muted-foreground' : 'hover:bg-surface/70'}>
                         <td className="whitespace-nowrap px-3 py-3">{index === 0 ? formatAccountingDate(entry.date) : ''}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-semibold tabular-nums text-heading">{index === 0 ? entry.voucherNumber : ''}</td>
@@ -370,19 +382,48 @@ export function JournalPage() {
                               icon={Trash2}
                               tone="red"
                               onClick={() => {
-                              setCancelDialogEntry(entry)
-                              setCancelFieldErrors({})
-                              setCancelError('')
+                                setCancelDialogEntry(entry)
+                                setCancelFieldErrors({})
+                                setCancelError('')
                               }}
                             />
                           )}
                         </td>
                       </tr>
-                    )))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  )))}
+                </tbody>
+                <tfoot className="border-t-2 border-border bg-surface">
+                  <tr>
+                    <th scope="row" colSpan={4} className="px-3 py-3 text-left">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div>
+                          <p className="font-bold text-heading">TOTAL KESELURUHAN</p>
+                          <p className="mt-1 text-xs font-normal text-muted-foreground">
+                            {hasFilters ? `Sesuai filter (${summary.jumlah_jurnal} jurnal)` : `Semua jurnal (${summary.jumlah_jurnal})`}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          status={summary.seimbang ? 'Seimbang' : 'Tidak seimbang'}
+                          className="max-w-full whitespace-normal text-left"
+                        >
+                          {summary.seimbang
+                            ? 'Seimbang'
+                            : `Tidak seimbang · selisih ${formatRupiahDecimal(summary.selisih)}`}
+                        </StatusBadge>
+                      </div>
+                    </th>
+                    <td colSpan={2} className="px-3 py-3" />
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-heading">
+                      {formatRupiahDecimal(summary.total_debit)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-heading">
+                      {formatRupiahDecimal(summary.total_kredit)}
+                    </td>
+                    <td colSpan={4} className="px-3 py-3" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground" aria-live="polite">
                 Halaman {page} dari {Math.max(1, meta?.total_pages ?? 1)} · {meta?.total ?? entries.length} jurnal

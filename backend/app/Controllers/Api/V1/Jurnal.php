@@ -7,6 +7,7 @@ use App\Libraries\ApiResponse;
 use App\Libraries\JwtService;
 use App\Libraries\Tanggal;
 use App\Services\AccountingService;
+use App\Services\JournalSummary;
 
 class Jurnal extends BaseController
 {
@@ -22,14 +23,16 @@ class Jurnal extends BaseController
         $pid     = (int) $this->request->getGet('periode_gaji_id');
         $q       = trim((string) $this->request->getGet('search'));
         $stParam = trim((string) ($this->request->getGet('status') ?? ''));
-        $status  = in_array($stParam, ['aktif', 'dibatalkan'], true) ? $stParam : 'aktif';
+        $status  = in_array($stParam, ['aktif', 'dibatalkan', 'semua'], true) ? $stParam : 'aktif';
 
         $dasar = function () use ($db, $dari, $sampai, $sumber, $pid, $q, $status) {
             $b = $db->table('jurnal j')
                 ->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
                 ->join('users uc', 'uc.id = j.cancelled_by', 'left')
-                ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left')
-                ->where('j.status', $status);
+                ->join('users ub', 'ub.id = j.dibatalkan_oleh', 'left');
+            if ($status !== 'semua') {
+                $b->where('j.status', $status);
+            }
             if ($dari) {
                 $b->where('j.tanggal >=', $dari);
             }
@@ -48,8 +51,9 @@ class Jurnal extends BaseController
             return $b;
         };
 
-        $total = $dasar()->countAllResults();
-        $rows  = $dasar()
+        $total     = $dasar()->countAllResults();
+        $ringkasan = JournalSummary::fromFilteredQuery(static fn () => $dasar());
+        $rows      = $dasar()
             ->select('j.*, p.periode AS periode_kode, COALESCE(uc.nama, ub.nama) AS dibatalkan_oleh_nama', false)
             ->orderBy('j.tanggal', 'DESC')->orderBy('j.id', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
@@ -60,7 +64,7 @@ class Jurnal extends BaseController
             'per_page'    => $perPage,
             'total'       => $total,
             'total_pages' => (int) ceil($total / $perPage),
-        ]);
+        ], 200, ['ringkasan' => $ringkasan]);
     }
 
     // GET /api/v1/jurnal/(:num)

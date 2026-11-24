@@ -23,11 +23,12 @@ const requestTypeToApi: Record<RequestType, JenisPengajuan> = {
   'Koreksi Absensi': 'koreksi_absensi',
   Lembur: 'lembur',
 }
-const periodStatusLabels: Record<StatusPeriode, Extract<StatusBadgeStatus, 'Draft' | 'Menunggu validasi keuangan' | 'Disetujui' | 'Dibayar'>> = {
+const periodStatusLabels: Record<StatusPeriode, Extract<StatusBadgeStatus, 'Draft' | 'Menunggu validasi keuangan' | 'Disetujui' | 'Dibayar' | 'Dibatalkan'>> = {
   draft: 'Draft',
   menunggu_validasi: 'Menunggu validasi keuangan',
   disetujui: 'Disetujui',
   dibayar: 'Dibayar',
+  dibatalkan: 'Dibatalkan',
 }
 
 export async function getFinanceDashboardView() {
