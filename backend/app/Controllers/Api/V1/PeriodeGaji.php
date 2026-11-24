@@ -171,9 +171,26 @@ class PeriodeGaji extends BaseController
                 'jurnal_pengakuan_id' => null,
                 'jurnal_pembayaran_id' => null,
             ]);
-            $db->table('jurnal')->where('periode_gaji_id', (int) $id)->where('status', 'dibatalkan')->update([
-                'periode_gaji_id' => null,
-            ]);
+            if ($db->fieldExists('reversal_of', 'jurnal')) {
+                $db->table('jurnal')->where('periode_gaji_id', (int) $id)->update(['reversal_of' => null]);
+            }
+            $jurnalIds = array_map('intval', array_column(
+                $db->table('jurnal')->select('id')->where('periode_gaji_id', (int) $id)->get()->getResultArray(),
+                'id'
+            ));
+            if ($jurnalIds) {
+                $db->table('detail_jurnal')->whereIn('jurnal_id', $jurnalIds)->delete();
+                $db->table('jurnal')->whereIn('id', $jurnalIds)->delete();
+            }
+            $penggajianIds = array_map('intval', array_column(
+                $db->table('penggajian')->select('id')->where('periode_gaji_id', (int) $id)->get()->getResultArray(),
+                'id'
+            ));
+            if ($penggajianIds) {
+                $db->table('slip_gaji')->whereIn('penggajian_id', $penggajianIds)->delete();
+                $db->table('detail_penggajian')->whereIn('penggajian_id', $penggajianIds)->delete();
+                $db->table('penggajian')->whereIn('id', $penggajianIds)->delete();
+            }
             $this->model->delete($id);
             $db->transCommit();
         } catch (\Throwable $e) {
@@ -437,10 +454,11 @@ class PeriodeGaji extends BaseController
         return ApiResponse::success($this->detail((int) $id), 'Persetujuan gaji dibatalkan, jurnal pengakuan dibatalkan dan slip gaji ditarik');
     }
 
-    // POST /api/v1/periode-gaji/(:num)/batalkan body: {"catatan":"..."}
+    // POST /api/v1/periode-gaji/(:num)/batalkan body: {"catatan":"..."} (atau "alasan" / "reason")
     public function batalkan($id = null)
     {
-        $catatan = trim((string) ($this->body()['catatan'] ?? ''));
+        $in = $this->body();
+        $catatan = trim((string) ($in['catatan'] ?? $in['alasan'] ?? $in['reason'] ?? ''));
         $db = db_connect();
         $db->transBegin();
 
@@ -547,6 +565,12 @@ class PeriodeGaji extends BaseController
 
         $pembuat = $db->table('users')->select('nama')->where('id', (int) $p['dibuat_oleh'])->get()->getRowArray();
 
+        $jurnalRows = $db->table('jurnal')
+            ->select('id, nomor_bukti, tanggal, keterangan, sumber, jenis, status, reversal_of, total_debit, total_kredit, cancel_reason, cancelled_by, cancelled_at')
+            ->where('periode_gaji_id', $id)
+            ->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+
         return [
             'id' => (int) $p['id'],
             'periode' => $p['periode'],
@@ -574,6 +598,21 @@ class PeriodeGaji extends BaseController
             ], $log),
             'jurnal_pengakuan_id' => $p['jurnal_pengakuan_id'] !== null ? (int) $p['jurnal_pengakuan_id'] : null,
             'jurnal_pembayaran_id' => $p['jurnal_pembayaran_id'] !== null ? (int) $p['jurnal_pembayaran_id'] : null,
+            'jurnal' => array_map(static fn($j) => [
+                'id' => (int) $j['id'],
+                'nomor_bukti' => $j['nomor_bukti'],
+                'tanggal' => $j['tanggal'],
+                'keterangan' => $j['keterangan'],
+                'sumber' => $j['sumber'],
+                'jenis' => $j['jenis'],
+                'status' => $j['status'] ?? 'aktif',
+                'reversal_of' => isset($j['reversal_of']) ? (int) $j['reversal_of'] : null,
+                'total_debit' => (float) $j['total_debit'],
+                'total_kredit' => (float) $j['total_kredit'],
+                'cancel_reason' => $j['cancel_reason'] ?? null,
+                'cancelled_by' => isset($j['cancelled_by']) ? (int) $j['cancelled_by'] : null,
+                'cancelled_at' => Tanggal::waktuIso($j['cancelled_at'] ?? null),
+            ], $jurnalRows),
         ];
     }
 

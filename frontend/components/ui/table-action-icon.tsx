@@ -19,7 +19,7 @@ const toneClasses = {
   blue: 'text-slate-500 hover:text-[#2563EB] focus-visible:text-[#2563EB] hover:[background-color:rgba(37,99,235,0.08)]',
   red: 'text-slate-500 hover:text-[#EF4444] focus-visible:text-[#EF4444] hover:[background-color:rgba(239,68,68,0.08)]',
   green: 'text-slate-500 hover:text-[#10B981] focus-visible:text-[#10B981] hover:[background-color:rgba(16,185,129,0.08)]',
-  amber: 'text-slate-500 hover:text-amber-600 focus-visible:text-amber-600',
+  amber: 'text-slate-500 hover:text-amber-600 focus-visible:text-amber-600 hover:[background-color:rgba(217,119,6,0.08)]',
 }
 
 export function TableActionIcon({

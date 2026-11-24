@@ -19,7 +19,7 @@ export type JurnalListQuery = {
   tanggal_dari?: Tanggal
   tanggal_sampai?: Tanggal
   sumber?: 'otomatis' | 'manual'
-  status?: 'aktif' | 'dibatalkan'
+  status?: 'aktif' | 'dibatalkan' | 'semua'
   periode_gaji_id?: Id
   search?: string
   page?: number

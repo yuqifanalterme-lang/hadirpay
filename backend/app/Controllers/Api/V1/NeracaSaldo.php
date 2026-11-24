@@ -14,13 +14,17 @@ class NeracaSaldo extends BaseController
         $v      = (string) $this->request->getGet('tanggal_sampai');
         $sampai = preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) ? $v : date('Y-m-d');
 
-        $rows = db_connect()->table('akun a')
+        $db = db_connect();
+        $b = $db->table('akun a')
             ->select('a.id, a.kode, a.nama, COALESCE(SUM(dj.debit),0) AS d, COALESCE(SUM(dj.kredit),0) AS k', false)
             ->join('detail_jurnal dj', 'dj.akun_id = a.id')
             ->join('jurnal j', 'j.id = dj.jurnal_id')
             ->where('j.status', 'aktif')
-            ->where('j.tanggal <=', $sampai)
-            ->groupBy('a.id, a.kode, a.nama')
+            ->where('j.tanggal <=', $sampai);
+        if ($db->fieldExists('reversal_of', 'jurnal')) {
+            $b->where('j.reversal_of IS NULL', null, false);
+        }
+        $rows = $b->groupBy('a.id, a.kode, a.nama')
             ->orderBy('a.kode', 'ASC')
             ->get()->getResultArray();
 

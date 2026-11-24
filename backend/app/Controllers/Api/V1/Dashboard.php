@@ -109,12 +109,16 @@ class Dashboard extends BaseController
 
     private function saldoAkun(string $kode, string $normal, ?string $dari = null, ?string $sampai = null): float
     {
-        $b = db_connect()->table('detail_jurnal dj')
+        $db = db_connect();
+        $b = $db->table('detail_jurnal dj')
             ->select('COALESCE(SUM(dj.debit), 0) AS d, COALESCE(SUM(dj.kredit), 0) AS k', false)
             ->join('akun a', 'a.id = dj.akun_id')
             ->join('jurnal j', 'j.id = dj.jurnal_id')
             ->where('a.kode', $kode)
             ->where('j.status', 'aktif');
+        if ($db->fieldExists('reversal_of', 'jurnal')) {
+            $b->where('j.reversal_of IS NULL', null, false);
+        }
         if ($dari !== null) {
             $b->where('j.tanggal >=', $dari);
         }

@@ -45,13 +45,32 @@ final class AccountingCancellationTest extends CIUnitTestCase
 
     public function testUnauthorizedRoleIsRejectedWith403(): void
     {
-        $error = PayrollCancellationPolicy::error('pemilik', [
-            'status' => 'dibayar',
+        foreach (['pemilik', 'karyawan', ''] as $role) {
+            $error = PayrollCancellationPolicy::error($role, [
+                'status' => 'dibayar',
+                'ditutup' => 0,
+            ], 'Koreksi');
+
+            $this->assertSame(403, $error['status']);
+            $this->assertSame('FORBIDDEN', $error['code']);
+        }
+    }
+
+    public function testEmptyReasonAndAlreadyCancelledPeriodAreRejected(): void
+    {
+        $emptyReason = PayrollCancellationPolicy::error('admin_hrd', [
+            'status' => 'disetujui',
+            'ditutup' => 0,
+        ], '   ');
+        $alreadyCancelled = PayrollCancellationPolicy::error('keuangan', [
+            'status' => 'dibatalkan',
             'ditutup' => 0,
         ], 'Koreksi');
 
-        $this->assertSame(403, $error['status']);
-        $this->assertSame('FORBIDDEN', $error['code']);
+        $this->assertSame(422, $emptyReason['status']);
+        $this->assertSame('VALIDATION_ERROR', $emptyReason['code']);
+        $this->assertSame(409, $alreadyCancelled['status']);
+        $this->assertSame('INVALID_STATUS_TRANSITION', $alreadyCancelled['code']);
     }
 
     public function testClosedPeriodAndAutomaticJournalDeletionAreRejected(): void
@@ -64,10 +83,15 @@ final class AccountingCancellationTest extends CIUnitTestCase
             'sumber' => 'otomatis',
             'status' => 'aktif',
         ]);
+        $manualAllowed = AccountingService::errorHapusJurnalLangsung([
+            'sumber' => 'manual',
+            'status' => 'aktif',
+        ]);
 
         $this->assertSame(409, $periodError['status']);
         $this->assertSame('PERIOD_CLOSED', $periodError['code']);
         $this->assertSame(403, $journalError['status']);
         $this->assertSame('FORBIDDEN', $journalError['code']);
+        $this->assertNull($manualAllowed);
     }
 }

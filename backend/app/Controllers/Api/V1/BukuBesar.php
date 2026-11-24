@@ -27,15 +27,20 @@ class BukuBesar extends BaseController
         $normalDebit = $akun['saldo_normal'] === 'debit';
         $hitung      = static fn (int $d, int $k): int => $normalDebit ? $d - $k : $k - $d;
 
+        $hasReversalCol = $db->fieldExists('reversal_of', 'jurnal');
+
         $saldo = 0;
         if ($dari) {
-            $aw = $db->table('detail_jurnal dj')
+            $awBuilder = $db->table('detail_jurnal dj')
                 ->select('COALESCE(SUM(dj.debit),0) AS d, COALESCE(SUM(dj.kredit),0) AS k', false)
                 ->join('jurnal j', 'j.id = dj.jurnal_id')
                 ->where('dj.akun_id', $akunId)
                 ->where('j.status', 'aktif')
-                ->where('j.tanggal <', $dari)
-                ->get()->getRowArray();
+                ->where('j.tanggal <', $dari);
+            if ($hasReversalCol) {
+                $awBuilder->where('j.reversal_of IS NULL', null, false);
+            }
+            $aw = $awBuilder->get()->getRowArray();
             $saldo = $hitung(AccountingService::sen($aw['d']), AccountingService::sen($aw['k']));
         }
         $saldoAwal = $saldo;
@@ -45,6 +50,9 @@ class BukuBesar extends BaseController
             ->join('jurnal j', 'j.id = dj.jurnal_id')
             ->where('dj.akun_id', $akunId)
             ->where('j.status', 'aktif');
+        if ($hasReversalCol) {
+            $b->where('j.reversal_of IS NULL', null, false);
+        }
         if ($dari) {
             $b->where('j.tanggal >=', $dari);
         }

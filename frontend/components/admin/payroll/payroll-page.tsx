@@ -244,7 +244,7 @@ export function PayrollPage() {
   const canCancelPayroll = (role === 'admin' || role === 'keuangan')
     && (period.status === 'Disetujui' || period.status === 'Dibayar')
     && !period.closed
-  const canDeleteDraft = role === 'admin' && period.status === 'Draft'
+  const canDeleteDraft = (role === 'admin' || role === 'keuangan') && period.status === 'Draft'
   const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
   return (
@@ -454,15 +454,19 @@ export function PayrollPage() {
                     value={cancellationNote}
                     onChange={(event) => {
                       setCancellationNote(event.target.value)
-                      setCancellationFieldErrors((current) => ({ ...current, catatan: [] }))
+                      setCancellationFieldErrors((current) => ({ ...current, catatan: [], alasan: [] }))
                     }}
-                    aria-invalid={Boolean(cancellationFieldErrors.catatan?.length)}
-                    aria-describedby={cancellationFieldErrors.catatan?.length ? 'payroll-cancellation-note-error' : undefined}
+                    aria-invalid={Boolean(cancellationFieldErrors.catatan?.length || cancellationFieldErrors.alasan?.length)}
+                    aria-describedby={(cancellationFieldErrors.catatan?.length || cancellationFieldErrors.alasan?.length) ? 'payroll-cancellation-note-error' : undefined}
                     className={`${fieldClass} min-h-24 py-3`}
                   />
-                  {cancellationFieldErrors.catatan?.[0] && <span id="payroll-cancellation-note-error" className="text-sm font-medium text-destructive" role="alert">{cancellationFieldErrors.catatan[0]}</span>}
+                  {(cancellationFieldErrors.catatan?.[0] ?? cancellationFieldErrors.alasan?.[0]) && (
+                    <span id="payroll-cancellation-note-error" className="text-sm font-medium text-destructive" role="alert">
+                      {cancellationFieldErrors.catatan?.[0] ?? cancellationFieldErrors.alasan?.[0]}
+                    </span>
+                  )}
                 </label>
-              )}
+              ) : null}
             </div>
           )}
           <DialogFooter>

@@ -64,7 +64,7 @@ export function JournalPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [source, setSource] = useState('')
-  const [status, setStatus] = useState<'aktif' | 'dibatalkan'>('aktif')
+  const [status, setStatus] = useState<'aktif' | 'dibatalkan' | 'semua'>('aktif')
   const [periodId, setPeriodId] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -273,9 +273,10 @@ export function JournalPage() {
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
                 Status
-                <select value={status} onChange={(event) => { setStatus(event.target.value as 'aktif' | 'dibatalkan'); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4">
+                <select value={status} onChange={(event) => { setStatus(event.target.value as 'aktif' | 'dibatalkan' | 'semua'); setPage(1) }} className="min-h-12 rounded-xl border border-border bg-white px-4">
                   <option value="aktif">Aktif</option>
                   <option value="dibatalkan">Dibatalkan</option>
+                  <option value="semua">Semua status</option>
                 </select>
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
@@ -370,9 +371,9 @@ export function JournalPage() {
                               icon={Trash2}
                               tone="red"
                               onClick={() => {
-                              setCancelDialogEntry(entry)
-                              setCancelFieldErrors({})
-                              setCancelError('')
+                                setCancelDialogEntry(entry)
+                                setCancelFieldErrors({})
+                                setCancelError('')
                               }}
                             />
                           )}
