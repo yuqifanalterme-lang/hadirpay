@@ -108,22 +108,26 @@ function toUiComponent(item: KomponenGaji): PayrollComponent {
   }
 }
 
-function requestComponent(component: Omit<PayrollComponent, 'isMock'> & { isMock?: true }): KomponenGajiWriteRequest {
-  if (!component.code?.trim()) {
-    throw new ApiError(422, 'COMPONENT_CODE_REQUIRED', 'Kode komponen wajib diisi.')
-  }
-  const methodMap: Record<PayrollComponent['method'], KomponenGaji['metode']> = {
+function methodToApi(method: PayrollComponent['method']): KomponenGaji['metode'] {
+  const values: Record<PayrollComponent['method'], KomponenGaji['metode']> = {
     'nominal tetap': 'nominal_tetap',
     persen: 'persen',
     'per hari': 'per_hari',
     'per jam': 'per_jam',
     'per menit': 'per_menit',
   }
+  return values[method]
+}
+
+function requestComponent(component: Omit<PayrollComponent, 'isMock'> & { isMock?: true }): KomponenGajiWriteRequest {
+  if (!component.code?.trim()) {
+    throw new ApiError(422, 'COMPONENT_CODE_REQUIRED', 'Kode komponen wajib diisi.')
+  }
   return {
     kode: component.code.trim(),
     nama: component.name,
     tipe: component.category,
-    metode: methodMap[component.method],
+    metode: methodToApi(component.method),
     nilai: component.amount,
     ...(component.description !== undefined ? { keterangan: component.description } : {}),
     aktif: component.active,
@@ -141,32 +145,26 @@ export async function savePayrollComponent(
 ): Promise<PayrollComponent[]> {
   if (config.mock.penggajian) return savePayrollComponentMock(component)
   const id = Number(component.id)
-  let result
   if (Number.isSafeInteger(id) && id > 0) {
     const current = (await listPayrollComponents()).find((item) => item.id === String(id))
     if (!current) throw new ApiError(404, 'COMPONENT_NOT_FOUND', 'Komponen gaji tidak ditemukan.')
     const code = component.code
     if (!code?.trim()) throw new ApiError(422, 'COMPONENT_CODE_REQUIRED', 'Kode komponen wajib diisi.')
-    const methodMap: Record<PayrollComponent['method'], KomponenGaji['metode']> = {
-      'nominal tetap': 'nominal_tetap',
-      persen: 'persen',
-      'per hari': 'per_hari',
-      'per jam': 'per_jam',
-      'per menit': 'per_menit',
-    }
     const body: Partial<KomponenGajiWriteRequest> = {}
-    if (code !== current.code) body.kode = code
+    if (code.trim() !== current.code) body.kode = code.trim()
     if (component.name !== current.name) body.nama = component.name
     if (component.category !== current.category) body.tipe = component.category
-    if (component.method !== current.method) body.metode = methodMap[component.method]
+    if (component.method !== current.method) body.metode = methodToApi(component.method)
     if (component.amount !== current.amount) body.nilai = component.amount
     if (component.active !== current.active) body.aktif = component.active
-    result = await apiRequest<KomponenGaji>(`komponen-gaji/${id}`, { method: 'PUT', body })
+    if (Object.keys(body).length > 0) {
+      await apiRequest<KomponenGaji>(`komponen-gaji/${id}`, { method: 'PUT', body })
+    }
   } else {
     const body = requestComponent(component)
-    result = await apiRequest<KomponenGaji>('komponen-gaji', { method: 'POST', body })
+    await apiRequest<KomponenGaji>('komponen-gaji', { method: 'POST', body })
   }
-  return [...(await listPayrollComponents()).filter((item) => item.id !== String(result.data.id)), toUiComponent(result.data)]
+  return listPayrollComponents()
 }
 
 export async function deletePayrollComponent(id: string): Promise<PayrollComponent[]> {

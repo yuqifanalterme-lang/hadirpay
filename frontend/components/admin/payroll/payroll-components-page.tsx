@@ -13,6 +13,7 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { config } from '@/lib/config'
+import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 import type { PayrollComponent, PayrollComponentCategory, PayrollComponentMethod } from '@/lib/mock/payroll'
 import {
   deletePayrollComponent,
@@ -52,6 +53,7 @@ export function PayrollComponentsPage() {
   const [editing, setEditing] = useState<PayrollComponent | null>(null)
   const [deleting, setDeleting] = useState<PayrollComponent | null>(null)
   const [form, setForm] = useState<FormValue>(blankForm)
+  const [fieldErrors, setFieldErrors] = useState<ApiErrorFields>({})
   const [saving, setSaving] = useState(false)
 
   async function load() {
@@ -79,6 +81,7 @@ export function PayrollComponentsPage() {
 
   function openForm(component?: PayrollComponent) {
     setEditing(component ?? null)
+    setFieldErrors({})
     setForm(component
       ? {
           code: component.code ?? '',
@@ -92,19 +95,55 @@ export function PayrollComponentsPage() {
     setFormOpen(true)
   }
 
+  function updateFormField<K extends keyof FormValue>(field: K, value: FormValue[K]) {
+    const apiField: Record<keyof FormValue, string> = {
+      code: 'kode',
+      name: 'nama',
+      category: 'tipe',
+      method: 'metode',
+      amount: 'nilai',
+      active: 'aktif',
+    }
+    setForm((current) => ({ ...current, [field]: value }))
+    setFieldErrors((current) => {
+      const next = { ...current }
+      delete next[apiField[field]]
+      return next
+    })
+  }
+
+  function renderFieldErrors(field: string, id: string) {
+    const messages = fieldErrors[field] ?? []
+    if (messages.length === 0) return null
+    return (
+      <span id={id} className="text-sm font-normal text-red-700" role="alert">
+        {messages.map((message, index) => <span key={`${field}-${index}`} className="block">{message}</span>)}
+      </span>
+    )
+  }
+
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const keepsAutomaticValue = editing?.amount === null && form.amount === '' && form.method === editing.method
-    const amount = keepsAutomaticValue ? null : Number(form.amount)
-    if (
-      !form.name.trim() ||
-      (!config.mock.penggajian && !form.code.trim()) ||
-      (!keepsAutomaticValue && (amount === null || !Number.isFinite(amount) || amount < 0))
-    ) {
-      toast.error('Isi nama dan nilai komponen dengan benar.')
+    const errors: ApiErrorFields = {}
+    const amountText = form.amount.trim()
+    const amount = amountText === '' ? null : Number(amountText)
+
+    if (!form.name.trim()) errors.nama = ['Nama komponen wajib diisi.']
+    if (!config.mock.penggajian && !form.code.trim()) errors.kode = ['Kode komponen wajib diisi.']
+    if (amountText !== '' && !Number.isFinite(amount)) {
+      errors.nilai = ['Nilai harus berupa angka.']
+    } else if (amount !== null && amount < 0) {
+      errors.nilai = ['Nilai tidak boleh negatif.']
+    } else if (form.method === 'persen' && amount !== null && amount > 100) {
+      errors.nilai = ['Nilai persen harus antara 0 sampai 100.']
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
       return
     }
 
+    setFieldErrors({})
     setSaving(true)
     try {
       const updated = await savePayrollComponent({
@@ -120,7 +159,13 @@ export function PayrollComponentsPage() {
       setFormOpen(false)
       toast.success(editing ? 'Komponen gaji diperbarui.' : 'Komponen gaji ditambahkan.')
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : 'Komponen gaji gagal disimpan.')
+      if (saveError instanceof ApiError && saveError.status === 422) {
+        const messages = Object.values(saveError.errors ?? {}).flat()
+        if (messages.length > 0) setFieldErrors(saveError.errors ?? {})
+        else toast.error('Data tidak valid')
+      } else {
+        toast.error(saveError instanceof Error ? saveError.message : 'Komponen gaji gagal disimpan.')
+      }
     } finally {
       setSaving(false)
     }
@@ -247,7 +292,7 @@ export function PayrollComponentsPage() {
       </Panel>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen} label={editing ? 'Ubah komponen gaji' : 'Tambah komponen gaji'} size="md">
-        <form onSubmit={(event) => void handleSave(event)}>
+        <form noValidate onSubmit={(event) => void handleSave(event)}>
           <DialogHeader
             title={editing ? 'Ubah komponen gaji' : 'Tambah komponen gaji'}
             description="Perubahan disimpan ke komponen gaji."
@@ -257,35 +302,82 @@ export function PayrollComponentsPage() {
             {!config.mock.penggajian && (
               <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
                 Kode komponen
-                <input className={inputClass} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required />
+                <input
+                  className={inputClass}
+                  value={form.code}
+                  onChange={(event) => updateFormField('code', event.target.value)}
+                  aria-invalid={Boolean(fieldErrors.kode?.length)}
+                  aria-describedby={fieldErrors.kode?.length ? 'component-code-error' : undefined}
+                />
+                {renderFieldErrors('kode', 'component-code-error')}
               </label>
             )}
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
               Nama komponen
-              <input className={inputClass} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+              <input
+                className={inputClass}
+                value={form.name}
+                onChange={(event) => updateFormField('name', event.target.value)}
+                aria-invalid={Boolean(fieldErrors.nama?.length)}
+                aria-describedby={fieldErrors.nama?.length ? 'component-name-error' : undefined}
+              />
+              {renderFieldErrors('nama', 'component-name-error')}
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
               Tipe
-              <select className={inputClass} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as PayrollComponentCategory })}>
+              <select
+                className={inputClass}
+                value={form.category}
+                onChange={(event) => updateFormField('category', event.target.value as PayrollComponentCategory)}
+                aria-invalid={Boolean(fieldErrors.tipe?.length)}
+                aria-describedby={fieldErrors.tipe?.length ? 'component-type-error' : undefined}
+              >
                 <option value="pendapatan">Pendapatan</option>
                 <option value="potongan">Potongan</option>
               </select>
+              {renderFieldErrors('tipe', 'component-type-error')}
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
               Metode
-              <select className={inputClass} value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value as PayrollComponentMethod })}>
+              <select
+                className={inputClass}
+                value={form.method}
+                onChange={(event) => updateFormField('method', event.target.value as PayrollComponentMethod)}
+                aria-invalid={Boolean(fieldErrors.metode?.length)}
+                aria-describedby={fieldErrors.metode?.length ? 'component-method-error' : undefined}
+              >
                 <option value="nominal tetap">Nominal tetap</option>
                 <option value="persen">Persen</option>
                 <option value="per hari">Per hari</option>
               </select>
+              {renderFieldErrors('metode', 'component-method-error')}
             </label>
             <label className="flex flex-col gap-2 text-sm font-semibold text-heading sm:col-span-2">
               Nilai {form.method === 'persen' ? '(persen)' : '(rupiah)'}
-              <input className={inputClass} type="number" min="0" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required={!keepsAutomaticValue} />
+              <input
+                className={inputClass}
+                type="number"
+                min="0"
+                max={form.method === 'persen' ? 100 : undefined}
+                step="0.01"
+                value={form.amount}
+                onChange={(event) => updateFormField('amount', event.target.value)}
+                aria-invalid={Boolean(fieldErrors.nilai?.length)}
+                aria-describedby={fieldErrors.nilai?.length ? 'component-amount-error' : undefined}
+              />
+              {renderFieldErrors('nilai', 'component-amount-error')}
             </label>
             <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-heading sm:col-span-2">
-              <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="size-5 accent-primary" />
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(event) => updateFormField('active', event.target.checked)}
+                className="size-5 accent-primary"
+                aria-invalid={Boolean(fieldErrors.aktif?.length)}
+                aria-describedby={fieldErrors.aktif?.length ? 'component-active-error' : undefined}
+              />
               Komponen aktif
+              {renderFieldErrors('aktif', 'component-active-error')}
             </label>
           </div>
           <DialogFooter>
