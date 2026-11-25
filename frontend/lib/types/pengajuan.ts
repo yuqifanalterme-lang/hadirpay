@@ -39,7 +39,6 @@ export type PengajuanDetail = PengajuanItem & {
     jam_masuk_benar: Waktu | null
     jam_pulang_benar: Waktu | null
   }
-  lembur?: { tanggal: Tanggal; jam_mulai: Waktu; jam_selesai: Waktu; durasi_menit: number }
 }
 export type PengajuanCreateRequest =
   | {
@@ -55,13 +54,6 @@ export type PengajuanCreateRequest =
       alasan: string
       jam_masuk_benar?: Waktu
       jam_pulang_benar?: Waktu
-    }
-  | {
-      jenis: 'lembur'
-      tanggal_mulai: Tanggal
-      alasan: string
-      jam_mulai: Waktu
-      jam_selesai: Waktu
     }
 export type PengajuanKuota = {
   tahun: number

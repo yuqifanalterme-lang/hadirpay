@@ -38,7 +38,6 @@ class PenggajianOktoberSeeder extends Seeder
                 $jamMasuk = '07:52:00';
                 $jamPulang = '17:00:00';
                 $menitTelat = 0;
-                $lembur = 0;
                 if ($k['email'] === 'andi@hadirpay.test') {
                     if ($tanggal === '2026-10-05') {
                         $status = 'alpha';
@@ -48,9 +47,6 @@ class PenggajianOktoberSeeder extends Seeder
                         $status = 'terlambat';
                         $jamMasuk = '08:20:00';
                         $menitTelat = 20;
-                    } elseif ($tanggal === '2026-10-15') {
-                        $jamPulang = '21:00:00';
-                        $lembur = 240;
                     }
                 }
                 $durasi = $jamMasuk && $jamPulang
@@ -64,7 +60,7 @@ class PenggajianOktoberSeeder extends Seeder
                     'status' => $status,
                     'menit_terlambat' => $menitTelat,
                     'durasi_menit' => $durasi,
-                    'lembur_menit' => $lembur,
+                    'lembur_menit' => 0,
                     'sumber' => 'sistem',
                     'created_at' => $now,
                     'updated_at' => $now,

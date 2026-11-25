@@ -18,11 +18,11 @@ namespace App\Services;
  */
 class PayrollService
 {
-    public const KODE_LEMBUR = 'LEMBUR';
     public const KODE_TELAT  = 'POT-TELAT';
     public const KODE_ALPHA  = 'POT-ALPHA';
+    public const KODE_BPJS   = 'BPJS';
 
-    private const FIELD_UANG = ['gaji_pokok', 'tunjangan', 'upah_lembur', 'total_pendapatan', 'total_potongan', 'gaji_bersih', 'tarif_harian'];
+    private const FIELD_UANG = ['gaji_pokok', 'tunjangan', 'total_pendapatan', 'total_potongan', 'gaji_bersih', 'tarif_harian'];
 
     public static function castUang(array $r): array
     {
@@ -221,10 +221,8 @@ class PayrollService
 
         // --- menit (semua baris absensi di periode, termasuk hari non-kerja) ---
         $menitTelat = 0;
-        $menitKerja = 0;
         foreach ($absensi as $a) {
             $menitTelat  += (int) $a['menit_terlambat'];
-            $menitKerja  += (int) ($a['durasi_menit'] ?? 0);
         }
 
         $hadirBayar = $hitung['hadir'] + $hitung['terlambat'] + $hitung['dinas_luar'];
@@ -251,14 +249,9 @@ class PayrollService
         $pend[] = $this->baris(null, 'Gaji pokok', 'pendapatan', $ketPokok, $gajiPokok);
 
         $tunjangan = 0.0;
-        $tunjTetap = (float) $k['tunjangan_tetap'];
-        if ($tunjTetap > 0) {
-            $pend[]    = $this->baris(null, 'Tunjangan tetap', 'pendapatan', null, $tunjTetap);
-            $tunjangan += $tunjTetap;
-        }
 
         // --- komponen yang dipasang ke karyawan ---
-        $khusus = [self::KODE_LEMBUR, self::KODE_TELAT, self::KODE_ALPHA];
+        $khusus = [self::KODE_BPJS, self::KODE_TELAT, self::KODE_ALPHA];
         foreach ($assigned as $komponenId => $nilai) {
             $m = $komponen[$komponenId] ?? null;
             if (! $m || ! (int) $m['aktif'] || in_array($m['kode'], $khusus, true)) {
@@ -277,10 +270,6 @@ class PayrollService
                 case 'per_hari':
                     $jml = $hadirBayar * $nilai;
                     $ket = $hadirBayar . ' hari x ' . $this->rp($nilai);
-                    break;
-                case 'per_jam':
-                    $jml = ($menitKerja / 60) * $nilai;
-                    $ket = $this->angka($menitKerja / 60) . ' jam x ' . $this->rp($nilai);
                     break;
                 case 'per_menit':
                     $jml = $menitTelat * $nilai;
@@ -303,8 +292,6 @@ class PayrollService
             }
         }
 
-        $upahLembur = 0.0;
-
         // --- komponen otomatis: keterlambatan ---
         $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned);
         if ($telat && $telat['nilai'] !== null && $menitTelat > 0) {
@@ -321,6 +308,21 @@ class PayrollService
             $jml  = round($hitung['alpha'] * $rate, 2);
             if ($jml > 0) {
                 $pot[] = $this->baris((int) $alpha['m']['id'], $alpha['m']['nama'], 'potongan', $hitung['alpha'] . ' hari x ' . $this->rp($rate), $jml);
+            }
+        }
+
+        // BPJS is always based on the master rate so employee records stay linked to it.
+        $bpjs = $this->aturan(self::KODE_BPJS, $byKode, []);
+        if ($bpjs && $bpjs['nilai'] !== null) {
+            $jml = round($gajiPokok * $bpjs['nilai'] / 100, 2);
+            if ($jml > 0) {
+                $pot[] = $this->baris(
+                    (int) $bpjs['m']['id'],
+                    $bpjs['m']['nama'],
+                    'potongan',
+                    $this->angka($bpjs['nilai']) . '% dari gaji pokok',
+                    $jml
+                );
             }
         }
 
@@ -350,7 +352,6 @@ class PayrollService
             'alpha'               => $hitung['alpha'],
             'belum_berlangsung'   => $belumBerlangsung,
             'menit_terlambat'     => $menitTelat,
-            'menit_kerja'         => $menitKerja,
             'gaji_pokok_dasar'    => $gajiDasar,
             'peringatan'          => $peringatan,
         ];
@@ -360,7 +361,6 @@ class PayrollService
                 'karyawan_id'      => (int) $k['id'],
                 'gaji_pokok'       => $gajiPokok,
                 'tunjangan'        => $tunjangan,
-                'upah_lembur'      => $upahLembur,
                 'total_pendapatan' => $totalPend,
                 'total_potongan'   => $totalPot,
                 'gaji_bersih'      => $bersih,

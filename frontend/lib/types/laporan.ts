@@ -14,7 +14,6 @@ export type LaporanId =
   | 'kehadiran'
   | 'keterlambatan'
   | 'izin-cuti'
-  | 'lembur'
   | 'penggajian'
   | 'beban-gaji'
   | 'jurnal-penggajian'
@@ -41,11 +40,6 @@ export type LaporanIzinCutiSummary = {
   total_sakit: number
   total_cuti: number
   total_hari: number
-}
-export type LaporanLemburSummary = {
-  total_jam: number
-  total_upah: Uang
-  jumlah_karyawan: number
 }
 export type LaporanPenggajianSummary = {
   total_pendapatan: Uang

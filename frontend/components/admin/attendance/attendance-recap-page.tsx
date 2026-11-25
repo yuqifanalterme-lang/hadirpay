@@ -165,7 +165,7 @@ export function AttendanceRecapPage() {
         <StatCard label="Total alpha" value={String(summary?.total_alpha ?? 0)} hint="Periode terpilih" icon={CalendarDays} tone="red" />
       </div>
 
-      <Panel title={`Rincian ${formatMonth(period)}`} description="Jumlah status, jam lembur, dan akumulasi menit terlambat per karyawan.">
+      <Panel title={`Rincian ${formatMonth(period)}`} description="Jumlah status kehadiran dan akumulasi menit terlambat per karyawan.">
         {totalCount === 0 ? (
           <EmptyState
             title="Rekap periode ini belum tersedia"
@@ -187,7 +187,6 @@ export function AttendanceRecapPage() {
                     <th scope="col" className="px-3 py-3">Sakit</th>
                     <th scope="col" className="px-3 py-3">Cuti</th>
                     <th scope="col" className="px-3 py-3">Alpha</th>
-                    <th scope="col" className="px-3 py-3">Jam lembur</th>
                     <th scope="col" className="px-3 py-3">Menit terlambat</th>
                   </tr>
                 </thead>
@@ -210,7 +209,6 @@ export function AttendanceRecapPage() {
                       <td className="px-3 py-3 tabular-nums">{record.sick}</td>
                       <td className="px-3 py-3 tabular-nums">{record.leave}</td>
                       <td className="px-3 py-3 tabular-nums">{record.absent}</td>
-                      <td className="px-3 py-3">{formatMinutes(record.overtimeMinutes)}</td>
                       <td className="px-3 py-3 tabular-nums">{record.lateMinutes} menit</td>
                     </tr>
                   ))}
@@ -234,7 +232,6 @@ export function AttendanceRecapPage() {
                     <div><dt className="text-muted-foreground">Sakit</dt><dd className="font-semibold">{record.sick}</dd></div>
                     <div><dt className="text-muted-foreground">Cuti</dt><dd className="font-semibold">{record.leave}</dd></div>
                     <div><dt className="text-muted-foreground">Alpha</dt><dd className="font-semibold">{record.absent}</dd></div>
-                    <div><dt className="text-muted-foreground">Jam lembur</dt><dd className="font-semibold">{formatMinutes(record.overtimeMinutes)}</dd></div>
                     <div><dt className="text-muted-foreground">Menit terlambat</dt><dd className="font-semibold">{record.lateMinutes}</dd></div>
                   </dl>
                 </li>

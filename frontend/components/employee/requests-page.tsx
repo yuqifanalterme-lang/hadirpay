@@ -18,12 +18,12 @@ import { config } from '@/lib/config'
 import { useAuth } from '@/lib/auth/auth-provider'
 import { ApiError, type ApiErrorFields } from '@/lib/api/client'
 
-const employeeId = 'HP-0001'
-const employeeRequestTypes = ['Izin', 'Sakit', 'Cuti', 'Lembur'] as const
+const employeeId = 'HP-0002'
+const employeeRequestTypes = ['Izin', 'Sakit', 'Cuti'] as const
 type EmployeeRequestType = (typeof employeeRequestTypes)[number]
-type RequestTab = 'Semua' | 'Izin' | 'Sakit' | 'Cuti' | 'Koreksi Absensi' | 'Lembur'
+type RequestTab = 'Semua' | 'Izin' | 'Sakit' | 'Cuti' | 'Koreksi Absensi'
 
-const tabs: RequestTab[] = ['Semua', 'Izin', 'Sakit', 'Cuti', 'Koreksi Absensi', 'Lembur']
+const tabs: RequestTab[] = ['Semua', 'Izin', 'Sakit', 'Cuti', 'Koreksi Absensi']
 const pageSize = 10
 
 function countWorkDays(start: string, end: string) {
@@ -76,8 +76,6 @@ export function RequestsPage() {
   const [reason, setReason] = useState('')
   const [attachmentName, setAttachmentName] = useState('')
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
-  const [overtimeStartTime, setOvertimeStartTime] = useState('')
-  const [overtimeEndTime, setOvertimeEndTime] = useState('')
   const [formError, setFormError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<ApiErrorFields>({})
   const [submitting, setSubmitting] = useState(false)
@@ -86,7 +84,7 @@ export function RequestsPage() {
 
   const remainingLeave = quota?.cuti_sisa ?? 0
   const numberOfDays = useMemo(
-    () => type === 'Lembur' ? (startDate ? 1 : 0) : countWorkDays(startDate, endDate),
+    () => countWorkDays(startDate, endDate),
     [endDate, startDate, type],
   )
   async function load() {
@@ -142,8 +140,6 @@ export function RequestsPage() {
     setReason('')
     setAttachmentName('')
     setAttachmentFile(null)
-    setOvertimeStartTime('')
-    setOvertimeEndTime('')
     setFormError('')
     setFieldErrors({})
   }
@@ -184,20 +180,19 @@ export function RequestsPage() {
     event.preventDefault()
     setFormError('')
     setFieldErrors({})
-    const requestEndDate = type === 'Lembur' ? startDate : endDate
-    if (!startDate || (type !== 'Lembur' && !endDate)) {
+    if (!startDate || !endDate) {
       setFormError('Tanggal mulai dan selesai wajib diisi.')
       return
     }
-    if (type !== 'Lembur' && endDate < startDate) {
+    if (endDate < startDate) {
       setFormError('Tanggal selesai tidak boleh sebelum tanggal mulai.')
       return
     }
-    if (numberOfDays === 0 && type !== 'Lembur') {
+    if (numberOfDays === 0) {
       setFormError('Pilih setidaknya satu hari kerja untuk pengajuan.')
       return
     }
-    if (type !== 'Lembur' && endDate > startDate && new Date(`${endDate}T00:00:00`).getTime() - new Date(`${startDate}T00:00:00`).getTime() > 366 * 86400000) {
+    if (endDate > startDate && new Date(`${endDate}T00:00:00`).getTime() - new Date(`${startDate}T00:00:00`).getTime() > 366 * 86400000) {
       setFormError('Rentang pengajuan tidak boleh lebih dari satu tahun.')
       return
     }
@@ -213,17 +208,6 @@ export function RequestsPage() {
       setFormError(`Sisa kuota cuti Anda ${remainingLeave} hari.`)
       return
     }
-    if (type === 'Lembur') {
-      if (!overtimeStartTime || !overtimeEndTime) {
-        setFormError('Jam mulai dan selesai lembur wajib diisi.')
-        return
-      }
-      if (overtimeEndTime <= overtimeStartTime) {
-        setFormError('Jam selesai lembur harus setelah jam mulai.')
-        return
-      }
-    }
-
     setSubmitting(true)
     try {
       await createRequest({
@@ -234,12 +218,11 @@ export function RequestsPage() {
         department: 'Keuangan',
         type,
         startDate,
-        endDate: requestEndDate,
+        endDate,
         days: numberOfDays,
         reason: reason.trim(),
         ...(attachmentName ? { attachmentName } : {}),
         ...(attachmentFile ? { attachment: attachmentFile } : {}),
-        ...(type === 'Lembur' ? { overtimeStartTime, overtimeEndTime } : {}),
       })
       await load()
       setFormOpen(false)
@@ -484,7 +467,7 @@ export function RequestsPage() {
               </p>
             )}
 
-            <div className={`grid gap-4 ${type === 'Lembur' ? '' : 'sm:grid-cols-2'}`}>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="request-start" className="text-sm font-semibold text-heading">Tanggal mulai</label>
                 <input
@@ -502,41 +485,25 @@ export function RequestsPage() {
                 />
                 {fieldErrors.tanggal_mulai?.[0] && <p id="request-start-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.tanggal_mulai[0]}</p>}
               </div>
-              {type !== 'Lembur' && (
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="request-end" className="text-sm font-semibold text-heading">Tanggal selesai</label>
-                  <input
-                    id="request-end"
-                    type="date"
-                    required
-                    min={startDate || undefined}
-                    value={endDate}
-                    onChange={(event) => {
-                      setEndDate(event.target.value)
-                      clearFieldError('tanggal_selesai')
-                    }}
-                    aria-invalid={Boolean(fieldErrors.tanggal_selesai?.length)}
-                    aria-describedby={fieldErrors.tanggal_selesai?.length ? 'request-end-error' : undefined}
-                    className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-                  />
-                  {fieldErrors.tanggal_selesai?.[0] && <p id="request-end-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.tanggal_selesai[0]}</p>}
-                </div>
-              )}
-            </div>
-            {type === 'Lembur' && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="overtime-start" className="text-sm font-semibold text-heading">Jam mulai lembur</label>
-                  <input id="overtime-start" type="time" required value={overtimeStartTime} onChange={(event) => { setOvertimeStartTime(event.target.value); clearFieldError('jam_mulai') }} aria-invalid={Boolean(fieldErrors.jam_mulai?.length)} aria-describedby={fieldErrors.jam_mulai?.length ? 'overtime-start-error' : undefined} className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
-                  {fieldErrors.jam_mulai?.[0] && <p id="overtime-start-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.jam_mulai[0]}</p>}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="overtime-end" className="text-sm font-semibold text-heading">Jam selesai lembur</label>
-                  <input id="overtime-end" type="time" required value={overtimeEndTime} onChange={(event) => { setOvertimeEndTime(event.target.value); clearFieldError('jam_selesai') }} aria-invalid={Boolean(fieldErrors.jam_selesai?.length)} aria-describedby={fieldErrors.jam_selesai?.length ? 'overtime-end-error' : undefined} className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none" />
-                  {fieldErrors.jam_selesai?.[0] && <p id="overtime-end-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.jam_selesai[0]}</p>}
-                </div>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="request-end" className="text-sm font-semibold text-heading">Tanggal selesai</label>
+                <input
+                  id="request-end"
+                  type="date"
+                  required
+                  min={startDate || undefined}
+                  value={endDate}
+                  onChange={(event) => {
+                    setEndDate(event.target.value)
+                    clearFieldError('tanggal_selesai')
+                  }}
+                  aria-invalid={Boolean(fieldErrors.tanggal_selesai?.length)}
+                  aria-describedby={fieldErrors.tanggal_selesai?.length ? 'request-end-error' : undefined}
+                  className="min-h-12 w-full rounded-xl border border-border bg-white px-4 text-base text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                />
+                {fieldErrors.tanggal_selesai?.[0] && <p id="request-end-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.tanggal_selesai[0]}</p>}
               </div>
-            )}
+            </div>
             <p className="text-sm text-muted-foreground">
               Jumlah hari kerja: <strong className="text-heading">{numberOfDays} hari</strong> (tidak termasuk akhir pekan).
             </p>
@@ -559,7 +526,7 @@ export function RequestsPage() {
               {fieldErrors.alasan?.[0] && <p id="request-reason-error" className="text-sm font-medium text-destructive" role="alert">{fieldErrors.alasan[0]}</p>}
             </div>
 
-            {type !== 'Lembur' && <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <label htmlFor="request-attachment" className="text-sm font-semibold text-heading">
                 Lampiran {type === 'Sakit' ? '(wajib)' : '(opsional)'}
               </label>
@@ -582,7 +549,7 @@ export function RequestsPage() {
                 PDF, JPG, atau PNG, maksimal 5 MB. Berkas akan dikirim bersama pengajuan.
               </p>
               {fieldErrors.lampiran?.[0] && <p className="text-sm font-medium text-destructive" role="alert">{fieldErrors.lampiran[0]}</p>}
-            </div>}
+            </div>
             {formError && <p className="text-sm font-medium text-destructive" role="alert">{formError}</p>}
           </div>
           <DialogFooter>

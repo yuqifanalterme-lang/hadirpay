@@ -145,9 +145,6 @@ class KomponenGaji extends BaseController
                 throw new \RuntimeException('Pembaruan komponen gaji ditolak oleh model.');
             }
 
-            if ($input['kode'] === 'BPJS' && $input['metode'] === 'persen' && $input['nilai'] !== null) {
-                $this->sinkronkanBpjsKaryawan($db, (int) $id, (float) $input['nilai']);
-            }
             if ($db->transStatus() === false) {
                 throw new \RuntimeException('Sinkronisasi komponen gaji tidak berhasil disimpan.');
             }
@@ -215,41 +212,6 @@ class KomponenGaji extends BaseController
         return db_connect()->table('karyawan_komponen')->where('komponen_id', $komponenId)->countAllResults();
     }
 
-    private function sinkronkanBpjsKaryawan($db, int $komponenId, float $nilai): void
-    {
-        $karyawanIds = array_map('intval', array_column(
-            $db->table('karyawan')->select('id')->get()->getResultArray(),
-            'id'
-        ));
-        if (! $karyawanIds) {
-            return;
-        }
-
-        $existingIds = array_map('intval', array_column(
-            $db->table('karyawan_komponen')->select('karyawan_id')->where('komponen_id', $komponenId)->get()->getResultArray(),
-            'karyawan_id'
-        ));
-        $now = date('Y-m-d H:i:s');
-        $db->table('karyawan_komponen')->where('komponen_id', $komponenId)->update([
-            'nilai'      => $nilai,
-            'updated_at' => $now,
-        ]);
-
-        $missing = [];
-        foreach (array_diff($karyawanIds, $existingIds) as $karyawanId) {
-            $missing[] = [
-                'karyawan_id' => $karyawanId,
-                'komponen_id' => $komponenId,
-                'nilai'       => $nilai,
-                'created_at'  => $now,
-                'updated_at'  => $now,
-            ];
-        }
-        if ($missing) {
-            $db->table('karyawan_komponen')->insertBatch($missing);
-        }
-    }
-
     private function bersihkan(array $in): array
     {
         if (isset($in['kode']))       $in['kode'] = strtoupper(trim((string) $in['kode']));
@@ -271,8 +233,11 @@ class KomponenGaji extends BaseController
 
     private function cekNilai(array $in)
     {
-        if (($in['kode'] ?? '') === 'BPJS' && (($in['nilai'] ?? null) === null || $in['nilai'] === '')) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Nilai persen BPJS wajib diisi'], 422);
+        if (($in['kode'] ?? '') === 'BPJS'
+            && (($in['tipe'] ?? '') !== 'potongan' || ($in['metode'] ?? '') !== 'persen' || (float) ($in['nilai'] ?? 0) !== 3.0)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'nilai' => 'BPJS harus tetap berupa potongan sebesar 3 persen',
+            ], 422);
         }
         if (($in['metode'] ?? '') === 'persen' && isset($in['nilai']) && (float) $in['nilai'] > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
@@ -288,7 +253,7 @@ class KomponenGaji extends BaseController
             'kode'       => 'required|alpha_dash|max_length[30]|is_unique[komponen_gaji.kode' . $ex . ']',
             'nama'       => 'required|min_length[2]|max_length[100]',
             'tipe'       => 'required|in_list[pendapatan,potongan]',
-            'metode'     => 'required|in_list[nominal_tetap,persen,per_hari,per_jam,per_menit]',
+            'metode'     => 'required|in_list[nominal_tetap,persen,per_hari,per_menit]',
             'nilai'      => 'permit_empty|numeric|greater_than_equal_to[0]',
             'keterangan' => 'permit_empty|max_length[255]',
         ];
@@ -306,7 +271,7 @@ class KomponenGaji extends BaseController
             'tipe'   => ['required' => 'Tipe wajib dipilih', 'in_list' => 'Tipe harus pendapatan atau potongan'],
             'metode' => [
                 'required' => 'Metode wajib dipilih',
-                'in_list'  => 'Metode harus nominal_tetap, persen, per_hari, per_jam, atau per_menit',
+                'in_list'  => 'Metode harus nominal_tetap, persen, per_hari, atau per_menit',
             ],
             'nilai' => ['numeric' => 'Nilai harus berupa angka', 'greater_than_equal_to' => 'Nilai tidak boleh negatif'],
         ];

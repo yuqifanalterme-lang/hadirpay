@@ -47,7 +47,6 @@ function mapSettings(settings: Pengaturan, holidays: HariLibur[], users: ApiUser
       apiAbsenceDeductionMethod: settings.kebijakan_gaji.metode_potongan_alpha,
       workDayDivisor: settings.kebijakan_gaji.pembagi_hari_kerja,
       deductPermitWithoutLetter: settings.kebijakan_gaji.potongan_izin_tanpa_surat,
-      overtimeRatePerHour: settings.kebijakan_gaji.tarif_lembur_per_jam,
       cutoffDay: settings.kebijakan_gaji.tanggal_tutup_periode,
     },
     users: users.map((user) => ({
@@ -147,7 +146,6 @@ export async function saveDemoSettings(settings: DemoSettings): Promise<DemoSett
       kebijakan_gaji: {
         ...currentSettings.data.kebijakan_gaji,
         pembagi_hari_kerja: settings.payrollPolicy.workDayDivisor,
-        tarif_lembur_per_jam: settings.payrollPolicy.overtimeRatePerHour,
         tanggal_tutup_periode: settings.payrollPolicy.cutoffDay,
         potongan_izin_tanpa_surat: settings.payrollPolicy.deductPermitWithoutLetter,
       },

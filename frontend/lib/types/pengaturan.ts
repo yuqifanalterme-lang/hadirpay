@@ -1,4 +1,4 @@
-import type { HariKerja, Id, KategoriAkun, Role, Tanggal, Uang } from './common'
+import type { HariKerja, Id, KategoriAkun, Role, Tanggal } from './common'
 
 export type Pengaturan = {
   perusahaan: { nama: string; alamat: string; npwp: string | null; logo_url: string | null }
@@ -11,7 +11,6 @@ export type Pengaturan = {
   kebijakan_gaji: {
     metode_potongan_alpha: string
     pembagi_hari_kerja: string
-    tarif_lembur_per_jam: Uang
     tanggal_tutup_periode: number
     potongan_izin_tanpa_surat: boolean
   }

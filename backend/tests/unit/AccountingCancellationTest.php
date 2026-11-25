@@ -73,7 +73,7 @@ final class AccountingCancellationTest extends CIUnitTestCase
         $this->assertSame('INVALID_STATUS_TRANSITION', $alreadyCancelled['code']);
     }
 
-    public function testClosedPeriodAndAutomaticJournalDeletionAreRejected(): void
+    public function testClosedPeriodCanBeCancelledAndAutomaticJournalDeletionIsRejected(): void
     {
         $periodError = PayrollCancellationPolicy::error('keuangan', [
             'status' => 'dibayar',
@@ -88,8 +88,7 @@ final class AccountingCancellationTest extends CIUnitTestCase
             'status' => 'aktif',
         ]);
 
-        $this->assertSame(409, $periodError['status']);
-        $this->assertSame('PERIOD_CLOSED', $periodError['code']);
+        $this->assertNull($periodError);
         $this->assertSame(403, $journalError['status']);
         $this->assertSame('FORBIDDEN', $journalError['code']);
         $this->assertNull($manualAllowed);

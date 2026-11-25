@@ -100,7 +100,6 @@ const reportIcons = {
   kehadiran: CalendarCheck2,
   keterlambatan: Clock3,
   'izin-cuti': CalendarDays,
-  lembur: Timer,
   'penggajian-bulanan': Wallet,
   'beban-gaji': BarChart3,
   'jurnal-penggajian': BookOpenText,

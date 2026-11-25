@@ -246,7 +246,6 @@ export function PayrollPage() {
   if (role === 'keuangan' && period.status === 'Disetujui') actions.push('pay')
   const canCancelPayroll = (role === 'admin' || role === 'keuangan')
     && (period.status === 'Disetujui' || period.status === 'Dibayar')
-    && !period.closed
   const canDeleteDraft = (role === 'admin' || role === 'keuangan') && period.status === 'Draft'
   const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 

@@ -34,10 +34,6 @@ class PayslipFormatter
             'alpha'                 => (int) ($rekap['alpha'] ?? 0),
             'total_menit_terlambat' => (int) ($rekap['menit_terlambat'] ?? 0),
         ];
-        if (array_key_exists('menit_lembur', $rekap)) {
-            $kehadiran['jam_lembur'] = round(((int) $rekap['menit_lembur']) / 60, 2);
-        }
-
         $rincian = $db->table('detail_penggajian')
             ->where('penggajian_id', $penggajianId)
             ->orderBy('urutan', 'ASC')->orderBy('id', 'ASC')

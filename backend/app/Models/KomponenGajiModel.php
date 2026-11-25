@@ -13,7 +13,7 @@ class KomponenGajiModel extends Model
     protected $allowedFields = ['kode', 'nama', 'tipe', 'metode', 'nilai', 'keterangan', 'sistem', 'aktif'];
 
     public const TIPE   = ['pendapatan', 'potongan'];
-    public const METODE = ['nominal_tetap', 'persen', 'per_hari', 'per_jam', 'per_menit'];
+    public const METODE = ['nominal_tetap', 'persen', 'per_hari', 'per_menit'];
 
     public static function format(array $r): array
     {

@@ -93,10 +93,6 @@ class AbsensiDemoSeeder extends Seeder
                         $masukMenit = 8 * 60 + $telat;
                         $row['status'] = 'terlambat';
                         $row['menit_terlambat'] = $telat;
-                    } elseif ($n >= 97) {                                // lembur 60 - 120 menit
-                        $lembur = 60 + ($n - 97) * 30;
-                        $pulangMenit = 17 * 60 + $lembur;
-                        $row['lembur_menit'] = $lembur;
                     }
 
                     $row['jam_masuk']    = sprintf('%02d:%02d:00', intdiv($masukMenit, 60), $masukMenit % 60);

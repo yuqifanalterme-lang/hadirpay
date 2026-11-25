@@ -25,7 +25,6 @@ class PengaturanSeeder extends Seeder
             'kebijakan_gaji' => [
                 'metode_potongan_alpha' => 'tarif_harian',
                 'pembagi_hari_kerja' => 'hari_kerja_periode',
-                'tarif_lembur_per_jam' => 25000,
                 'tanggal_tutup_periode' => 25,
                 'potongan_izin_tanpa_surat' => false,
             ],

@@ -20,7 +20,6 @@ class Dashboard extends BaseController
         'sakit' => 'Sakit',
         'cuti' => 'Cuti tahunan',
         'koreksi_absensi' => 'Koreksi absensi',
-        'lembur' => 'Lembur',
     ];
     private const LABEL_ROLE = ['admin_hrd' => 'HRD', 'keuangan' => 'Keuangan', 'pemilik' => 'Pemilik', 'karyawan' => 'Karyawan'];
 
@@ -97,10 +96,6 @@ class Dashboard extends BaseController
 
     private function durasiLabel(array $r): string
     {
-        if ($r['jenis'] === 'lembur') {
-            $d = $r['data_json'] ? (json_decode($r['data_json'], true) ?: []) : [];
-            return $this->angka(((int) ($d['durasi_menit'] ?? 0)) / 60) . ' jam';
-        }
         if ($r['jenis'] === 'koreksi_absensi') {
             return '1 hari';
         }
@@ -116,9 +111,6 @@ class Dashboard extends BaseController
             ->join('jurnal j', 'j.id = dj.jurnal_id')
             ->where('a.kode', $kode)
             ->where('j.status', 'aktif');
-        if ($db->fieldExists('reversal_of', 'jurnal')) {
-            $b->where('j.reversal_of IS NULL', null, false);
-        }
         if ($dari !== null) {
             $b->where('j.tanggal >=', $dari);
         }

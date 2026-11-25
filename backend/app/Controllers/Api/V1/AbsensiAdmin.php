@@ -15,7 +15,7 @@ class AbsensiAdmin extends BaseController
 {
     private const LABEL_PENGAJUAN = [
         'izin' => 'izin', 'sakit' => 'sakit', 'cuti' => 'cuti',
-        'koreksi_absensi' => 'koreksi absensi', 'lembur' => 'lembur',
+        'koreksi_absensi' => 'koreksi absensi',
     ];
 
     private function izin(array $roles)
@@ -295,7 +295,7 @@ class AbsensiAdmin extends BaseController
         $payroll   = new PayrollService();
         $hariKerja = count($payroll->hariKerja($mulai, $akhir));
         $agg       = $this->agregat($semua, $mulai, $akhir);
-        $nol       = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0, 'lembur' => 0, 'telat' => 0];
+        $nol       = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0, 'telat' => 0];
 
         $list = [];
         foreach ($rows as $r) {
@@ -312,17 +312,15 @@ class AbsensiAdmin extends BaseController
                 'sakit'                 => $a['sakit'],
                 'cuti'                  => $a['cuti'],
                 'alpha'                 => $a['alpha'],
-                'jam_lembur_menit'      => $a['lembur'],
                 'total_menit_terlambat' => $a['telat'],
             ];
         }
 
-        $tHadir = $tTerlambat = $tAlpha = $tLembur = 0;
+        $tHadir = $tTerlambat = $tAlpha = 0;
         foreach ($agg as $a) {
             $tHadir     += $a['hadir'];
             $tTerlambat += $a['terlambat'];
             $tAlpha     += $a['alpha'];
-            $tLembur    += $a['lembur'];
         }
 
         // penyebut persen: hari kerja sampai hari ini bila periode masih berjalan
@@ -336,7 +334,6 @@ class AbsensiAdmin extends BaseController
                 'rata_rata_hadir_persen' => $persen,
                 'total_terlambat'        => $tTerlambat,
                 'total_alpha'            => $tAlpha,
-                'total_jam_lembur'       => round($tLembur / 60, 1),
             ],
             'karyawan'  => $list,
             'meta'      => ['page' => $page, 'per_page' => $perPage, 'total' => $total, 'total_pages' => (int) ceil($total / $perPage)],
@@ -357,7 +354,7 @@ class AbsensiAdmin extends BaseController
         $out = [];
 
         $absensiRows = $db->table('absensi')
-            ->select('karyawan_id, tanggal, status, lembur_menit, menit_terlambat')
+            ->select('karyawan_id, tanggal, status, menit_terlambat')
             ->whereIn('karyawan_id', $ids)
             ->where('tanggal >=', $mulai)->where('tanggal <=', $akhir)
             ->get()->getResultArray();
@@ -379,7 +376,7 @@ class AbsensiAdmin extends BaseController
         }
 
         foreach ($ids as $kid) {
-            $a = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0, 'lembur' => 0, 'telat' => 0];
+            $a = ['hadir' => 0, 'terlambat' => 0, 'izin' => 0, 'sakit' => 0, 'cuti' => 0, 'alpha' => 0, 'telat' => 0];
             foreach ($hariKerja as $tanggal) {
                 $status = null;
                 if (isset($absensi[$kid][$tanggal])) {
@@ -411,7 +408,6 @@ class AbsensiAdmin extends BaseController
                 if (! in_array($tanggal, $hariKerja, true)) {
                     continue;
                 }
-                $a['lembur'] += (int) $r['lembur_menit'];
                 $a['telat'] += (int) $r['menit_terlambat'];
             }
             $out[$kid] = $a;

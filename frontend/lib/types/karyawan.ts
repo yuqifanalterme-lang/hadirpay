@@ -17,7 +17,7 @@ export type KaryawanKomponen = {
   kode: string
   nama: string
   tipe: 'pendapatan' | 'potongan'
-  metode: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_jam' | 'per_menit'
+  metode: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_menit'
   nilai: Uang
 }
 
@@ -51,6 +51,7 @@ export type KaryawanCreateRequest = {
   jenis_penggajian: JenisPenggajian
   gaji_pokok: Uang
   tunjangan_tetap: Uang
+  tunjangan?: Uang
   pph21: Uang
   npwp: string | null
   no_bpjs: string | null

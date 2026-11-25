@@ -11,12 +11,11 @@ class KomponenGajiSeeder extends Seeder
         $now = date('Y-m-d H:i:s');
         // kode, nama, tipe, metode, nilai, aktif
         $data = [
-            ['TUN-TRANSPORT', 'Tunjangan transport',    'pendapatan', 'nominal_tetap', 245000, 1],
-            ['LEMBUR',        'Upah lembur',            'pendapatan', 'per_jam',       25000,  1],
+            ['TUN-TRANSPORT', 'Tunjangan transport',    'pendapatan', 'nominal_tetap', null,   1],
             ['POT-ALPHA',     'Potongan alpha',         'potongan',   'per_hari',      null,   1],
             ['POT-TELAT',     'Potongan keterlambatan', 'potongan',   'per_menit',     1000,   1],
             ['BPJS',          'Iuran BPJS',             'potongan',   'persen',        3,      1],
-            ['PPH21',         'PPh 21',                 'potongan',   'nominal_tetap', 0,      1],
+            ['PPH21',         'PPh 21',                 'potongan',   'nominal_tetap', null,   1],
             ['POT-LAIN',      'Potongan lainnya',       'potongan',   'nominal_tetap', 0,      1],
         ];
 
@@ -34,5 +33,12 @@ class KomponenGajiSeeder extends Seeder
                 $this->db->table('komponen_gaji')->insert($row);
             }
         }
+
+        $this->db->table('komponen_gaji')->where('kode', 'LEMBUR')->update([
+            'metode' => 'nominal_tetap',
+            'nilai' => null,
+            'aktif' => 0,
+            'updated_at' => $now,
+        ]);
     }
 }

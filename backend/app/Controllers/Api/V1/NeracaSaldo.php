@@ -21,9 +21,6 @@ class NeracaSaldo extends BaseController
             ->join('jurnal j', 'j.id = dj.jurnal_id')
             ->where('j.status', 'aktif')
             ->where('j.tanggal <=', $sampai);
-        if ($db->fieldExists('reversal_of', 'jurnal')) {
-            $b->where('j.reversal_of IS NULL', null, false);
-        }
         $rows = $b->groupBy('a.id, a.kode, a.nama')
             ->orderBy('a.kode', 'ASC')
             ->get()->getResultArray();

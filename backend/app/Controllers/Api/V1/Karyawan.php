@@ -87,7 +87,7 @@ class Karyawan extends BaseController
             'tanggal_mulai'    => $r['tanggal_mulai'],
             'jenis_penggajian' => $r['jenis_penggajian'],
             'gaji_pokok'       => (float) $r['gaji_pokok'],
-            'tunjangan_tetap'  => (float) $r['tunjangan_tetap'],
+            'tunjangan_tetap'  => (float) ($this->nilaiKomponen($komp, 'TUN-TRANSPORT') ?? 0),
             'npwp'             => $r['npwp'],
             'no_bpjs'          => $r['no_bpjs'],
             'status'           => $r['status'],
@@ -199,7 +199,13 @@ class Karyawan extends BaseController
                 'updated_at'    => $now,
             ]);
             $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
-            $this->syncBpjs($db, (int) $id, $now);
+            $this->syncKomponenManual(
+                $db,
+                (int) $id,
+                'TUN-TRANSPORT',
+                (float) ($input['tunjangan'] ?? $input['tunjangan_tetap'] ?? 0),
+                $now
+            );
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
@@ -231,6 +237,7 @@ class Karyawan extends BaseController
             'jenis_penggajian' => $lama['jenis_penggajian'],
             'gaji_pokok'       => $lama['gaji_pokok'],
             'tunjangan_tetap'  => $lama['tunjangan_tetap'],
+            'tunjangan'        => 0,
             'npwp'             => $lama['npwp'],
             'no_bpjs'          => $lama['no_bpjs'],
             'status'           => $lama['status'],
@@ -270,6 +277,15 @@ class Karyawan extends BaseController
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
             if (array_key_exists('pph21', $input)) {
                 $this->syncPph21($db, (int) $id, (float) $input['pph21'], date('Y-m-d H:i:s'));
+            }
+            if (array_key_exists('tunjangan', $input) || array_key_exists('tunjangan_tetap', $input)) {
+                $this->syncKomponenManual(
+                    $db,
+                    (int) $id,
+                    'TUN-TRANSPORT',
+                    (float) ($input['tunjangan'] ?? $input['tunjangan_tetap']),
+                    date('Y-m-d H:i:s')
+                );
             }
 
             $db->transCommit();
@@ -471,7 +487,7 @@ class Karyawan extends BaseController
             'tanggal_mulai'    => $in['tanggal_mulai'],
             'jenis_penggajian' => $in['jenis_penggajian'] ?? 'bulanan',
             'gaji_pokok'       => $in['gaji_pokok'] ?? 0,
-            'tunjangan_tetap'  => $in['tunjangan_tetap'] ?? 0,
+            'tunjangan_tetap'  => 0,
             'npwp'             => $in['npwp'] ?? null,
             'no_bpjs'          => $in['no_bpjs'] ?? null,
             'status'           => $in['status'] ?? 'aktif',
@@ -506,19 +522,41 @@ class Karyawan extends BaseController
         ]);
     }
 
-    private function syncBpjs($db, int $karyawanId, string $now): void
+    private function nilaiKomponen(array $komponen, string $kode): ?float
     {
-        $komponen = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
-        if (! $komponen || $komponen['metode'] !== 'persen' || $komponen['nilai'] === null) {
-            throw new \RuntimeException('Komponen BPJS persen belum tersedia.');
+        foreach ($komponen as $row) {
+            if ($row['kode'] === $kode) {
+                return (float) $row['nilai'];
+            }
+        }
+        return null;
+    }
+
+    private function syncKomponenManual($db, int $karyawanId, string $kode, float $nilai, string $now): void
+    {
+        $komponen = $db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
+        if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
+            throw new \RuntimeException('Komponen ' . $kode . ' nominal tetap belum tersedia.');
+        }
+
+        $assigned = $db->table('karyawan_komponen')
+            ->where('karyawan_id', $karyawanId)
+            ->where('komponen_id', (int) $komponen['id'])
+            ->get()->getRowArray();
+        if ($assigned) {
+            $db->table('karyawan_komponen')->where('id', $assigned['id'])->update([
+                'nilai' => $nilai,
+                'updated_at' => $now,
+            ]);
+            return;
         }
 
         $db->table('karyawan_komponen')->insert([
             'karyawan_id' => $karyawanId,
             'komponen_id' => (int) $komponen['id'],
-            'nilai'       => (float) $komponen['nilai'],
-            'created_at'  => $now,
-            'updated_at'  => $now,
+            'nilai' => $nilai,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
     }
 
@@ -538,6 +576,7 @@ class Karyawan extends BaseController
             'jenis_penggajian' => 'permit_empty|in_list[bulanan,harian]',
             'gaji_pokok'       => 'permit_empty|numeric|greater_than_equal_to[0]',
             'tunjangan_tetap'  => 'permit_empty|numeric|greater_than_equal_to[0]',
+            'tunjangan'        => 'permit_empty|numeric|greater_than_equal_to[0]',
             'pph21'            => 'permit_empty|numeric|greater_than_equal_to[0]',
             'npwp'             => 'permit_empty|max_length[25]',
             'no_bpjs'          => 'permit_empty|max_length[25]',

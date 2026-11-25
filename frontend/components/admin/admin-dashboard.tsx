@@ -175,7 +175,7 @@ export function AdminDashboard() {
           </div>
         </Panel>
 
-        <Panel title="Pengajuan menunggu persetujuan" description="Cuti, izin, sakit, koreksi absensi, dan lembur">
+        <Panel title="Pengajuan menunggu persetujuan" description="Cuti, izin, sakit, dan koreksi absensi">
           <ApprovalsList />
         </Panel>
       </div>

@@ -61,7 +61,6 @@ function formatComponentValue(component: NonNullable<Employee['salaryComponents'
   const units = {
     nominal_tetap: 'per periode',
     per_hari: 'per hari',
-    per_jam: 'per jam',
     per_menit: 'per menit',
   } as const
   return `${formatRupiah(component.value)} ${units[component.method]}`

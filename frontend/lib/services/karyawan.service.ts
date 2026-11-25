@@ -52,7 +52,7 @@ function toEmployee(item: KaryawanDetail, positionName?: string, departmentName?
     startedAt: item.tanggal_mulai,
     payrollType: item.jenis_penggajian,
     baseSalary: item.gaji_pokok,
-    fixedAllowance: item.tunjangan_tetap,
+    fixedAllowance: item.komponen_gaji.find((component) => component.kode === 'TUN-TRANSPORT')?.nilai ?? 0,
     pph21: item.komponen_gaji.find((component) => component.kode === 'PPH21')?.nilai ?? 0,
     salaryComponents: item.komponen_gaji.map((component) => ({
       id: component.komponen_id,
@@ -102,7 +102,7 @@ function toWriteRequest(
   | 'tanggal_mulai'
   | 'jenis_penggajian'
   | 'gaji_pokok'
-  | 'tunjangan_tetap'
+  | 'tunjangan'
   | 'pph21'
   | 'npwp'
 > {
@@ -113,7 +113,7 @@ function toWriteRequest(
     tanggal_mulai: employee.startedAt,
     jenis_penggajian: employee.payrollType,
     gaji_pokok: employee.baseSalary,
-    tunjangan_tetap: employee.fixedAllowance,
+    tunjangan: employee.fixedAllowance,
     pph21: employee.pph21 ?? 0,
     npwp: employee.npwp ?? null,
   }

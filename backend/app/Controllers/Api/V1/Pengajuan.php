@@ -13,15 +13,15 @@ use App\Services\AttendanceService;
 use App\Services\PayrollService;
 
 /**
- * Pengajuan izin, sakit, cuti, koreksi absensi, dan lembur (kontrak bagian 6).
+ * Pengajuan izin, sakit, cuti, dan koreksi absensi.
  */
 class Pengajuan extends BaseController
 {
-    private const JENIS  = ['izin', 'sakit', 'cuti', 'koreksi_absensi', 'lembur'];
+    private const JENIS  = ['izin', 'sakit', 'cuti', 'koreksi_absensi'];
     private const STATUS = ['menunggu', 'disetujui', 'ditolak', 'dibatalkan'];
     private const JUDUL  = [
         'izin' => 'Izin', 'sakit' => 'Sakit', 'cuti' => 'Cuti tahunan',
-        'koreksi_absensi' => 'Koreksi absensi', 'lembur' => 'Lembur',
+        'koreksi_absensi' => 'Koreksi absensi',
     ];
     private const LABEL_ROLE = ['admin_hrd' => 'HRD', 'keuangan' => 'Keuangan', 'pemilik' => 'Pemilik', 'karyawan' => 'Karyawan'];
 
@@ -191,7 +191,7 @@ class Pengajuan extends BaseController
                 $errors['tanggal_selesai'] = 'Tanggal selesai wajib berformat YYYY-MM-DD';
             }
         } else {
-            $selesai = $mulai; // koreksi dan lembur selalu satu hari
+            $selesai = $mulai;
         }
         if ($alasan !== null && mb_strlen($alasan) > 2000) {
             $errors['alasan'] = 'Alasan maksimal 2000 karakter';
@@ -255,28 +255,6 @@ class Pengajuan extends BaseController
                 'jam_masuk_benar'  => $masuk !== '' ? substr($masuk, 0, 5) : null,
                 'jam_pulang_benar' => $pulang !== '' ? substr($pulang, 0, 5) : null,
             ]);
-        } else { // lembur
-            $jm = trim((string) ($in['jam_mulai'] ?? ''));
-            $js = trim((string) ($in['jam_selesai'] ?? ''));
-
-            if (! $this->jamValid($jm)) {
-                $errors['jam_mulai'] = 'Jam mulai wajib berformat HH:mm';
-            }
-            if (! $this->jamValid($js)) {
-                $errors['jam_selesai'] = 'Jam selesai wajib berformat HH:mm';
-            }
-            if (! $errors && substr($js, 0, 5) <= substr($jm, 0, 5)) {
-                $errors['jam_selesai'] = 'Jam selesai harus setelah jam mulai';
-            }
-            if ($errors) {
-                return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $errors, 422);
-            }
-            if ($this->adaDuplikat($kid, $jenis, $mulai)) {
-                return ApiResponse::error('CONFLICT', 'Sudah ada pengajuan lembur untuk tanggal ini', null, 409);
-            }
-
-            $durasi   = intdiv(strtotime($mulai . ' ' . substr($js, 0, 5)) - strtotime($mulai . ' ' . substr($jm, 0, 5)), 60);
-            $dataJson = json_encode(['jam_mulai' => substr($jm, 0, 5), 'jam_selesai' => substr($js, 0, 5), 'durasi_menit' => $durasi]);
         }
 
         // lampiran (opsional)
@@ -478,7 +456,6 @@ class Pengajuan extends BaseController
      *  - cuti: kuota dipotong
      *  - izin, sakit, cuti: baris absensi dibuat untuk tiap hari kerja (tanggal yang sudah punya absensi dilewati)
      *  - koreksi_absensi: jam masuk dan pulang absensi diperbarui, status dan keterlambatan dihitung ulang
-     *  - lembur: lembur_menit absensi diisi
      *
      * @return array{0:string,1:string,2:int}|null
      */
@@ -490,10 +467,6 @@ class Pengajuan extends BaseController
         if ($p['jenis'] === 'koreksi_absensi') {
             return $this->efekKoreksi($db, $p, $now);
         }
-        if ($p['jenis'] === 'lembur') {
-            return $this->efekLembur($db, $p, $now);
-        }
-
         if ($p['jenis'] === 'cuti') {
             $kuota = (new KuotaCutiModel())->ambilAtauBuat($kid, (int) substr($p['tanggal_mulai'], 0, 4));
             $kuota = $db->query('SELECT * FROM kuota_cuti WHERE id = ? FOR UPDATE', [$kuota['id']])->getRowArray();
@@ -575,42 +548,6 @@ class Pengajuan extends BaseController
         } else {
             $db->table('absensi')->insert($data + ['karyawan_id' => $kid, 'tanggal' => $tgl, 'lembur_menit' => 0, 'created_at' => $now]);
         }
-        return null;
-    }
-
-    private function efekLembur($db, array $p, string $now): ?array
-    {
-        $d      = $p['data_json'] ? (json_decode($p['data_json'], true) ?: []) : [];
-        $tgl    = $p['tanggal_mulai'];
-        $kid    = (int) $p['karyawan_id'];
-        $durasi = (int) ($d['durasi_menit'] ?? 0);
-        $row    = $db->table('absensi')->where('karyawan_id', $kid)->where('tanggal', $tgl)->get()->getRowArray();
-
-        if ($row) {
-            $db->table('absensi')->where('id', $row['id'])->update(['lembur_menit' => $durasi, 'updated_at' => $now]);
-            return null;
-        }
-
-        // Hari kerja tanpa data absensi: jangan jadikan hadir lewat lembur
-        if (count((new PayrollService())->hariKerja($tgl, $tgl)) > 0) {
-            return ['UNPROCESSABLE', 'Belum ada data absensi pada tanggal lembur. Selesaikan koreksi absensi terlebih dahulu', 422];
-        }
-
-        // Hari libur atau akhir pekan: catat kehadiran lembur
-        $db->table('absensi')->insert([
-            'karyawan_id'     => $kid,
-            'tanggal'         => $tgl,
-            'jam_masuk'       => $this->jamPenuh($d['jam_mulai'] ?? '00:00'),
-            'jam_pulang'      => $this->jamPenuh($d['jam_selesai'] ?? '00:00'),
-            'status'          => 'hadir',
-            'menit_terlambat' => 0,
-            'durasi_menit'    => $durasi,
-            'lembur_menit'    => $durasi,
-            'sumber'          => 'sistem',
-            'pengajuan_id'    => (int) $p['id'],
-            'created_at'      => $now,
-            'updated_at'      => $now,
-        ]);
         return null;
     }
 
@@ -700,14 +637,6 @@ class Pengajuan extends BaseController
                     'tanggal'          => $r['tanggal_mulai'],
                     'jam_masuk_benar'  => $d['jam_masuk_benar'] ?? null,
                     'jam_pulang_benar' => $d['jam_pulang_benar'] ?? null,
-                ];
-            }
-            if ($r['jenis'] === 'lembur' && is_array($d)) {
-                $out['lembur'] = [
-                    'tanggal'      => $r['tanggal_mulai'],
-                    'jam_mulai'    => $d['jam_mulai'] ?? null,
-                    'jam_selesai'  => $d['jam_selesai'] ?? null,
-                    'durasi_menit' => (int) ($d['durasi_menit'] ?? 0),
                 ];
             }
             return $out;
