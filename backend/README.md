@@ -18,7 +18,7 @@ Tambahkan environment variables berikut di Render:
 | `DB_PASSWORD` | Password database |
 | `JWT_SECRET` | Secret acak yang kuat dan hanya disimpan di environment Render |
 
-Jangan menambahkan `.env` atau secret ke image Docker maupun repository. `writable/uploads` pada filesystem container bersifat sementara; gunakan persistent disk atau object storage bila file unggahan harus bertahan setelah deploy/restart. Jangan jalankan seeder pada database production.
+Jangan menambahkan `.env` atau secret ke image Docker maupun repository. `writable/uploads` pada filesystem container bersifat sementara; gunakan persistent disk atau object storage bila file unggahan harus bertahan setelah deploy/restart. Jangan jalankan `DatabaseSeeder` atau seeder demo pada database production. Seeder pemulihan yang cakupannya terbatas hanya boleh dijalankan satu per satu setelah pemeriksaan dan persetujuan eksplisit, serta tidak boleh didaftarkan ke `DatabaseSeeder`.
 
 ## What is CodeIgniter?
 
