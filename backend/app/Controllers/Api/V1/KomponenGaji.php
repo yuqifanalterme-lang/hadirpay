@@ -96,7 +96,11 @@ class KomponenGaji extends BaseController
             return ApiResponse::error('NOT_FOUND', 'Komponen gaji tidak ditemukan', null, 404);
         }
 
-        $input = $this->bersihkan($this->request->getJSON(true) ?? []);
+        $patch = $this->request->getJSON(true) ?? [];
+        $patch = array_intersect_key($patch, array_flip([
+            'kode', 'nama', 'tipe', 'metode', 'nilai', 'keterangan', 'aktif',
+        ]));
+        $input = array_merge($lama, $this->bersihkan($patch));
 
         $validation = service('validation');
         $validation->setRules($this->rules((int) $id), $this->messages());

@@ -101,12 +101,12 @@ not used as the source of truth.
   to `pendapatan|potongan`; `metode` is required and limited to
   `nominal_tetap|persen|per_hari|per_jam|per_menit`; `nilai` is optional, numeric,
   and >= 0, with `persen` capped at 100. `keterangan` is optional, and omitted
-  `aktif` defaults to its existing value. The checked-in PUT controller runs those
-  required rules on the partial request and then reads the required fields directly.
-  That conflicts with the frontend's partial PUT contract and is the most likely
-  cause of the reported 422. For the specific `{ "nilai": 3 }` request, code,
-  name, type, and method are missing and fail `required`; the unchanged code's
-  `is_unique` exclusion and the numeric percent value are not the cause.
+  `aktif` defaults to its existing value. The PUT controller allowlists submitted
+  component fields, merges them over the existing record, and validates the merged
+  record. This preserves omitted values and supports the frontend's partial PUT
+  contract. The previous behavior validated the patch alone, causing the reported
+  422 when code, name, type, and method were omitted. The unchanged code's
+  `is_unique` exclusion and the numeric percent value were not the cause.
 - Laporan detail maps UI department names to `departemen_id` using the department
   master endpoint. The report catalog remains local because no catalog endpoint is
   specified. Mock report snapshots cannot represent arbitrary ranges and show an
