@@ -94,7 +94,6 @@ function DemoPayrollProcessPage() {
     late: detailedLines.reduce((sum, line) => sum + line.lateCount, 0),
     absent: detailedLines.reduce((sum, line) => sum + line.absenceDays, 0),
     present: detailedLines.reduce((sum, line) => sum + line.presentDays, 0),
-    overtimeHours: detailedLines.reduce((sum, line) => sum + line.overtimeHours, 0),
   }), [lines])
 
   async function handleAction() {
@@ -595,7 +594,7 @@ function DemoPayrollProcessPage() {
                       <div><p className="font-semibold text-heading">{line.employeeName}</p><p className="text-sm text-muted-foreground">{line.department}</p></div>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Hadir {line.presentDays} hari · Terlambat {line.lateCount} kali · Alpha {line.absenceDays} hari · Lembur {line.overtimeHours} jam
+                      Hadir {line.presentDays} hari · Terlambat {line.lateCount} kali · Alpha {line.absenceDays} hari
                     </p>
                   </div>
                 ))}
@@ -606,7 +605,7 @@ function DemoPayrollProcessPage() {
       )}
 
       {step === 2 && (
-        <Panel title="Hasil perhitungan" description={`Rumus gaji bersih: gaji pokok + tunjangan + upah lembur - total potongan. Total periode ${formatRupiah(totals.net)}.`}>
+        <Panel title="Hasil perhitungan" description={`Rumus gaji bersih: gaji pokok + tunjangan - total potongan. Total periode ${formatRupiah(totals.net)}.`}>
           <div className="no-scrollbar hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full min-w-[980px] border-collapse text-left text-sm">
               <caption className="sr-only">Hasil perhitungan gaji periode {period.period}</caption>
@@ -615,7 +614,6 @@ function DemoPayrollProcessPage() {
                   <th scope="col" className="px-3 py-3">Karyawan</th>
                   <th scope="col" className="px-3 py-3 text-right">Gaji pokok</th>
                   <th scope="col" className="px-3 py-3 text-right">Tunjangan</th>
-                  <th scope="col" className="px-3 py-3 text-right">Lembur</th>
                   <th scope="col" className="px-3 py-3 text-right">Potongan</th>
                   <th scope="col" className="px-3 py-3 text-right">Gaji bersih</th>
                 </tr>
@@ -628,14 +626,13 @@ function DemoPayrollProcessPage() {
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.baseSalary)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.fixedAllowance)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.overtimePay)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.totalDeductions)}</td>
                     <td className="px-3 py-3 text-right font-bold tabular-nums text-heading">{formatRupiah(line.netPay)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-surface font-bold text-heading">
-                <tr><th scope="row" colSpan={5} className="px-3 py-3 text-right">Total gaji bersih</th><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(totals.net)}</td></tr>
+                <tr><th scope="row" colSpan={4} className="px-3 py-3 text-right">Total gaji bersih</th><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(totals.net)}</td></tr>
               </tfoot>
             </table>
           </div>
@@ -646,7 +643,6 @@ function DemoPayrollProcessPage() {
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   <dt className="text-muted-foreground">Gaji pokok</dt><dd className="text-right">{line.isAggregate ? 'Agregat' : formatRupiah(line.baseSalary)}</dd>
                   <dt className="text-muted-foreground">Tunjangan</dt><dd className="text-right">{line.isAggregate ? 'Agregat' : formatRupiah(line.fixedAllowance)}</dd>
-                  <dt className="text-muted-foreground">Lembur</dt><dd className="text-right">{line.isAggregate ? 'Agregat' : formatRupiah(line.overtimePay)}</dd>
                   <dt className="text-muted-foreground">Potongan</dt><dd className="text-right">{line.isAggregate ? 'Agregat' : formatRupiah(line.totalDeductions)}</dd>
                   <dt className="font-semibold text-heading">Gaji bersih</dt><dd className="text-right font-bold">{formatRupiah(line.netPay)}</dd>
                 </dl>

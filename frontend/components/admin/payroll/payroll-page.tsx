@@ -166,11 +166,14 @@ export function PayrollPage() {
           }
         }
         await updatePayrollStatus(role, pendingAction, payment, selectedPeriodId)
+        if (pendingAction === 'approve' || pendingAction === 'pay') {
+          notifyAccountingDataChanged()
+        }
       }
       await load(pendingAction === 'delete_draft' ? undefined : selectedPeriodId)
       toast.success(
         pendingAction === 'cancel_payroll'
-          ? 'Penggajian berhasil dibatalkan.'
+          ? 'Periode payroll dan jurnal terkait dihapus permanen.'
           : pendingAction === 'delete_draft'
             ? 'Draf penggajian berhasil dihapus.'
             : 'Status proses penggajian berhasil diperbarui.',
@@ -410,7 +413,7 @@ export function PayrollPage() {
                 : pendingAction === 'return'
                   ? `Kembalikan periode ${period.period} untuk diperbaiki.`
                   : pendingAction === 'cancel_payroll'
-                    ? `Batalkan penggajian periode ${period.period}?`
+                      ? `Hapus permanen periode ${period.period}, rincian payroll, slip gaji, dan jurnal akuntansinya? Tindakan ini tidak dapat dibatalkan.`
                     : pendingAction === 'delete_draft'
                       ? `Hapus draf penggajian periode ${period.period} beserta rincian dan jurnalnya?`
                       : `${actionLabel(pendingAction ?? 'submit')} untuk periode ${period.period}?`

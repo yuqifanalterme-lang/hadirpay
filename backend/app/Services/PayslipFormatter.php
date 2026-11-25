@@ -24,6 +24,19 @@ class PayslipFormatter
         }
 
         $rekap = $g['rekap_json'] ? (json_decode($g['rekap_json'], true) ?: []) : [];
+        $kehadiran = [
+            'hari_kerja'            => (int) ($rekap['hari_kerja_periode'] ?? 0),
+            'hadir'                 => (int) ($rekap['hadir'] ?? 0),
+            'terlambat'             => (int) ($rekap['terlambat'] ?? 0),
+            'izin'                  => (int) ($rekap['izin'] ?? 0),
+            'sakit'                 => (int) ($rekap['sakit'] ?? 0),
+            'cuti'                  => (int) ($rekap['cuti'] ?? 0),
+            'alpha'                 => (int) ($rekap['alpha'] ?? 0),
+            'total_menit_terlambat' => (int) ($rekap['menit_terlambat'] ?? 0),
+        ];
+        if (array_key_exists('menit_lembur', $rekap)) {
+            $kehadiran['jam_lembur'] = round(((int) $rekap['menit_lembur']) / 60, 2);
+        }
 
         $rincian = $db->table('detail_penggajian')
             ->where('penggajian_id', $penggajianId)
@@ -40,17 +53,7 @@ class PayslipFormatter
                 'jabatan'    => $g['jabatan_nama'],
                 'departemen' => $g['departemen_nama'],
             ],
-            'kehadiran' => [
-                'hari_kerja'            => (int) ($rekap['hari_kerja_periode'] ?? 0),
-                'hadir'                 => (int) ($rekap['hadir'] ?? 0),
-                'terlambat'             => (int) ($rekap['terlambat'] ?? 0),
-                'izin'                  => (int) ($rekap['izin'] ?? 0),
-                'sakit'                 => (int) ($rekap['sakit'] ?? 0),
-                'cuti'                  => (int) ($rekap['cuti'] ?? 0),
-                'alpha'                 => (int) ($rekap['alpha'] ?? 0),
-                'total_menit_terlambat' => (int) ($rekap['menit_terlambat'] ?? 0),
-                'jam_lembur'            => round(((int) ($rekap['menit_lembur'] ?? 0)) / 60, 2),
-            ],
+            'kehadiran' => $kehadiran,
             'tarif_harian' => (float) $g['tarif_harian'],
             'rincian'      => array_map(static fn ($r) => [
                 'komponen_id' => $r['komponen_id'] !== null ? (int) $r['komponen_id'] : null,

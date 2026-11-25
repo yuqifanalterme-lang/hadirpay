@@ -122,7 +122,7 @@ export type PenggajianDetail = {
     cuti: number
     alpha: number
     total_menit_terlambat: number
-    jam_lembur: number
+    jam_lembur?: number
   }
   tarif_harian: Uang
   rincian: { komponen_id: Id | null; nama: string; tipe: TipeKomponen; keterangan: string | null; jumlah: Uang }[]

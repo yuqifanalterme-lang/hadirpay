@@ -15,7 +15,6 @@ import {
   FileText,
   HeartPulse,
   UserCheck,
-  Wallet,
 } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -53,6 +52,19 @@ function DetailValue({ label, value }: { label: string; value: React.ReactNode }
       <dd className="font-semibold text-heading">{value}</dd>
     </div>
   )
+}
+
+function formatComponentValue(component: NonNullable<Employee['salaryComponents']>[number]) {
+  if (component.method === 'persen') {
+    return `${component.value}% dari gaji pokok periode`
+  }
+  const units = {
+    nominal_tetap: 'per periode',
+    per_hari: 'per hari',
+    per_jam: 'per jam',
+    per_menit: 'per menit',
+  } as const
+  return `${formatRupiah(component.value)} ${units[component.method]}`
 }
 
 export function EmployeeDetail({ id }: { id: string }) {
@@ -284,7 +296,7 @@ export function EmployeeDetail({ id }: { id: string }) {
         )}
 
         {activeTab === 'Komponen Gaji' && (
-          <Panel title="Komponen gaji" description="Nilai mengikuti jenis penggajian karyawan.">
+          <Panel title="Komponen gaji" description="Data profil dan komponen terpasang menjadi input perhitungan payroll.">
             <dl className="grid gap-x-8 sm:grid-cols-2">
               <DetailValue
                 label={employee.payrollType === 'harian' ? 'Tarif harian' : 'Gaji pokok'}
@@ -295,12 +307,23 @@ export function EmployeeDetail({ id }: { id: string }) {
                 value={`${formatRupiah(employee.fixedAllowance)}${employee.payrollType === 'harian' ? ' per hari' : ''}`}
               />
             </dl>
-            <div className="flex items-start gap-3 rounded-xl bg-surface p-4">
-              <Wallet className="mt-0.5 size-5 text-primary" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">
-                Perhitungan bersih dan potongan belum terhubung ke layanan penggajian.
-              </p>
-            </div>
+            <h3 className="mb-2 mt-4 text-sm font-semibold text-heading">Komponen terpasang</h3>
+            {employee.salaryComponents?.length ? (
+              <dl className="grid gap-x-8 sm:grid-cols-2">
+                {employee.salaryComponents.map((component) => (
+                  <DetailValue
+                    key={component.id}
+                    label={component.name}
+                    value={formatComponentValue(component)}
+                  />
+                ))}
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">Belum ada komponen tambahan yang dipasang untuk karyawan ini.</p>
+            )}
+            <p className="mt-3 text-sm text-muted-foreground">
+              BPJS mengikuti persentase komponen master dan dihitung dari gaji pokok periode. Nilai PPh 21 dan tunjangan dapat diubah dari profil karyawan.
+            </p>
           </Panel>
         )}
 

@@ -129,15 +129,34 @@ class KomponenGaji extends BaseController
             }
         }
 
-        $this->model->update($id, [
-            'kode'       => (int) $lama['sistem'] === 1 ? $lama['kode'] : $input['kode'],
-            'nama'       => $input['nama'],
-            'tipe'       => $input['tipe'],
-            'metode'     => $input['metode'],
-            'nilai'      => $input['nilai'] ?? null,
-            'keterangan' => $input['keterangan'] ?? null,
-            'aktif'      => $aktif,
-        ]);
+        $db = db_connect();
+        $db->transBegin();
+        try {
+            $updated = $this->model->update($id, [
+                'kode'       => (int) $lama['sistem'] === 1 ? $lama['kode'] : $input['kode'],
+                'nama'       => $input['nama'],
+                'tipe'       => $input['tipe'],
+                'metode'     => $input['metode'],
+                'nilai'      => $input['nilai'] ?? null,
+                'keterangan' => $input['keterangan'] ?? null,
+                'aktif'      => $aktif,
+            ]);
+            if ($updated === false) {
+                throw new \RuntimeException('Pembaruan komponen gaji ditolak oleh model.');
+            }
+
+            if ($input['kode'] === 'BPJS' && $input['metode'] === 'persen' && $input['nilai'] !== null) {
+                $this->sinkronkanBpjsKaryawan($db, (int) $id, (float) $input['nilai']);
+            }
+            if ($db->transStatus() === false) {
+                throw new \RuntimeException('Sinkronisasi komponen gaji tidak berhasil disimpan.');
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Gagal memperbarui komponen gaji: ' . $e->getMessage());
+            return ApiResponse::error('SERVER_ERROR', 'Gagal memperbarui komponen gaji', null, 500);
+        }
 
         return ApiResponse::success(KomponenGajiModel::format($this->model->find($id)), 'Komponen gaji diperbarui');
     }
@@ -196,6 +215,41 @@ class KomponenGaji extends BaseController
         return db_connect()->table('karyawan_komponen')->where('komponen_id', $komponenId)->countAllResults();
     }
 
+    private function sinkronkanBpjsKaryawan($db, int $komponenId, float $nilai): void
+    {
+        $karyawanIds = array_map('intval', array_column(
+            $db->table('karyawan')->select('id')->get()->getResultArray(),
+            'id'
+        ));
+        if (! $karyawanIds) {
+            return;
+        }
+
+        $existingIds = array_map('intval', array_column(
+            $db->table('karyawan_komponen')->select('karyawan_id')->where('komponen_id', $komponenId)->get()->getResultArray(),
+            'karyawan_id'
+        ));
+        $now = date('Y-m-d H:i:s');
+        $db->table('karyawan_komponen')->where('komponen_id', $komponenId)->update([
+            'nilai'      => $nilai,
+            'updated_at' => $now,
+        ]);
+
+        $missing = [];
+        foreach (array_diff($karyawanIds, $existingIds) as $karyawanId) {
+            $missing[] = [
+                'karyawan_id' => $karyawanId,
+                'komponen_id' => $komponenId,
+                'nilai'       => $nilai,
+                'created_at'  => $now,
+                'updated_at'  => $now,
+            ];
+        }
+        if ($missing) {
+            $db->table('karyawan_komponen')->insertBatch($missing);
+        }
+    }
+
     private function bersihkan(array $in): array
     {
         if (isset($in['kode']))       $in['kode'] = strtoupper(trim((string) $in['kode']));
@@ -217,6 +271,9 @@ class KomponenGaji extends BaseController
 
     private function cekNilai(array $in)
     {
+        if (($in['kode'] ?? '') === 'BPJS' && (($in['nilai'] ?? null) === null || $in['nilai'] === '')) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Nilai persen BPJS wajib diisi'], 422);
+        }
         if (($in['metode'] ?? '') === 'persen' && isset($in['nilai']) && (float) $in['nilai'] > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
         }

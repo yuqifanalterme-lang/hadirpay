@@ -328,28 +328,25 @@ export async function returnPayrollPeriod(id: string | number, body: PeriodeKemb
   })
 }
 
-export async function cancelPayrollPayment(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
-  const result = await apiRequest<PeriodeGajiDetail>(
+export async function cancelPayrollPayment(id: string | number, body: PeriodePembatalanRequest): Promise<void> {
+  await apiRequest<null>(
     `periode-gaji/${parseId(String(id))}/batalkan-pembayaran`,
     { method: 'POST', body },
   )
-  return result.data
 }
 
-export async function cancelPayrollApproval(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
-  const result = await apiRequest<PeriodeGajiDetail>(
+export async function cancelPayrollApproval(id: string | number, body: PeriodePembatalanRequest): Promise<void> {
+  await apiRequest<null>(
     `periode-gaji/${parseId(String(id))}/batalkan-persetujuan`,
     { method: 'POST', body },
   )
-  return result.data
 }
 
-export async function cancelPayroll(id: string | number, body: PeriodePembatalanRequest): Promise<PeriodeGajiDetail> {
-  const result = await apiRequest<PeriodeGajiDetail>(
+export async function cancelPayroll(id: string | number, body: PeriodePembatalanRequest): Promise<void> {
+  await apiRequest<null>(
     `periode-gaji/${parseId(String(id))}/batalkan`,
     { method: 'POST', body },
   )
-  return result.data
 }
 
 export async function deleteDraftPayroll(id: string | number): Promise<void> {
@@ -405,7 +402,7 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
       presentDays: detail.kehadiran.hadir,
       lateCount: detail.kehadiran.terlambat,
       absenceDays: detail.kehadiran.alpha,
-      overtimeHours: detail.kehadiran.jam_lembur,
+      overtimeHours: detail.kehadiran.jam_lembur ?? 0,
       earnings: earnings.map((item) => ({ label: item.nama, amount: item.jumlah })),
       deductions: deductions.map((item) => ({ label: item.nama, amount: item.jumlah })),
       isAggregate: false,

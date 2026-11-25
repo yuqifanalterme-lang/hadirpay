@@ -3,6 +3,15 @@ import type { AttendanceStatus } from '@/lib/mock-data'
 export type PayrollType = 'bulanan' | 'harian'
 export type EmployeeStatus = 'Aktif' | 'Nonaktif'
 
+export type EmployeeSalaryComponent = {
+  id: number
+  code: string
+  name: string
+  type: 'pendapatan' | 'potongan'
+  method: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_jam' | 'per_menit'
+  value: number
+}
+
 export type Employee = {
   id: string
   code?: string
@@ -14,6 +23,7 @@ export type Employee = {
   baseSalary: number
   fixedAllowance: number
   pph21?: number
+  salaryComponents?: EmployeeSalaryComponent[]
   npwp?: string
   noBpjs?: string
   bpjsKesehatan?: string

@@ -35,7 +35,7 @@ final class PayrollServiceTest extends CIUnitTestCase
             2 => ['id' => 2, 'kode' => 'LEMBUR', 'nama' => 'Upah lembur', 'tipe' => 'pendapatan', 'metode' => 'per_jam', 'nilai' => 25000, 'aktif' => 1],
             3 => ['id' => 3, 'kode' => 'POT-ALPHA', 'nama' => 'Potongan alpha', 'tipe' => 'potongan', 'metode' => 'per_hari', 'nilai' => null, 'aktif' => 1],
             4 => ['id' => 4, 'kode' => 'POT-TELAT', 'nama' => 'Potongan keterlambatan', 'tipe' => 'potongan', 'metode' => 'per_menit', 'nilai' => 1000, 'aktif' => 1],
-            5 => ['id' => 5, 'kode' => 'BPJS', 'nama' => 'Iuran BPJS', 'tipe' => 'potongan', 'metode' => 'persen', 'nilai' => 1, 'aktif' => 1],
+            5 => ['id' => 5, 'kode' => 'BPJS', 'nama' => 'Iuran BPJS', 'tipe' => 'potongan', 'metode' => 'persen', 'nilai' => 3, 'aktif' => 1],
             6 => ['id' => 6, 'kode' => 'POT-LAIN', 'nama' => 'Potongan lainnya', 'tipe' => 'potongan', 'metode' => 'nominal_tetap', 'nilai' => 0, 'aktif' => 1],
         ];
         $byKode = [];
@@ -54,7 +54,7 @@ final class PayrollServiceTest extends CIUnitTestCase
             $hariKerja,
             $komponen,
             $byKode,
-            [1 => 245000, 5 => 1, 6 => 200000],
+            [1 => 245000, 5 => 3, 6 => 200000],
             $absensi,
             [],
             '2026-11-01'
@@ -62,9 +62,14 @@ final class PayrollServiceTest extends CIUnitTestCase
 
         $this->assertCount(22, $hariKerja);
         $this->assertSame(1, json_decode($hasil['penggajian']['rekap_json'], true)['alpha']);
-        $this->assertSame(4845000.0, $hasil['penggajian']['total_pendapatan']);
-        $this->assertSame(469545.45, $hasil['penggajian']['total_potongan']);
-        $this->assertSame(4375454.55, $hasil['penggajian']['gaji_bersih']);
+        $this->assertSame(0.0, $hasil['penggajian']['upah_lembur']);
+        $this->assertSame(4745000.0, $hasil['penggajian']['total_pendapatan']);
+        $this->assertSame(559545.45, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(4185454.55, $hasil['penggajian']['gaji_bersih']);
+        $this->assertNotContains('Upah lembur', array_column($hasil['detail'], 'nama'));
+        $bpjsRows = array_values(array_filter($hasil['detail'], static fn ($row) => $row['nama'] === 'Iuran BPJS'));
+        $this->assertCount(1, $bpjsRows);
+        $this->assertSame(135000.0, $bpjsRows[0]['jumlah']);
         $this->assertSame(204545.45, $hasil['penggajian']['tarif_harian']);
     }
 

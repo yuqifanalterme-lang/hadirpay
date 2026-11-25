@@ -85,11 +85,21 @@ not used as the source of truth.
   `status`, `dibatalkan_oleh`, `dibatalkan_pada`, and
   `alasan_pembatalan` fields are retained and shown for cancelled entries. Manual
   journal cancellation sends `DELETE /jurnal/{id}` with `{ alasan }`.
-- Payroll cancellation sends `POST /periode-gaji/{id}/batalkan-pembayaran` or
-  `POST /periode-gaji/{id}/batalkan-persetujuan`, each with `{ catatan }`. A
+- Payroll cancellation sends `POST /periode-gaji/{id}/batalkan` with `{ catatan }`.
+  Approval and payment cancellation endpoints use the same permanent-delete policy:
+  the payroll period, payroll rows, slips, linked journals, and journal reversals are
+  removed in one transaction. The database is not changed by this note. A
   `hadirpay-accounting-data-changed` event refreshes mounted journal, payroll-period,
-  general-ledger, and trial-balance views after cancellation; each view loads its
-  current API query when revisited.
+  general-ledger, and trial-balance views after approval, payment, cancellation, or
+  draft deletion; each view loads its current API query when revisited.
+- The BPJS master component value is synchronized to every employee assignment when
+  updated; new employee records inherit the current master percentage. Payroll
+  calculates the percentage from the employee's period salary after proration.
+  PPh 21 remains a per-employee manual amount, and fixed allowance remains editable
+  in the employee profile.
+- New payroll calculations exclude overtime pay and omit overtime minutes from the
+  new payroll recap. Existing attendance and payroll records are retained; historical
+  slip recaps can still expose overtime data saved before this change.
 - Editing a payroll component with only its amount changed sends a partial PUT body,
   for example `{"nilai":3}` for BPJS changing from 1 to 3. The value is a JSON number;
   an empty amount is sent as `null`. Unchanged `kode` is omitted, never replaced with

@@ -154,6 +154,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     }
     const input = {
       ...savedInput,
+      overtimePay: 0,
       baseSalary: employee.baseSalary,
       fixedAllowance: employee.fixedAllowance,
     }
@@ -168,7 +169,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     const earnings = [
       { label: 'Gaji pokok', amount: input.baseSalary },
       ...(input.fixedAllowance > 0 ? [{ label: 'Tunjangan tetap', amount: input.fixedAllowance }] : []),
-      ...(input.overtimePay > 0 ? [{ label: 'Upah lembur', amount: input.overtimePay }] : []),
     ]
     const deductions = [
       ...(calculation.absenceDeduction > 0 ? [{ label: `Potongan alpha (${input.absenceDays} hari)`, amount: calculation.absenceDeduction }] : []),
@@ -187,15 +187,15 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       employeeCount: 1,
       baseSalary: input.baseSalary,
       fixedAllowance: input.fixedAllowance,
-      overtimePay: input.overtimePay,
-      totalEarnings: input.baseSalary + input.fixedAllowance + input.overtimePay,
+      overtimePay: 0,
+      totalEarnings: input.baseSalary + input.fixedAllowance,
       totalDeductions: calculation.totalDeductions,
       netPay: calculation.netPay,
       workDays: input.workDays,
       presentDays: input.workDays - input.absenceDays,
       lateCount: input.lateDeduction > 0 ? 1 : 0,
       absenceDays: input.absenceDays,
-      overtimeHours: input.overtimePay > 0 ? 4 : 0,
+      overtimeHours: 0,
       earnings,
       deductions,
       statutoryDeductions: {

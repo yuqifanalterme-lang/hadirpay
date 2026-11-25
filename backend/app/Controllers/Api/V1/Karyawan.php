@@ -199,6 +199,7 @@ class Karyawan extends BaseController
                 'updated_at'    => $now,
             ]);
             $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
+            $this->syncBpjs($db, (int) $id, $now);
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
@@ -502,6 +503,22 @@ class Karyawan extends BaseController
             'nilai' => $nilai,
             'created_at' => $now,
             'updated_at' => $now,
+        ]);
+    }
+
+    private function syncBpjs($db, int $karyawanId, string $now): void
+    {
+        $komponen = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
+        if (! $komponen || $komponen['metode'] !== 'persen' || $komponen['nilai'] === null) {
+            throw new \RuntimeException('Komponen BPJS persen belum tersedia.');
+        }
+
+        $db->table('karyawan_komponen')->insert([
+            'karyawan_id' => $karyawanId,
+            'komponen_id' => (int) $komponen['id'],
+            'nilai'       => (float) $komponen['nilai'],
+            'created_at'  => $now,
+            'updated_at'  => $now,
         ]);
     }
 

@@ -12,7 +12,7 @@ namespace App\Services;
  *  - Karyawan "harian": gaji_pokok = upah PER HARI, dibayar untuk hari hadir, terlambat, dinas luar, dan cuti.
  *  - Izin dan sakit tidak memotong gaji bulanan.
  *  - Hari tanpa absensi baru dihitung alpha untuk tanggal SEBELUM hari ini.
- *  - LEMBUR, POT-TELAT, POT-ALPHA berlaku otomatis ke semua karyawan (nilai bisa di-override lewat karyawan_komponen).
+ *  - POT-TELAT dan POT-ALPHA berlaku otomatis ke semua karyawan (nilai bisa di-override lewat karyawan_komponen).
  *  - Komponen lain hanya berlaku bila dipasang di karyawan_komponen. Persen dihitung dari gaji pokok.
  *  - Gaji bersih tidak boleh minus (minimal 0).
  */
@@ -221,11 +221,9 @@ class PayrollService
 
         // --- menit (semua baris absensi di periode, termasuk hari non-kerja) ---
         $menitTelat = 0;
-        $menitLembur = 0;
         $menitKerja = 0;
         foreach ($absensi as $a) {
             $menitTelat  += (int) $a['menit_terlambat'];
-            $menitLembur += (int) $a['lembur_menit'];
             $menitKerja  += (int) ($a['durasi_menit'] ?? 0);
         }
 
@@ -305,17 +303,7 @@ class PayrollService
             }
         }
 
-        // --- komponen otomatis: lembur ---
         $upahLembur = 0.0;
-        $lembur = $this->aturan(self::KODE_LEMBUR, $byKode, $assigned);
-        if ($lembur && $lembur['nilai'] !== null && $menitLembur > 0) {
-            $jam = $menitLembur / 60;
-            $jml = round($jam * $lembur['nilai'], 2);
-            if ($jml > 0) {
-                $upahLembur = $jml;
-                $pend[]     = $this->baris((int) $lembur['m']['id'], $lembur['m']['nama'], 'pendapatan', $this->angka($jam) . ' jam x ' . $this->rp($lembur['nilai']), $jml);
-            }
-        }
 
         // --- komponen otomatis: keterlambatan ---
         $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned);
@@ -337,7 +325,7 @@ class PayrollService
         }
 
         // --- total ---
-        $totalPend = round($gajiPokok + $tunjangan + $upahLembur, 2);
+        $totalPend = round($gajiPokok + $tunjangan, 2);
         $totalPot  = 0.0;
         foreach ($pot as $p) {
             $totalPot += $p['jumlah'];
@@ -362,7 +350,6 @@ class PayrollService
             'alpha'               => $hitung['alpha'],
             'belum_berlangsung'   => $belumBerlangsung,
             'menit_terlambat'     => $menitTelat,
-            'menit_lembur'        => $menitLembur,
             'menit_kerja'         => $menitKerja,
             'gaji_pokok_dasar'    => $gajiDasar,
             'peringatan'          => $peringatan,
