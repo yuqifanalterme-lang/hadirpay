@@ -311,6 +311,79 @@ class Karyawan extends BaseController
         return ApiResponse::success($this->detail($id), 'Status karyawan diperbarui');
     }
 
+    // DELETE /api/v1/karyawan/(:num) - hapus hanya jika tidak ada riwayat yang perlu dipertahankan
+    public function delete($id = null)
+    {
+        $id = (int) $id;
+        $karyawan = $this->model->find($id);
+        if (! $karyawan) {
+            return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
+        }
+
+        $db = db_connect();
+        $akun = $db->table('users')->where('karyawan_id', $id)->get()->getRowArray();
+        $userSaatIni = JwtService::$user ?? [];
+        if ($akun && (int) ($userSaatIni['id'] ?? 0) === (int) $akun['id']) {
+            return ApiResponse::error('CONFLICT', 'Anda tidak bisa menghapus akun karyawan sendiri', null, 409);
+        }
+
+        $riwayatKaryawan = [
+            'absensi' => $db->table('absensi')->where('karyawan_id', $id)->countAllResults(),
+            'pengajuan' => $db->table('pengajuan_izin')->where('karyawan_id', $id)->countAllResults(),
+            'penggajian' => $db->table('penggajian')->where('karyawan_id', $id)->countAllResults(),
+        ];
+        $riwayatKaryawan = array_filter($riwayatKaryawan, static fn ($jumlah) => $jumlah > 0);
+        if ($riwayatKaryawan) {
+            return ApiResponse::error(
+                'EMPLOYEE_HAS_HISTORY',
+                'Karyawan memiliki riwayat absensi, pengajuan, atau penggajian yang harus dipertahankan. Nonaktifkan karyawan sebagai gantinya.',
+                $riwayatKaryawan,
+                409
+            );
+        }
+
+        if ($akun) {
+            $riwayatAudit = [
+                'periode_dibuat' => $db->table('periode_gaji')->where('dibuat_oleh', (int) $akun['id'])->countAllResults(),
+                'perubahan_periode' => $db->table('periode_status_log')->where('oleh', (int) $akun['id'])->countAllResults(),
+                'pengajuan_diproses' => $db->table('pengajuan_izin')->where('diproses_oleh', (int) $akun['id'])->countAllResults(),
+                'jurnal_dibuat' => $db->table('jurnal')->where('dibuat_oleh', (int) $akun['id'])->countAllResults(),
+                'jurnal_dibatalkan' => $db->table('jurnal')->groupStart()
+                    ->where('cancelled_by', (int) $akun['id'])
+                    ->orWhere('dibatalkan_oleh', (int) $akun['id'])
+                    ->groupEnd()->countAllResults(),
+            ];
+            $riwayatAudit = array_filter($riwayatAudit, static fn ($jumlah) => $jumlah > 0);
+            if ($riwayatAudit) {
+                return ApiResponse::error(
+                    'EMPLOYEE_HAS_AUDIT_HISTORY',
+                    'Akun karyawan tercatat sebagai pelaku perubahan penting dan harus dipertahankan. Nonaktifkan karyawan sebagai gantinya.',
+                    $riwayatAudit,
+                    409
+                );
+            }
+        }
+
+        $db->transBegin();
+        try {
+            if ($akun) {
+                $db->table('users')->where('id', (int) $akun['id'])->delete();
+            }
+            $db->table('kuota_cuti')->where('karyawan_id', $id)->delete();
+            $this->model->delete($id);
+            if ($db->transStatus() === false) {
+                throw new \RuntimeException('Penghapusan karyawan tidak berhasil disimpan.');
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Gagal hapus karyawan: ' . $e->getMessage());
+            return ApiResponse::error('SERVER_ERROR', 'Gagal menghapus karyawan', null, 500);
+        }
+
+        return ApiResponse::success(null, 'Karyawan dihapus');
+    }
+
     // GET /api/v1/karyawan/(:num)/kehadiran-ringkas?periode=2026-11   (admin_hrd, pemilik)
     public function kehadiranRingkas($id = null)
     {

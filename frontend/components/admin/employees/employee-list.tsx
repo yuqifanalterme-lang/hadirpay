@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, ArrowUpDown, Eye, SquarePen, UserCheck, UserX, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Eye, SquarePen, Trash2, UserCheck, UserX, Users } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
@@ -18,7 +18,7 @@ import type { Employee } from '@/lib/mock/employees'
 import type { MasterRecord } from '@/lib/mock/master-data'
 import type { KaryawanListQuery } from '@/lib/types/karyawan'
 import { formatRupiah } from '@/lib/mock-data'
-import { listEmployeesPage, listMasterRecords, setEmployeeStatus } from '@/lib/services/karyawan.service'
+import { deleteEmployee, listEmployeesPage, listMasterRecords, setEmployeeStatus } from '@/lib/services/karyawan.service'
 import { EmployeeFormDialog } from './employee-form-dialog'
 import { TableActionIcon } from '@/components/ui/table-action-icon'
 
@@ -62,6 +62,9 @@ export function EmployeeList() {
   const [formEmployee, setFormEmployee] = useState<Employee | null | undefined>(undefined)
   const [statusEmployee, setStatusEmployee] = useState<Employee | null>(null)
   const [statusSaving, setStatusSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
+  const [deleteSaving, setDeleteSaving] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const requestId = useRef(0)
 
   const load = useCallback(async () => {
@@ -193,6 +196,25 @@ export function EmployeeList() {
       toast.error(error instanceof Error ? error.message : 'Status karyawan gagal diperbarui.')
     } finally {
       setStatusSaving(false)
+    }
+  }
+
+  async function confirmEmployeeDelete() {
+    if (!deleteTarget || deleteSaving) return
+    const employee = deleteTarget
+    setDeleteSaving(true)
+    setDeleteError('')
+    try {
+      await deleteEmployee(employee.id)
+      setDeleteTarget(null)
+      toast.success(`Data ${employee.name} berhasil dihapus.`)
+      await load()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Data karyawan gagal dihapus.'
+      setDeleteError(message)
+      toast.error(message)
+    } finally {
+      setDeleteSaving(false)
     }
   }
 
@@ -372,6 +394,16 @@ export function EmployeeList() {
                               onClick={() => setStatusEmployee(employee)}
                             />
                           )}
+                          <TableActionIcon
+                            label="Hapus permanen"
+                            ariaLabel={`Hapus permanen ${employee.name}`}
+                            icon={Trash2}
+                            tone="red"
+                            onClick={() => {
+                              setDeleteError('')
+                              setDeleteTarget(employee)
+                            }}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -447,6 +479,45 @@ export function EmployeeList() {
               </Button>
             </DialogFooter>
           </form>
+        )}
+      </Dialog>
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteSaving) {
+            setDeleteTarget(null)
+            setDeleteError('')
+          }
+        }}
+        label="Hapus permanen karyawan"
+      >
+        {deleteTarget && (
+          <>
+            <DialogHeader
+              title="Hapus karyawan secara permanen?"
+              description={`${deleteTarget.name} beserta akun loginnya akan dihapus. Tindakan ini tidak dapat dibatalkan.`}
+              onClose={() => {
+                if (!deleteSaving) {
+                  setDeleteTarget(null)
+                  setDeleteError('')
+                }
+              }}
+            />
+            <div className="space-y-3 p-5 sm:p-6">
+              <p className="text-sm text-muted-foreground">
+                Riwayat absensi, pengajuan, penggajian, dan catatan audit tidak dihapus. Jika karyawan memiliki riwayat tersebut, server akan menolak penghapusan; gunakan Nonaktifkan untuk mempertahankan datanya.
+              </p>
+              {deleteError && <p className="text-sm font-medium text-destructive" role="alert">{deleteError}</p>}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="action" disabled={deleteSaving} onClick={() => setDeleteTarget(null)}>
+                Batal
+              </Button>
+              <Button type="button" variant="destructive" size="action" disabled={deleteSaving} onClick={() => void confirmEmployeeDelete()}>
+                {deleteSaving ? 'Menghapus…' : 'Hapus permanen'}
+              </Button>
+            </DialogFooter>
+          </>
         )}
       </Dialog>
     </div>

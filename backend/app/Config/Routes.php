@@ -157,10 +157,11 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->put('jabatan/(:num)', 'Jabatan::update/$1');
             $routes->delete('jabatan/(:num)', 'Jabatan::delete/$1');
 
-            // karyawan: tidak ada DELETE (kontrak), nonaktifkan lewat PATCH status
+            // karyawan: hapus permanen hanya jika tidak memiliki riwayat operasional/audit
             $routes->post('karyawan', 'Karyawan::create');
             $routes->put('karyawan/(:num)', 'Karyawan::update/$1');
             $routes->patch('karyawan/(:num)/status', 'Karyawan::status/$1');
+            $routes->delete('karyawan/(:num)', 'Karyawan::delete/$1');
 
             $routes->post('lokasi-absensi', 'LokasiAbsensi::create');
             $routes->put('lokasi-absensi/(:num)', 'LokasiAbsensi::update/$1');

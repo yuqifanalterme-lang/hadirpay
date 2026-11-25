@@ -15,6 +15,7 @@ import type {
 import type { Role as UiRole } from '@/lib/navigation'
 import {
   createEmployee as createEmployeeMock,
+  deleteEmployee as deleteEmployeeMock,
   getEmployee as getEmployeeMock,
   listEmployees as listEmployeesMock,
   updateEmployee as updateEmployeeMock,
@@ -208,6 +209,11 @@ export async function updateEmployee(id: string, changes: Employee): Promise<Emp
   const positionName = positions.data.find((entry) => entry.id === result.data.jabatan_id)?.nama
   const departmentName = departments.data.find((entry) => entry.id === result.data.departemen_id)?.nama
   return toEmployee(result.data, positionName, departmentName)
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  if (config.mock.karyawan) return deleteEmployeeMock(id)
+  await apiRequest<null>(`karyawan/${apiId(id)}`, { method: 'DELETE' })
 }
 
 export async function setEmployeeStatus(id: string, status: 'aktif' | 'nonaktif'): Promise<void> {
