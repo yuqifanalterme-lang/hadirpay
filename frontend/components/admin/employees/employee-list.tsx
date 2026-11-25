@@ -505,7 +505,7 @@ export function EmployeeList() {
             />
             <div className="space-y-3 p-5 sm:p-6">
               <p className="text-sm text-muted-foreground">
-                Riwayat absensi, pengajuan, penggajian, dan catatan audit tidak dihapus. Jika karyawan memiliki riwayat tersebut, server akan menolak penghapusan; gunakan Nonaktifkan untuk mempertahankan datanya.
+                Data absensi, pengajuan beserta lampiran, payroll individual, slip gaji, kuota cuti, dan komponen karyawan akan dihapus. Jurnal payroll serta log periode bersama tetap dipertahankan; nama akun pada catatan audit bersama akan dikosongkan.
               </p>
               {deleteError && <p className="text-sm font-medium text-destructive" role="alert">{deleteError}</p>}
             </div>

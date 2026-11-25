@@ -117,10 +117,10 @@ export function createPayrollAccrualJournal(
     0,
   ))
   const lines = [
-    makeLine('6-1100', netPay + incomeTax + bpjs, 0),
-    makeLine('2-1200', 0, netPay),
-    makeLine('2-1300', 0, incomeTax),
-    makeLine('2-1400', 0, bpjs),
+    makeLine('5-1100', netPay + incomeTax + bpjs, 0),
+    makeLine('2-1100', 0, netPay),
+    makeLine('2-1200', 0, incomeTax),
+    makeLine('2-1300', 0, bpjs),
   ]
 
   return createBalancedEntry({
@@ -141,7 +141,7 @@ export function createPayrollPaymentJournal(
 ): JournalEntry {
   const netPay = sumNetPay(payrollLines)
   const lines = [
-    makeLine('2-1200', netPay, 0),
+    makeLine('2-1100', netPay, 0),
     makeLine('1-1100', 0, netPay),
   ]
 

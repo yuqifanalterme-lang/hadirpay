@@ -15,19 +15,24 @@ class KomponenGajiSeeder extends Seeder
             ['LEMBUR',        'Upah lembur',            'pendapatan', 'per_jam',       25000,  1],
             ['POT-ALPHA',     'Potongan alpha',         'potongan',   'per_hari',      null,   1],
             ['POT-TELAT',     'Potongan keterlambatan', 'potongan',   'per_menit',     1000,   1],
-            ['BPJS',          'Iuran BPJS',             'potongan',   'persen',        1,      1],
-            ['PPH21',         'PPh 21',                 'potongan',   'persen',        0,      0],
+            ['BPJS',          'Iuran BPJS',             'potongan',   'persen',        3,      1],
+            ['PPH21',         'PPh 21',                 'potongan',   'nominal_tetap', 0,      1],
             ['POT-LAIN',      'Potongan lainnya',       'potongan',   'nominal_tetap', 0,      1],
         ];
 
-        $rows = [];
         foreach ($data as [$kode, $nama, $tipe, $metode, $nilai, $aktif]) {
-            $rows[] = [
+            $row = [
                 'kode' => $kode, 'nama' => $nama, 'tipe' => $tipe, 'metode' => $metode,
                 'nilai' => $nilai, 'keterangan' => null, 'sistem' => 1, 'aktif' => $aktif,
                 'created_at' => $now, 'updated_at' => $now,
             ];
+            $existing = $this->db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
+            if ($existing) {
+                unset($row['created_at']);
+                $this->db->table('komponen_gaji')->where('id', $existing['id'])->update($row);
+            } else {
+                $this->db->table('komponen_gaji')->insert($row);
+            }
         }
-        $this->db->table('komponen_gaji')->ignore(true)->insertBatch($rows);
     }
 }

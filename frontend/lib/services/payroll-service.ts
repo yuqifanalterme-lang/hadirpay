@@ -15,7 +15,7 @@ import { createPayrollAccrualJournal, createPayrollPaymentJournal } from '@/lib/
 import { readAccountingState, writeAccountingState } from './accounting-storage'
 import { notifyNotificationsChanged } from './request-events'
 
-const COMPONENTS_KEY = 'hadirpay-payroll-components'
+const COMPONENTS_KEY = 'hadirpay-payroll-components-v2'
 
 function readStored<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
@@ -59,9 +59,14 @@ export async function deletePayrollComponent(id: string): Promise<PayrollCompone
 
 export async function getPayrollPeriod(): Promise<PayrollPeriod> {
   const state = readAccountingState()
-  const period = { ...mockPayrollPeriod, status: state.payrollStatus }
+  const payrollLines = await listPayrollLines()
+  const period = {
+    ...mockPayrollPeriod,
+    status: state.payrollStatus,
+    employeeCount: payrollLines.reduce((count, line) => count + line.employeeCount, 0),
+    totalNetPay: payrollLines.reduce((total, line) => total + line.netPay, 0),
+  }
   if (state.payrollStatus === 'Disetujui' || state.payrollStatus === 'Dibayar') {
-    const payrollLines = await listPayrollLines()
     const entries = [...state.entries]
     let changed = false
     const accrualId = `payroll-${period.id}-accrual`
@@ -85,7 +90,13 @@ export async function updatePayrollStatus(
   action: 'submit' | 'approve' | 'pay',
 ): Promise<PayrollPeriod> {
   const accountingState = readAccountingState()
-  const period = { ...mockPayrollPeriod, status: accountingState.payrollStatus }
+  const payrollLines = await listPayrollLines()
+  const period = {
+    ...mockPayrollPeriod,
+    status: accountingState.payrollStatus,
+    employeeCount: payrollLines.reduce((count, line) => count + line.employeeCount, 0),
+    totalNetPay: payrollLines.reduce((total, line) => total + line.netPay, 0),
+  }
   const allowed =
     (action === 'submit' && role === 'admin' && period.status === 'Draft') ||
     (action === 'approve' && role === 'keuangan' && period.status === 'Menunggu validasi keuangan') ||
@@ -100,7 +111,6 @@ export async function updatePayrollStatus(
   }
   const entries = [...accountingState.entries]
   if (action === 'approve' || action === 'pay') {
-    const payrollLines = await listPayrollLines()
     if (action === 'pay' && !entries.some((entry) => entry.id === `payroll-${period.id}-accrual`)) {
       entries.push(createPayrollAccrualJournal(period, payrollLines, todayIsoDate()))
     }
@@ -134,10 +144,26 @@ function todayIsoDate() {
 export async function listPayrollLines(): Promise<PayrollLine[]> {
   const employees = (await listEmployees()).filter((employee) => employee.status === 'Aktif')
   const details = employees.flatMap((employee) => {
-    const input = mockPayrollInputs[employee.id]
-    if (!input) return []
+    const savedInput = mockPayrollInputs[employee.id] ?? {
+      overtimePay: 0,
+      workDays: mockPayrollPeriod.workDays,
+      absenceDays: 0,
+      lateDeduction: 0,
+      otherDeductions: 0,
+      incomeTaxDeduction: employee.pph21 ?? 0,
+    }
+    const input = {
+      ...savedInput,
+      baseSalary: employee.baseSalary,
+      fixedAllowance: employee.fixedAllowance,
+    }
 
-    const calculation = calculatePayroll(input)
+    const incomeTax = employee.pph21 ?? input.incomeTaxDeduction
+    const bpjs = Math.round(input.baseSalary * 0.03 * 100) / 100
+    const calculation = calculatePayroll({
+      ...input,
+      otherDeductions: incomeTax + bpjs,
+    })
     const initials = employee.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
     const earnings = [
       { label: 'Gaji pokok', amount: input.baseSalary },
@@ -147,7 +173,8 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     const deductions = [
       ...(calculation.absenceDeduction > 0 ? [{ label: `Potongan alpha (${input.absenceDays} hari)`, amount: calculation.absenceDeduction }] : []),
       ...(input.lateDeduction > 0 ? [{ label: 'Potongan keterlambatan', amount: input.lateDeduction }] : []),
-      ...(input.otherDeductions > 0 ? [{ label: 'BPJS dan PPh 21', amount: input.otherDeductions }] : []),
+      ...(bpjs > 0 ? [{ label: 'Iuran BPJS (3%)', amount: bpjs }] : []),
+      ...(incomeTax > 0 ? [{ label: 'PPh 21', amount: incomeTax }] : []),
     ]
 
     return [{
@@ -172,8 +199,8 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       earnings,
       deductions,
       statutoryDeductions: {
-        incomeTax: input.incomeTaxDeduction,
-        bpjs: input.bpjsDeduction,
+        incomeTax,
+        bpjs,
       },
       isAggregate: false,
       isMock: true as const,

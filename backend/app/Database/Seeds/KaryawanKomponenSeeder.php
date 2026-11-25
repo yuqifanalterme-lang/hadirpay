@@ -9,18 +9,49 @@ class KaryawanKomponenSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
-        $komp = $this->db->table('komponen_gaji')->where('kode', 'TUN-TRANSPORT')->get()->getRowArray();
+        $components = array_column(
+            $this->db->table('komponen_gaji')->whereIn('kode', ['TUN-TRANSPORT', 'BPJS', 'PPH21'])->get()->getResultArray(),
+            null,
+            'kode'
+        );
+        $pph21 = [
+            'rina@hadirpay.test' => 35000,
+            'andi@hadirpay.test' => 85000,
+            'dimas@hadirpay.test' => 110000,
+            'budi@hadirpay.test' => 62000,
+            'rudi@hadirpay.test' => 52000,
+            'siti@hadirpay.test' => 45000,
+            'maya@hadirpay.test' => 17000,
+            'ratna@hadirpay.test' => 225000,
+            'agus@hadirpay.test' => 60000,
+            'dewi@hadirpay.test' => 86000,
+        ];
 
-        $rows = [];
         foreach ($this->db->table('karyawan')->orderBy('id')->get()->getResultArray() as $k) {
-            $rows[] = [
-                'karyawan_id' => $k['id'],
-                'komponen_id' => $komp['id'],
-                'nilai'       => 245000,
-                'created_at'  => $now,
-                'updated_at'  => $now,
+            $assignments = [
+                'TUN-TRANSPORT' => 245000,
+                'BPJS' => 3,
+                'PPH21' => $pph21[$k['email']] ?? 0,
             ];
+            foreach ($assignments as $code => $nilai) {
+                $component = $components[$code] ?? null;
+                if (! $component) {
+                    throw new \RuntimeException('Komponen gaji ' . $code . ' belum tersedia.');
+                }
+                $existing = $this->db->table('karyawan_komponen')
+                    ->where('karyawan_id', $k['id'])->where('komponen_id', $component['id'])
+                    ->get()->getRowArray();
+                $row = ['nilai' => $nilai, 'updated_at' => $now];
+                if ($existing) {
+                    $this->db->table('karyawan_komponen')->where('id', $existing['id'])->update($row);
+                } else {
+                    $this->db->table('karyawan_komponen')->insert($row + [
+                        'karyawan_id' => $k['id'],
+                        'komponen_id' => $component['id'],
+                        'created_at' => $now,
+                    ]);
+                }
+            }
         }
-        $this->db->table('karyawan_komponen')->ignore(true)->insertBatch($rows);
     }
 }

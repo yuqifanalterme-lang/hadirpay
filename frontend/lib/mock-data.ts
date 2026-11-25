@@ -32,21 +32,21 @@ export const adminUser = { name: 'Rina Kartika', role: 'Admin HRD', initials: 'R
 export const employeeUser = { name: 'Andi Wijaya', role: 'Staf Keuangan', initials: 'AW' }
 
 export const adminStats = {
-  totalKaryawan: 48,
-  hadir: 41,
-  terlambat: 4,
-  tidakHadir: 3,
-  totalGaji: 186450000,
+  totalKaryawan: 10,
+  hadir: 7,
+  terlambat: 1,
+  tidakHadir: 2,
+  totalGaji: 51125000,
 }
 
 export const attendanceTrend = [
-  { day: 'Sen 9', hadir: 44, tepatWaktu: 40 },
-  { day: 'Sel 10', hadir: 46, tepatWaktu: 43 },
-  { day: 'Rab 11', hadir: 43, tepatWaktu: 38 },
-  { day: 'Kam 12', hadir: 45, tepatWaktu: 42 },
-  { day: 'Jum 13', hadir: 42, tepatWaktu: 37 },
-  { day: 'Sen 16', hadir: 46, tepatWaktu: 44 },
-  { day: 'Sel 17', hadir: 41, tepatWaktu: 37 },
+  { day: 'Sen 9', hadir: 8, tepatWaktu: 7 },
+  { day: 'Sel 10', hadir: 9, tepatWaktu: 8 },
+  { day: 'Rab 11', hadir: 8, tepatWaktu: 7 },
+  { day: 'Kam 12', hadir: 8, tepatWaktu: 7 },
+  { day: 'Jum 13', hadir: 7, tepatWaktu: 6 },
+  { day: 'Sen 16', hadir: 9, tepatWaktu: 8 },
+  { day: 'Sel 17', hadir: 7, tepatWaktu: 6 },
 ]
 
 export type WeekDay = {
@@ -75,10 +75,10 @@ export type AttendanceRow = {
 export const recentAttendance: AttendanceRow[] = [
   { name: 'Andi Wijaya', division: 'Keuangan', checkIn: '07.52', checkOut: '—', status: 'Hadir' },
   { name: 'Rudi Hartono', division: 'Gudang', checkIn: '08.17', checkOut: '—', status: 'Terlambat' },
-  { name: 'Siti Rahmawati', division: 'Pemasaran', checkIn: '—', checkOut: '—', status: 'Izin' },
-  { name: 'Dewi Anggraini', division: 'HRD', checkIn: '07.45', checkOut: '—', status: 'Hadir' },
-  { name: 'Maya Lestari', division: 'Operasional', checkIn: '—', checkOut: '—', status: 'Cuti' },
-  { name: 'Fajar Nugroho', division: 'Gudang', checkIn: '—', checkOut: '—', status: 'Alpha' },
+  { name: 'Siti Rahmawati', division: 'Operasional', checkIn: '—', checkOut: '—', status: 'Izin' },
+  { name: 'Rina Kartika', division: 'HRD', checkIn: '07.45', checkOut: '—', status: 'Hadir' },
+  { name: 'Maya Lestari', division: 'Pemasaran', checkIn: '—', checkOut: '—', status: 'Cuti' },
+  { name: 'Agus Saputra', division: 'Penjualan', checkIn: '—', checkOut: '—', status: 'Alpha' },
 ]
 
 export const payslip = {
@@ -86,16 +86,16 @@ export const payslip = {
   issued: '31 Okt 2026',
   earnings: [
     { label: 'Gaji pokok', amount: 4500000 },
-    { label: 'Tunjangan makan & transport', amount: 220000 },
+    { label: 'Tunjangan makan & transport', amount: 245000 },
     { label: 'Lembur (4 jam)', amount: 125000 },
   ],
   deductions: [
     { label: 'Potongan absen (1 hari alpha)', amount: 204545.45 },
-    { label: 'BPJS Kesehatan (1%)', amount: 45000 },
-    { label: 'BPJS Ketenagakerjaan (3%)', amount: 135000 },
+    { label: 'Potongan keterlambatan', amount: 20000 },
+    { label: 'Iuran BPJS (3%)', amount: 135000 },
     { label: 'PPh 21', amount: 85000 },
   ],
-  net: 4375454.55,
+  net: 4425454.55,
 }
 
 export const journalEntries = [

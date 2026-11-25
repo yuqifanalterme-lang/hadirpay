@@ -1,6 +1,6 @@
 import { mockEmployees, type Employee } from '@/lib/mock/employees'
 
-const storageKey = 'hadirpay-demo-employees'
+const storageKey = 'hadirpay-demo-employees-v2'
 
 function isEmployee(value: unknown): value is Employee {
   if (typeof value !== 'object' || value === null) return false

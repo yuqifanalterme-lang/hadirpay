@@ -53,6 +53,7 @@ function toEmployee(item: KaryawanDetail, positionName?: string, departmentName?
     payrollType: item.jenis_penggajian,
     baseSalary: item.gaji_pokok,
     fixedAllowance: item.tunjangan_tetap,
+    pph21: item.komponen_gaji.find((component) => component.kode === 'PPH21')?.nilai ?? 0,
     npwp: 'npwp' in item ? item.npwp ?? undefined : undefined,
     noBpjs: item.no_bpjs ?? undefined,
     status: toUiStatus(item.status),
@@ -94,6 +95,7 @@ function toWriteRequest(
   | 'jenis_penggajian'
   | 'gaji_pokok'
   | 'tunjangan_tetap'
+  | 'pph21'
   | 'npwp'
 > {
   return {
@@ -104,6 +106,7 @@ function toWriteRequest(
     jenis_penggajian: employee.payrollType,
     gaji_pokok: employee.baseSalary,
     tunjangan_tetap: employee.fixedAllowance,
+    pph21: employee.pph21 ?? 0,
     npwp: employee.npwp ?? null,
   }
 }

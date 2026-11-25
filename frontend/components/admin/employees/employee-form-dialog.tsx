@@ -26,6 +26,7 @@ type FormValues = {
   payrollType: PayrollType | ''
   baseSalary: string
   fixedAllowance: string
+  pph21: string
   npwp: string
   noBpjs: string
   status: EmployeeStatus
@@ -48,6 +49,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         payrollType: employee.payrollType,
         baseSalary: String(employee.baseSalary),
         fixedAllowance: String(employee.fixedAllowance),
+        pph21: String(employee.pph21 ?? 0),
         npwp: employee.npwp ?? '',
         noBpjs: employee.noBpjs ?? employee.bpjsKesehatan ?? employee.bpjsKetenagakerjaan ?? '',
         status: employee.status,
@@ -65,6 +67,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         payrollType: '',
         baseSalary: '',
         fixedAllowance: '0',
+        pph21: '0',
         npwp: '',
         noBpjs: '',
         status: 'Aktif',
@@ -114,6 +117,7 @@ export function EmployeeFormDialog({
     const password = values.password
     const baseSalary = Number(values.baseSalary)
     const fixedAllowance = Number(values.fixedAllowance)
+    const pph21 = Number(values.pph21)
 
     if (config.mock.karyawan && !id) nextErrors.id = 'ID karyawan wajib diisi.'
     else if (id && !/^[A-Za-z0-9._-]+$/.test(id)) nextErrors.id = 'Gunakan huruf, angka, titik, garis bawah, atau tanda hubung.'
@@ -132,6 +136,9 @@ export function EmployeeFormDialog({
     if (values.fixedAllowance === '' || !Number.isFinite(fixedAllowance) || fixedAllowance < 0) {
       nextErrors.fixedAllowance = 'Tunjangan tetap tidak boleh kurang dari nol.'
     }
+    if (values.pph21 === '' || !Number.isFinite(pph21) || pph21 < 0) {
+      nextErrors.pph21 = 'PPh 21 tidak boleh kurang dari nol.'
+    }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
@@ -147,6 +154,7 @@ export function EmployeeFormDialog({
       payrollType: values.payrollType,
       baseSalary,
       fixedAllowance,
+      pph21,
       npwp: values.npwp.trim() || undefined,
       noBpjs: values.noBpjs.trim() || undefined,
       status: values.status,
@@ -191,6 +199,7 @@ export function EmployeeFormDialog({
           jenis_penggajian: 'payrollType',
           gaji_pokok: 'baseSalary',
           tunjangan_tetap: 'fixedAllowance',
+          pph21: 'pph21',
           npwp: 'npwp',
           no_bpjs: 'noBpjs',
           role: 'role',
@@ -400,6 +409,20 @@ export function EmployeeFormDialog({
               aria-describedby={errors.fixedAllowance ? 'employee-fixed-allowance-error' : undefined}
             />
             {fieldError('fixedAllowance', 'employee-fixed-allowance-error')}
+          </div>
+          <div>
+            <TextField
+              id="employee-pph21"
+              label="PPh 21 per periode (Rp)"
+              type="number"
+              min="0"
+              step="1"
+              value={values.pph21}
+              onChange={(event) => update('pph21', event.target.value)}
+              aria-invalid={Boolean(errors.pph21)}
+              aria-describedby={errors.pph21 ? 'employee-pph21-error' : undefined}
+            />
+            {fieldError('pph21', 'employee-pph21-error')}
           </div>
           <div>
             <SelectField

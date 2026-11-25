@@ -47,10 +47,10 @@ export type AccountingState = {
 
 export const mockAccounts: AccountingAccount[] = [
   { code: '1-1100', name: 'Kas/Bank', category: 'Aset', normalBalance: 'Debit', isMock: true },
-  { code: '2-1200', name: 'Utang Gaji', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
-  { code: '2-1300', name: 'Utang PPh 21', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
-  { code: '2-1400', name: 'Utang Iuran BPJS', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
-  { code: '6-1100', name: 'Beban Gaji', category: 'Beban', normalBalance: 'Debit', isMock: true },
+  { code: '2-1100', name: 'Utang Gaji', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
+  { code: '2-1200', name: 'Utang PPh 21', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
+  { code: '2-1300', name: 'Utang Iuran BPJS', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
+  { code: '5-1100', name: 'Beban Gaji', category: 'Beban', normalBalance: 'Debit', isMock: true },
 ]
 
 export const mockAccountingState: AccountingState = {

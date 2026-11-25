@@ -65,7 +65,7 @@ class Karyawan extends BaseController
         }
 
         $komp = db_connect()->table('karyawan_komponen kk')
-            ->select('kk.komponen_id, kg.nama, kg.tipe, kk.nilai')
+            ->select('kk.komponen_id, kg.kode, kg.nama, kg.tipe, kg.metode, kk.nilai')
             ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
             ->where('kk.karyawan_id', (int) $r['id'])
             ->orderBy('kg.tipe', 'ASC')->orderBy('kg.nama', 'ASC')
@@ -94,8 +94,10 @@ class Karyawan extends BaseController
             'role'             => $r['akun_role'],
             'komponen_gaji'    => array_map(static fn ($k) => [
                 'komponen_id' => (int) $k['komponen_id'],
+                'kode'        => $k['kode'],
                 'nama'        => $k['nama'],
                 'tipe'        => $k['tipe'],
+                'metode'      => $k['metode'],
                 'nilai'       => (float) $k['nilai'],
             ], $komp),
             'sisa_cuti'        => (float) $kuota['total'] - (float) $kuota['terpakai'],
@@ -196,6 +198,7 @@ class Karyawan extends BaseController
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]);
+            $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
@@ -264,6 +267,9 @@ class Karyawan extends BaseController
                 $akun['password_hash'] = password_hash($input['password'], PASSWORD_DEFAULT);
             }
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
+            if (array_key_exists('pph21', $input)) {
+                $this->syncPph21($db, (int) $id, (float) $input['pph21'], date('Y-m-d H:i:s'));
+            }
 
             $db->transCommit();
         } catch (\Throwable $e) {
@@ -311,65 +317,64 @@ class Karyawan extends BaseController
         return ApiResponse::success($this->detail($id), 'Status karyawan diperbarui');
     }
 
-    // DELETE /api/v1/karyawan/(:num) - hapus hanya jika tidak ada riwayat yang perlu dipertahankan
+    // DELETE /api/v1/karyawan/(:num) - hapus data individual, pertahankan jurnal dan log periode bersama
     public function delete($id = null)
     {
         $id = (int) $id;
-        $karyawan = $this->model->find($id);
-        if (! $karyawan) {
-            return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
-        }
-
         $db = db_connect();
-        $akun = $db->table('users')->where('karyawan_id', $id)->get()->getRowArray();
-        $userSaatIni = JwtService::$user ?? [];
-        if ($akun && (int) ($userSaatIni['id'] ?? 0) === (int) $akun['id']) {
-            return ApiResponse::error('CONFLICT', 'Anda tidak bisa menghapus akun karyawan sendiri', null, 409);
-        }
-
-        $riwayatKaryawan = [
-            'absensi' => $db->table('absensi')->where('karyawan_id', $id)->countAllResults(),
-            'pengajuan' => $db->table('pengajuan_izin')->where('karyawan_id', $id)->countAllResults(),
-            'penggajian' => $db->table('penggajian')->where('karyawan_id', $id)->countAllResults(),
-        ];
-        $riwayatKaryawan = array_filter($riwayatKaryawan, static fn ($jumlah) => $jumlah > 0);
-        if ($riwayatKaryawan) {
-            return ApiResponse::error(
-                'EMPLOYEE_HAS_HISTORY',
-                'Karyawan memiliki riwayat absensi, pengajuan, atau penggajian yang harus dipertahankan. Nonaktifkan karyawan sebagai gantinya.',
-                $riwayatKaryawan,
-                409
-            );
-        }
-
-        if ($akun) {
-            $riwayatAudit = [
-                'periode_dibuat' => $db->table('periode_gaji')->where('dibuat_oleh', (int) $akun['id'])->countAllResults(),
-                'perubahan_periode' => $db->table('periode_status_log')->where('oleh', (int) $akun['id'])->countAllResults(),
-                'pengajuan_diproses' => $db->table('pengajuan_izin')->where('diproses_oleh', (int) $akun['id'])->countAllResults(),
-                'jurnal_dibuat' => $db->table('jurnal')->where('dibuat_oleh', (int) $akun['id'])->countAllResults(),
-                'jurnal_dibatalkan' => $db->table('jurnal')->groupStart()
-                    ->where('cancelled_by', (int) $akun['id'])
-                    ->orWhere('dibatalkan_oleh', (int) $akun['id'])
-                    ->groupEnd()->countAllResults(),
-            ];
-            $riwayatAudit = array_filter($riwayatAudit, static fn ($jumlah) => $jumlah > 0);
-            if ($riwayatAudit) {
-                return ApiResponse::error(
-                    'EMPLOYEE_HAS_AUDIT_HISTORY',
-                    'Akun karyawan tercatat sebagai pelaku perubahan penting dan harus dipertahankan. Nonaktifkan karyawan sebagai gantinya.',
-                    $riwayatAudit,
-                    409
-                );
-            }
-        }
-
+        $lampiran = [];
         $db->transBegin();
         try {
-            if ($akun) {
-                $db->table('users')->where('id', (int) $akun['id'])->delete();
+            $karyawan = $this->model->find($id);
+            if (! $karyawan) {
+                $db->transRollback();
+                return ApiResponse::error('NOT_FOUND', 'Karyawan tidak ditemukan', null, 404);
             }
+
+            $akun = $db->table('users')->where('karyawan_id', $id)->get()->getRowArray();
+            $userSaatIni = JwtService::$user ?? [];
+            if ($akun && (int) ($userSaatIni['id'] ?? 0) === (int) $akun['id']) {
+                $db->transRollback();
+                return ApiResponse::error('CONFLICT', 'Anda tidak bisa menghapus akun karyawan sendiri', null, 409);
+            }
+
+            $pengajuan = $db->table('pengajuan_izin')
+                ->select('id, lampiran_path')
+                ->where('karyawan_id', $id)
+                ->get()->getResultArray();
+            $lampiran = array_values(array_filter(array_column($pengajuan, 'lampiran_path')));
+            $pengajuanIds = array_map(static fn ($row) => (int) $row['id'], $pengajuan);
+            $penggajianIds = array_map(
+                'intval',
+                array_column(
+                    $db->table('penggajian')->select('id')->where('karyawan_id', $id)->get()->getResultArray(),
+                    'id'
+                )
+            );
+
+            if ($pengajuanIds) {
+                $db->table('absensi')->whereIn('pengajuan_id', $pengajuanIds)->delete();
+            }
+            $db->table('absensi')->where('karyawan_id', $id)->delete();
+            $db->table('pengajuan_izin')->where('karyawan_id', $id)->delete();
+
+            if ($penggajianIds) {
+                $db->table('slip_gaji')->whereIn('penggajian_id', $penggajianIds)->delete();
+                $db->table('penggajian')->whereIn('id', $penggajianIds)->delete();
+            }
+            $db->table('karyawan_komponen')->where('karyawan_id', $id)->delete();
             $db->table('kuota_cuti')->where('karyawan_id', $id)->delete();
+
+            if ($akun) {
+                $userId = (int) $akun['id'];
+                $db->table('pengajuan_izin')->where('diproses_oleh', $userId)->update(['diproses_oleh' => null]);
+                $db->table('periode_gaji')->where('dibuat_oleh', $userId)->update(['dibuat_oleh' => null]);
+                $db->table('periode_status_log')->where('oleh', $userId)->update(['oleh' => null]);
+                $db->table('jurnal')->where('dibuat_oleh', $userId)->update(['dibuat_oleh' => null]);
+                $db->table('jurnal')->where('cancelled_by', $userId)->update(['cancelled_by' => null]);
+                $db->table('jurnal')->where('dibatalkan_oleh', $userId)->update(['dibatalkan_oleh' => null]);
+                $db->table('users')->where('id', $userId)->delete();
+            }
             $this->model->delete($id);
             if ($db->transStatus() === false) {
                 throw new \RuntimeException('Penghapusan karyawan tidak berhasil disimpan.');
@@ -381,7 +386,29 @@ class Karyawan extends BaseController
             return ApiResponse::error('SERVER_ERROR', 'Gagal menghapus karyawan', null, 500);
         }
 
+        foreach ($lampiran as $path) {
+            $this->hapusLampiranKaryawan($path);
+        }
+
         return ApiResponse::success(null, 'Karyawan dihapus');
+    }
+
+    private function hapusLampiranKaryawan(string $path): void
+    {
+        $relative = str_replace('\\', '/', ltrim($path, '/\\'));
+        if (! str_starts_with($relative, 'uploads/lampiran/')) {
+            log_message('error', 'Path lampiran pengajuan tidak berada di direktori yang diizinkan saat hapus karyawan.');
+            return;
+        }
+
+        $directory = realpath(WRITEPATH . 'uploads/lampiran');
+        $file = realpath(WRITEPATH . str_replace('/', DIRECTORY_SEPARATOR, $relative));
+        if ($directory === false || $file === false || dirname($file) !== $directory || ! is_file($file)) {
+            return;
+        }
+        if (! unlink($file)) {
+            log_message('error', 'Gagal menghapus lampiran pengajuan saat hapus karyawan: ' . basename($file));
+        }
     }
 
     // GET /api/v1/karyawan/(:num)/kehadiran-ringkas?periode=2026-11   (admin_hrd, pemilik)
@@ -450,6 +477,34 @@ class Karyawan extends BaseController
         ];
     }
 
+    private function syncPph21($db, int $karyawanId, float $nilai, string $now): void
+    {
+        $komponen = $db->table('komponen_gaji')->where('kode', 'PPH21')->get()->getRowArray();
+        if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
+            throw new \RuntimeException('Komponen PPh 21 nominal tetap belum tersedia.');
+        }
+
+        $assigned = $db->table('karyawan_komponen')
+            ->where('karyawan_id', $karyawanId)
+            ->where('komponen_id', (int) $komponen['id'])
+            ->get()->getRowArray();
+        if ($assigned) {
+            $db->table('karyawan_komponen')->where('id', $assigned['id'])->update([
+                'nilai' => $nilai,
+                'updated_at' => $now,
+            ]);
+            return;
+        }
+
+        $db->table('karyawan_komponen')->insert([
+            'karyawan_id' => $karyawanId,
+            'komponen_id' => (int) $komponen['id'],
+            'nilai' => $nilai,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
     private function rules(?int $id): array
     {
         $ex      = $id === null ? '' : ',id,' . $id;
@@ -466,6 +521,7 @@ class Karyawan extends BaseController
             'jenis_penggajian' => 'permit_empty|in_list[bulanan,harian]',
             'gaji_pokok'       => 'permit_empty|numeric|greater_than_equal_to[0]',
             'tunjangan_tetap'  => 'permit_empty|numeric|greater_than_equal_to[0]',
+            'pph21'            => 'permit_empty|numeric|greater_than_equal_to[0]',
             'npwp'             => 'permit_empty|max_length[25]',
             'no_bpjs'          => 'permit_empty|max_length[25]',
             'status'           => 'permit_empty|in_list[aktif,nonaktif]',
@@ -499,6 +555,7 @@ class Karyawan extends BaseController
                 'valid_date' => 'Format tanggal harus YYYY-MM-DD',
             ],
             'jenis_penggajian' => ['in_list' => 'Pilih bulanan atau harian'],
+            'pph21'             => ['numeric' => 'Nilai PPh 21 harus berupa angka', 'greater_than_equal_to' => 'Nilai PPh 21 tidak boleh negatif'],
             'status'           => ['in_list' => 'Pilih aktif atau nonaktif'],
             'role'             => ['in_list' => 'Role harus admin_hrd, karyawan, keuangan, atau pemilik'],
             'password'         => [

@@ -74,20 +74,12 @@ class PenggajianOktoberSeeder extends Seeder
 
         $andi = $db->table('karyawan')->where('email', 'andi@hadirpay.test')->get()->getRowArray();
         $potLain = $db->table('komponen_gaji')->where('kode', 'POT-LAIN')->get()->getRowArray();
-        $bpjs = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
         if ($andi && $potLain) {
             $this->db->table('karyawan_komponen')->ignore(true)->insert([
                 'karyawan_id' => $andi['id'], 'komponen_id' => $potLain['id'], 'nilai' => 200000,
                 'created_at' => $now, 'updated_at' => $now,
             ]);
         }
-        if ($andi && $bpjs) {
-            $this->db->table('karyawan_komponen')->ignore(true)->insert([
-                'karyawan_id' => $andi['id'], 'komponen_id' => $bpjs['id'], 'nilai' => 1,
-                'created_at' => $now, 'updated_at' => $now,
-            ]);
-        }
-
         $hasil = (new PayrollService())->hitungPeriode($periode);
         $penggajian = $db->table('penggajian')->select('id')->where('periode_gaji_id', $periode['id'])->orderBy('id')->get()->getResultArray();
         $batch = [];

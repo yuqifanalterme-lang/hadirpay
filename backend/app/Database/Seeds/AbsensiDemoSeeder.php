@@ -106,48 +106,29 @@ class AbsensiDemoSeeder extends Seeder
 
                 // Data demo kontrak untuk tanggal hari ini: 17 November 2026.
                 if ($t === '2026-11-17') {
-                    $kid = (int) $k['id'];
-                    if ($kid === 2) {
+                    if ($k['email'] === 'andi@hadirpay.test') {
                         $row['status'] = 'hadir';
                         $row['jam_masuk'] = '07:52:00';
                         $row['jam_pulang'] = null;
                         $row['durasi_menit'] = null;
                         $row['menit_terlambat'] = 0;
-                    } elseif ($kid === 6) {
+                    } elseif ($k['email'] === 'rudi@hadirpay.test') {
                         $row['status'] = 'terlambat';
                         $row['jam_masuk'] = '08:17:00';
                         $row['menit_terlambat'] = 17;
                         $row['jam_pulang'] = '17:00:00';
                         $row['durasi_menit'] = 523;
-                    } elseif ($kid >= 38 && $kid <= 40) {
-                        $row['status'] = 'terlambat';
-                        $row['jam_masuk'] = $kid === 39 ? '08:17:00' : '08:' . sprintf('%02d', 5 + (($kid - 38) * 3)) . ':00';
-                        $row['menit_terlambat'] = $kid === 39 ? 17 : (5 + (($kid - 38) * 3));
-                        $row['jam_pulang'] = '17:00:00';
-                        $row['durasi_menit'] = 520;
-                    } elseif ($kid === 4) {
+                    } elseif ($k['email'] === 'siti@hadirpay.test') {
                         $row['status'] = 'izin';
                         $row['jam_masuk'] = null;
                         $row['jam_pulang'] = null;
                         $row['durasi_menit'] = null;
-                    } elseif ($kid <= 41) {
+                    } else {
                         $row['status'] = 'hadir';
-                        $row['jam_masuk'] = '07:' . sprintf('%02d', 45 + (($kid % 14))) . ':00';
+                        $row['jam_masuk'] = '07:' . sprintf('%02d', 45 + (((int) $k['id']) % 14)) . ':00';
                         $row['jam_pulang'] = '17:00:00';
                         $row['durasi_menit'] = 555;
                         $row['menit_terlambat'] = 0;
-                    } elseif ($kid === 42) {
-                        $row['status'] = 'cuti';
-                        $row['jam_masuk'] = null;
-                        $row['jam_pulang'] = null;
-                        $row['durasi_menit'] = null;
-                    } elseif ($kid === 43) {
-                        $row['status'] = 'alpha';
-                        $row['jam_masuk'] = null;
-                        $row['jam_pulang'] = null;
-                        $row['durasi_menit'] = null;
-                    } elseif ($kid >= 44) {
-                        continue;
                     }
                 }
 

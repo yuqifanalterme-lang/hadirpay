@@ -5,8 +5,7 @@ import {
 } from '@/lib/mock/accounting'
 import type { PayrollPeriodStatus } from '@/lib/mock/payroll'
 
-const ACCOUNTING_STATE_KEY = 'hadirpay-accounting-state'
-const LEGACY_PAYROLL_STATUS_KEY = 'hadirpay-payroll-status'
+const ACCOUNTING_STATE_KEY = 'hadirpay-accounting-state-v2'
 const payrollStatuses: PayrollPeriodStatus[] = [
   'Draft',
   'Menunggu validasi keuangan',
@@ -58,11 +57,7 @@ export function readAccountingState(): AccountingState {
     return { ...parsed, accounts: parsed.accounts ?? mockAccounts }
   }
 
-  const legacyStatus = window.localStorage.getItem(LEGACY_PAYROLL_STATUS_KEY)
-  const payrollStatus = payrollStatuses.includes(legacyStatus as PayrollPeriodStatus)
-    ? legacyStatus as PayrollPeriodStatus
-    : mockAccountingState.payrollStatus
-  return { ...mockAccountingState, payrollStatus, accounts: mockAccounts }
+  return { ...mockAccountingState, accounts: mockAccounts }
 }
 
 export function writeAccountingState(state: AccountingState) {
