@@ -188,15 +188,17 @@ export async function listJournalEntriesPage(query: JurnalListQuery = {}): Promi
   if (config.mock.akuntansi) {
     const entries = (await listJournalEntriesMock()).map(withMockJournalTotals)
     const search = query.search?.trim().toLocaleLowerCase('id-ID')
-    const filtered = entries.filter((entry) =>
-      (query.status === 'semua' || (entry.status ?? 'aktif') === (query.status ?? 'aktif')) &&
-      (!query.tanggal_dari || entry.date >= query.tanggal_dari) &&
-      (!query.tanggal_sampai || entry.date <= query.tanggal_sampai) &&
-      (!query.sumber || entry.type.toLocaleLowerCase('id-ID') === query.sumber) &&
-      (!query.periode_gaji_id || entry.sourcePeriodId === String(query.periode_gaji_id)) &&
-      (!search || [entry.voucherNumber, entry.description, ...entry.lines.flatMap((line) => [line.accountCode, line.accountName])]
-        .some((value) => value.toLocaleLowerCase('id-ID').includes(search))),
-    )
+    const filtered = entries
+      .filter((entry) => entry.type !== 'Otomatis' || entry.date !== '2026-11-25')
+      .filter((entry) =>
+        (query.status === 'semua' || (entry.status ?? 'aktif') === (query.status ?? 'aktif')) &&
+        (!query.tanggal_dari || entry.date >= query.tanggal_dari) &&
+        (!query.tanggal_sampai || entry.date <= query.tanggal_sampai) &&
+        (!query.sumber || entry.type.toLocaleLowerCase('id-ID') === query.sumber) &&
+        (!query.periode_gaji_id || entry.sourcePeriodId === String(query.periode_gaji_id)) &&
+        (!search || [entry.voucherNumber, entry.description, ...entry.lines.flatMap((line) => [line.accountCode, line.accountName])]
+          .some((value) => value.toLocaleLowerCase('id-ID').includes(search))),
+      )
     return pageResult(filtered, summarizeJournalEntries(filtered), query.page, query.per_page)
   }
   const result = await apiRequest<Jurnal[], { ringkasan: JurnalRingkasan }>('jurnal', { params: { ...query, status: query.status ?? 'aktif' } })

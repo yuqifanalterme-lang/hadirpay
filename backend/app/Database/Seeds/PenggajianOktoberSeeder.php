@@ -2,7 +2,6 @@
 
 namespace App\Database\Seeds;
 
-use App\Services\AccountingService;
 use App\Services\PayrollService;
 use CodeIgniter\Database\Seeder;
 
@@ -24,7 +23,6 @@ class PenggajianOktoberSeeder extends Seeder
             echo "Penggajian Oktober sudah ada; seeder dilewati.\n";
             return;
         }
-        $uid = (int) $periode['dibuat_oleh'];
         $now = date('Y-m-d H:i:s');
 
         $hariKerja = (new PayrollService())->hariKerja('2026-10-01', '2026-10-31');
@@ -77,37 +75,13 @@ class PenggajianOktoberSeeder extends Seeder
             ]);
         }
         $hasil = (new PayrollService())->hitungPeriode($periode);
-        $penggajian = $db->table('penggajian')->select('id')->where('periode_gaji_id', $periode['id'])->orderBy('id')->get()->getResultArray();
-        $batch = [];
-        foreach ($penggajian as $i => $row) {
-            $batch[] = [
-                'penggajian_id' => (int) $row['id'],
-                'nomor_slip' => sprintf('SLP/2026/10/%04d', $i + 1),
-                'tanggal_terbit' => '2026-10-31',
-                'created_at' => $now,
-            ];
-        }
-        if ($batch) $db->table('slip_gaji')->ignore(true)->insertBatch($batch);
-
-        $jurnalPengakuan = AccountingService::jurnalPengakuan($db, $periode, $uid);
         $db->table('periode_gaji')->where('id', $periode['id'])->update([
-            'status' => 'disetujui',
-            'jurnal_pengakuan_id' => $jurnalPengakuan,
+            'status' => 'draft',
+            'tanggal_bayar' => null,
+            'jurnal_pengakuan_id' => null,
+            'jurnal_pembayaran_id' => null,
             'updated_at' => $now,
         ]);
-        $jurnalPembayaran = AccountingService::jurnalPembayaran(
-            $db,
-            $db->table('periode_gaji')->where('id', $periode['id'])->get()->getRowArray(),
-            $uid,
-            (int) $db->table('akun')->where('kode', '1-1100')->get()->getRowArray()['id'],
-            '2026-11-01'
-        );
-        $db->table('periode_gaji')->where('id', $periode['id'])->update([
-            'status' => 'dibayar',
-            'tanggal_bayar' => '2026-11-01',
-            'jurnal_pembayaran_id' => $jurnalPembayaran,
-            'updated_at' => $now,
-        ]);
-        echo 'Penggajian Oktober dibuat: ' . $hasil['jumlah_karyawan'] . ' karyawan.' . PHP_EOL;
+        echo 'Penggajian Oktober dihitung untuk ' . $hasil['jumlah_karyawan'] . ' karyawan; menunggu persetujuan dan pembayaran.' . PHP_EOL;
     }
 }

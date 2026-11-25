@@ -11,6 +11,8 @@ use App\Services\JournalSummary;
 
 class Jurnal extends BaseController
 {
+    private const HIDDEN_AUTO_DATE = '2026-11-25';
+
     // GET /api/v1/jurnal?tanggal_dari=&tanggal_sampai=&sumber=&periode_gaji_id=&status=aktif&search=&page=1&per_page=10
     public function index()
     {
@@ -33,6 +35,10 @@ class Jurnal extends BaseController
             if ($status !== 'semua') {
                 $b->where('j.status', $status);
             }
+            $b->groupStart()
+                ->where('j.sumber !=', 'otomatis')
+                ->orWhere('j.tanggal !=', self::HIDDEN_AUTO_DATE)
+                ->groupEnd();
             if ($dari) {
                 $b->where('j.tanggal >=', $dari);
             }

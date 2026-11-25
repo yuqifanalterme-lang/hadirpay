@@ -70,6 +70,20 @@ class Karyawan extends BaseController
             ->where('kk.karyawan_id', (int) $r['id'])
             ->orderBy('kg.tipe', 'ASC')->orderBy('kg.nama', 'ASC')
             ->get()->getResultArray();
+        $bpjs = db_connect()->table('komponen_gaji')
+            ->where('kode', 'BPJS')
+            ->where('aktif', 1)
+            ->get()->getRowArray();
+        if ($bpjs && $bpjs['nilai'] !== null) {
+            $komp[] = [
+                'komponen_id' => (int) $bpjs['id'],
+                'kode'        => $bpjs['kode'],
+                'nama'        => $bpjs['nama'],
+                'tipe'        => $bpjs['tipe'],
+                'metode'      => $bpjs['metode'],
+                'nilai'       => (float) $bpjs['nilai'],
+            ];
+        }
 
         $kuota = (new KuotaCutiModel())->ambilAtauBuat((int) $r['id'], (int) date('Y'));
 
@@ -114,7 +128,7 @@ class Karyawan extends BaseController
         $jenis   = (string) $this->request->getGet('jenis_penggajian');
         $deptId  = (int) ($this->request->getGet('departemen_id') ?? 0);
         $jabId   = (int) ($this->request->getGet('jabatan_id') ?? 0);
-        $sort    = self::SORT[(string) $this->request->getGet('sort')] ?? 'karyawan.nama';
+        $sort    = self::SORT[(string) $this->request->getGet('sort')] ?? 'karyawan.kode';
         $order   = strtolower((string) $this->request->getGet('order')) === 'desc' ? 'DESC' : 'ASC';
 
         $this->relasi();

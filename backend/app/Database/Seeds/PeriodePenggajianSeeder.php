@@ -12,7 +12,7 @@ class PeriodePenggajianSeeder extends Seeder
         $dibuat = $this->db->table('users')->where('email', 'rina@hadirpay.test')->get()->getRowArray();
         $uid = (int) ($dibuat['id'] ?? 1);
         $rows = [
-            ['2026-10', '2026-10-01', '2026-10-31', '2026-10-25', 22, 'dibayar', '2026-11-01'],
+            ['2026-10', '2026-10-01', '2026-10-31', '2026-10-25', 22, 'draft', null],
             ['2026-11', '2026-11-01', '2026-11-30', '2026-11-25', 22, 'draft', null],
         ];
         foreach ($rows as [$periode, $mulai, $selesai, $tutup, $hariKerja, $status, $bayar]) {

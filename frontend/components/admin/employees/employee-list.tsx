@@ -55,7 +55,7 @@ export function EmployeeList() {
   const [position, setPosition] = useState('')
   const [status, setStatus] = useState('')
   const [payrollType, setPayrollType] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortKey, setSortKey] = useState<SortKey>('id')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
   const [apiMeta, setApiMeta] = useState<{ total: number; total_pages: number } | null>(null)
