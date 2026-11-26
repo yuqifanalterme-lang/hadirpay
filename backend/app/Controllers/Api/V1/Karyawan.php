@@ -587,8 +587,28 @@ class Karyawan extends BaseController
     private function syncPph21($db, int $karyawanId, float $nilai, string $now): void
     {
         $komponen = $db->table('komponen_gaji')->where('kode', 'PPH21')->get()->getRowArray();
-        if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
-            return;
+        if (! $komponen) {
+            $db->table('komponen_gaji')->insert([
+                'kode' => 'PPH21',
+                'nama' => 'PPh 21',
+                'tipe' => 'potongan',
+                'metode' => 'nominal_tetap',
+                'nilai' => null,
+                'keterangan' => null,
+                'sistem' => 1,
+                'aktif' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $komponen = $db->table('komponen_gaji')->where('kode', 'PPH21')->get()->getRowArray();
+        } elseif ((int) $komponen['aktif'] !== 1 || $komponen['metode'] !== 'nominal_tetap') {
+            $db->table('komponen_gaji')->where('id', (int) $komponen['id'])->update([
+                'tipe' => 'potongan',
+                'metode' => 'nominal_tetap',
+                'nilai' => null,
+                'aktif' => 1,
+                'updated_at' => $now,
+            ]);
         }
 
         $assigned = $db->table('karyawan_komponen')
@@ -625,8 +645,30 @@ class Karyawan extends BaseController
     private function syncKomponenManual($db, int $karyawanId, string $kode, float $nilai, string $now): void
     {
         $komponen = $db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
-        if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
-            return;
+        if (! $komponen) {
+            $pendingName = $kode === 'TUN-TRANSPORT' ? 'Tunjangan transport' : $kode;
+            $pendingType = $kode === 'TUN-TRANSPORT' ? 'pendapatan' : 'potongan';
+            $db->table('komponen_gaji')->insert([
+                'kode' => $kode,
+                'nama' => $pendingName,
+                'tipe' => $pendingType,
+                'metode' => 'nominal_tetap',
+                'nilai' => null,
+                'keterangan' => null,
+                'sistem' => 1,
+                'aktif' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $komponen = $db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
+        } elseif ((int) $komponen['aktif'] !== 1 || $komponen['metode'] !== 'nominal_tetap') {
+            $db->table('komponen_gaji')->where('id', (int) $komponen['id'])->update([
+                'tipe' => $kode === 'TUN-TRANSPORT' ? 'pendapatan' : $komponen['tipe'],
+                'metode' => 'nominal_tetap',
+                'nilai' => null,
+                'aktif' => 1,
+                'updated_at' => $now,
+            ]);
         }
 
         $assigned = $db->table('karyawan_komponen')
