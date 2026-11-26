@@ -8,7 +8,7 @@ export type PayrollPeriodStatus =
   | 'Dibatalkan'
 
 export type PayrollComponentCategory = 'pendapatan' | 'potongan'
-export type PayrollComponentMethod = 'nominal tetap' | 'persen' | 'per hari' | 'per menit'
+export type PayrollComponentMethod = 'nominal tetap' | 'persen' | 'per hari' | 'per menit' | 'per jam' | 'manual per periode'
 
 export type PayrollComponent = {
   id: string
@@ -39,6 +39,18 @@ export type PayrollBreakdownItem = {
   amount: number
 }
 
+export type PayrollManualComponentKind =
+  | 'lembur'
+  | 'potongan_lain'
+  | 'penyesuaian_pendapatan'
+  | 'penyesuaian_potongan'
+
+export type PayrollManualComponent = {
+  jenis: PayrollManualComponentKind
+  jumlah: number
+  catatan: string
+}
+
 export type PayrollLine = {
   employeeId: string
   employeeName: string
@@ -58,6 +70,7 @@ export type PayrollLine = {
   absenceDays: number
   earnings: PayrollBreakdownItem[]
   deductions: PayrollBreakdownItem[]
+  manualComponents?: PayrollManualComponent[]
   statutoryDeductions?: {
     incomeTax: number
     bpjs: number

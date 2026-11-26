@@ -253,7 +253,7 @@ class KomponenGaji extends BaseController
             'kode'       => 'required|alpha_dash|max_length[30]|is_unique[komponen_gaji.kode' . $ex . ']',
             'nama'       => 'required|min_length[2]|max_length[100]',
             'tipe'       => 'required|in_list[pendapatan,potongan]',
-            'metode'     => 'required|in_list[nominal_tetap,persen,per_hari,per_menit]',
+            'metode'     => 'required|in_list[nominal_tetap,persen,per_hari,per_jam,per_menit,manual_periode]',
             'nilai'      => 'permit_empty|numeric|greater_than_equal_to[0]',
             'keterangan' => 'permit_empty|max_length[255]',
         ];
@@ -271,7 +271,7 @@ class KomponenGaji extends BaseController
             'tipe'   => ['required' => 'Tipe wajib dipilih', 'in_list' => 'Tipe harus pendapatan atau potongan'],
             'metode' => [
                 'required' => 'Metode wajib dipilih',
-                'in_list'  => 'Metode harus nominal_tetap, persen, per_hari, atau per_menit',
+                'in_list'  => 'Metode harus nominal_tetap, persen, per_hari, per_jam, per_menit, atau manual_periode',
             ],
             'nilai' => ['numeric' => 'Nilai harus berupa angka', 'greater_than_equal_to' => 'Nilai tidak boleh negatif'],
         ];

@@ -130,7 +130,19 @@ class Dashboard extends BaseController
         $p = $db->table('periode_gaji')->where('periode', $ym)->get()->getRowArray();
         $t = 0.0;
         if ($p) {
-            $r = $db->table('penggajian')->select('COALESCE(SUM(' . $kolom . '), 0) AS s', false)->where('periode_gaji_id', (int) $p['id'])->get()->getRowArray();
+            if ($kolom === 'total_beban_gaji') {
+                $r = $db->table('penggajian g')
+                    ->select(
+                        'COALESCE(SUM(g.total_pendapatan - COALESCE((SELECT SUM(dp.jumlah) FROM detail_penggajian dp '
+                        . 'LEFT JOIN komponen_gaji kg ON kg.id = dp.komponen_id '
+                        . 'WHERE dp.penggajian_id = g.id AND dp.tipe = \'potongan\' '
+                        . 'AND COALESCE(NULLIF(dp.kode, \'\'), kg.kode) IN (\'POT-ALPHA\', \'POT-TELAT\')), 0)), 0) AS s',
+                        false
+                    )
+                    ->where('g.periode_gaji_id', (int) $p['id'])->get()->getRowArray();
+            } else {
+                $r = $db->table('penggajian')->select('COALESCE(SUM(' . $kolom . '), 0) AS s', false)->where('periode_gaji_id', (int) $p['id'])->get()->getRowArray();
+            }
             $t = (float) ($r['s'] ?? 0);
         }
         if ($t <= 0) {
@@ -432,7 +444,13 @@ class Dashboard extends BaseController
         $ym = date('Y-m');
 
         $tren = $db->table('periode_gaji pp')
-            ->select('pp.periode, COALESCE(SUM(pg.total_pendapatan), 0) AS total', false)
+            ->select(
+                'pp.periode, COALESCE(SUM(pg.total_pendapatan - COALESCE((SELECT SUM(dp.jumlah) '
+                . 'FROM detail_penggajian dp LEFT JOIN komponen_gaji kg ON kg.id = dp.komponen_id '
+                . 'WHERE dp.penggajian_id = pg.id AND dp.tipe = \'potongan\' '
+                . 'AND COALESCE(NULLIF(dp.kode, \'\'), kg.kode) IN (\'POT-ALPHA\', \'POT-TELAT\')), 0)), 0) AS total',
+                false
+            )
             ->join('penggajian pg', 'pg.periode_gaji_id = pp.id', 'left')
             ->where('pp.periode <=', $ym)
             ->groupBy('pp.id, pp.periode')
@@ -473,7 +491,7 @@ class Dashboard extends BaseController
             ->get()->getResultArray();
 
         return ApiResponse::success([
-            'total_biaya_gaji_bulan_berjalan' => round($this->totalGajiPeriode($ym, 'total_pendapatan'), 2),
+            'total_biaya_gaji_bulan_berjalan' => round($this->totalGajiPeriode($ym, 'total_beban_gaji'), 2),
             'tren_beban_gaji' => array_map(static fn($r) => ['periode' => $r['periode'], 'total' => (float) $r['total']], $tren),
             'kehadiran_per_departemen' => $perDept,
             'top_keterlambatan' => array_map(static fn($r) => [

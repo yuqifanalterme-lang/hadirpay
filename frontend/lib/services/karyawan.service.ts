@@ -54,6 +54,7 @@ function toEmployee(item: KaryawanDetail, positionName?: string, departmentName?
     baseSalary: item.gaji_pokok,
     fixedAllowance: item.komponen_gaji.find((component) => component.kode === 'TUN-TRANSPORT')?.nilai ?? 0,
     pph21: item.komponen_gaji.find((component) => component.kode === 'PPH21')?.nilai ?? 0,
+    pph21Method: item.pph21_metode,
     bpjsPercent: item.bpjs_persen,
     overtimeDeduction: item.potongan_lembur,
     salaryComponents: item.komponen_gaji.map((component) => ({
@@ -106,6 +107,7 @@ function toWriteRequest(
   | 'gaji_pokok'
   | 'tunjangan'
   | 'pph21'
+  | 'pph21_metode'
   | 'bpjs_persen'
   | 'potongan_lembur'
   | 'npwp'
@@ -119,6 +121,7 @@ function toWriteRequest(
     gaji_pokok: employee.baseSalary,
     tunjangan: employee.fixedAllowance,
     pph21: employee.pph21 ?? 0,
+    pph21_metode: employee.pph21Method ?? 'nominal_tetap',
     bpjs_persen: employee.bpjsPercent ?? 3,
     potongan_lembur: employee.overtimeDeduction ?? 0,
     npwp: employee.npwp ?? null,

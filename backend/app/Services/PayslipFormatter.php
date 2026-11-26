@@ -52,7 +52,10 @@ class PayslipFormatter
             'kehadiran' => $kehadiran,
             'tarif_harian' => (float) $g['tarif_harian'],
             'rincian'      => array_map(static fn ($r) => [
+                'id'          => (int) $r['id'],
                 'komponen_id' => $r['komponen_id'] !== null ? (int) $r['komponen_id'] : null,
+                'kode'        => $r['kode'],
+                'sumber'      => $r['sumber'],
                 'nama'        => $r['nama'],
                 'tipe'        => $r['tipe'],
                 'keterangan'  => $r['keterangan'],

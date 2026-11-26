@@ -17,7 +17,8 @@ export type KaryawanKomponen = {
   kode: string
   nama: string
   tipe: 'pendapatan' | 'potongan'
-  metode: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_menit'
+  metode: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_jam' | 'per_menit' | 'manual_periode'
+  metode_override: string | null
   nilai: Uang
 }
 
@@ -34,6 +35,7 @@ export type KaryawanDetail = {
   gaji_pokok: Uang
   tunjangan_tetap: Uang
   bpjs_persen: number
+  pph21_metode: 'nominal_tetap' | 'persen'
   potongan_lembur: Uang
   npwp: string | null
   no_bpjs: string | null
@@ -55,6 +57,7 @@ export type KaryawanCreateRequest = {
   tunjangan_tetap: Uang
   tunjangan?: Uang
   pph21: Uang
+  pph21_metode: 'nominal_tetap' | 'persen'
   bpjs_persen: number
   potongan_lembur: Uang
   npwp: string | null
@@ -63,7 +66,7 @@ export type KaryawanCreateRequest = {
   password: string
 }
 export type KaryawanUpdateRequest = Partial<KaryawanCreateRequest> & {
-  komponen_gaji?: Array<{ komponen_id: Id; nilai: Uang }>
+  komponen_gaji?: Array<{ komponen_id: Id; nilai: Uang; metode?: string | null }>
 }
 
 export type KaryawanListQuery = {

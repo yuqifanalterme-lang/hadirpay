@@ -432,6 +432,18 @@ export function SettingsPage() {
               <Field label="Tanggal tutup periode" error={fieldError('kebijakan_gaji.tanggal_tutup_periode', 'tanggal_tutup_periode')}>
                 <input type="number" min={1} max={28} className={fieldClass} value={settings.payrollPolicy.cutoffDay} onChange={(event) => updatePayroll('cutoffDay', Number(event.target.value))} />
               </Field>
+              {!config.mock.pengaturan && (
+                <Field label="Potongan per keterlambatan (Rp)" error={fieldError('kebijakan_gaji.potongan_terlambat_per_keterlambatan')}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={fieldClass}
+                    value={settings.payrollPolicy.lateDeductionPerOccurrence}
+                    onChange={(event) => updatePayroll('lateDeductionPerOccurrence', Number(event.target.value))}
+                  />
+                </Field>
+              )}
               <Field label="Pembagi hari kerja" error={fieldError('kebijakan_gaji.pembagi_hari_kerja', 'pembagi_hari_kerja')}>
                 <input
                   type="number"

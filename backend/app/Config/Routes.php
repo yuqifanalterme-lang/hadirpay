@@ -114,6 +114,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->post('periode-gaji', 'PeriodeGaji::create');
             $routes->post('periode-gaji/(:num)/hitung', 'PeriodeGaji::hitung/$1');
             $routes->post('periode-gaji/(:num)/ajukan-validasi', 'PeriodeGaji::ajukanValidasi/$1');
+            $routes->put('periode-gaji/(:num)/penggajian/(:num)/komponen-manual', 'Penggajian::simpanKomponenManual/$1/$2');
         });
 
         // Pembatalan penggajian, hapus draf, dan hapus jurnal manual: admin_hrd dan keuangan.

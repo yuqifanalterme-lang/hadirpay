@@ -8,6 +8,7 @@ import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { SelectField } from '@/components/ui/select-field'
 import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
+import { formatRupiah } from '@/lib/mock-data'
 import type { Role } from '@/lib/types/common'
 import type { MasterRecord } from '@/lib/mock/master-data'
 import type { Employee, EmployeeSalaryComponent, EmployeeStatus, PayrollType } from '@/lib/mock/employees'
@@ -29,6 +30,7 @@ type FormValues = {
   baseSalary: string
   fixedAllowance: string
   pph21: string
+  pph21Method: 'nominal_tetap' | 'persen'
   bpjsPercent: string
   overtimeDeduction: string
   salaryComponents: SalaryComponentFormValue[]
@@ -55,6 +57,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: String(employee.baseSalary),
         fixedAllowance: String(employee.fixedAllowance),
         pph21: String(employee.pph21 ?? 0),
+        pph21Method: employee.pph21Method ?? 'nominal_tetap',
         bpjsPercent: String(employee.bpjsPercent ?? 3),
         overtimeDeduction: String(employee.overtimeDeduction ?? 0),
         salaryComponents: (employee.salaryComponents ?? []).map((component) => ({
@@ -79,6 +82,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: '',
         fixedAllowance: '0',
         pph21: '0',
+        pph21Method: 'nominal_tetap',
         bpjsPercent: '3',
         overtimeDeduction: '0',
         salaryComponents: [],
@@ -155,6 +159,8 @@ export function EmployeeFormDialog({
     }
     if (values.pph21 === '' || !Number.isFinite(pph21) || pph21 < 0) {
       nextErrors.pph21 = 'PPh 21 tidak boleh kurang dari nol.'
+    } else if (values.pph21Method === 'persen' && pph21 > 100) {
+      nextErrors.pph21 = 'Persentase PPh 21 harus antara 0 sampai 100.'
     }
     if (values.bpjsPercent === '' || !Number.isFinite(bpjsPercent) || bpjsPercent < 0 || bpjsPercent > 100) {
       nextErrors.bpjsPercent = 'Persentase BPJS harus antara 0 sampai 100.'
@@ -195,6 +201,7 @@ export function EmployeeFormDialog({
       baseSalary,
       fixedAllowance,
       pph21,
+      pph21Method: values.pph21Method,
       bpjsPercent,
       overtimeDeduction,
       salaryComponents: values.salaryComponents.map((component) => ({
@@ -466,11 +473,24 @@ export function EmployeeFormDialog({
             {fieldError('fixedAllowance', 'employee-fixed-allowance-error')}
           </div>
           <div>
+              <SelectField
+                id="employee-pph21-method"
+                label="Metode PPh 21"
+                value={values.pph21Method}
+                onChange={(value) => {
+                  if (value === 'nominal_tetap' || value === 'persen') update('pph21Method', value)
+                }}
+                options={['nominal_tetap', 'persen']}
+                placeholder="Pilih metode"
+              />
+            </div>
+            <div>
             <TextField
               id="employee-pph21"
-              label="PPh 21 per periode (Rp)"
+            label={values.pph21Method === 'persen' ? 'PPh 21 (% dari gaji pokok)' : 'PPh 21 per periode (Rp)'}
               type="number"
               min="0"
+            max={values.pph21Method === 'persen' ? '100' : undefined}
               step="1"
               value={values.pph21}
               onChange={(event) => update('pph21', event.target.value)}
@@ -478,7 +498,7 @@ export function EmployeeFormDialog({
               aria-describedby={errors.pph21 ? 'employee-pph21-error' : undefined}
             />
             {fieldError('pph21', 'employee-pph21-error')}
-          </div>
+            </div>
           <div>
             <TextField
               id="employee-bpjs-percent"
@@ -509,7 +529,7 @@ export function EmployeeFormDialog({
             {fieldError('overtimeDeduction', 'employee-overtime-deduction-error')}
           </div>
           {values.salaryComponents
-            .filter((component) => !['PPH21', 'BPJS', 'POT-LEMBUR'].includes(component.code))
+            .filter((component) => !['PPH21', 'BPJS', 'POT-LEMBUR'].includes(component.code) && component.method !== 'manual_periode')
             .map((component) => {
               const unit = {
                 nominal_tetap: 'Rp per periode',
@@ -517,6 +537,7 @@ export function EmployeeFormDialog({
                 per_hari: 'Rp per hari',
                 per_jam: 'Rp per jam',
                 per_menit: 'Rp per menit',
+                manual_periode: 'diatur saat proses gaji',
               }[component.method]
               return (
                 <div key={component.id}>
@@ -542,6 +563,38 @@ export function EmployeeFormDialog({
                 </div>
               )
             })}
+          <div className="sm:col-span-2 rounded-xl border border-border bg-surface p-4">
+            <h3 className="text-sm font-semibold text-heading">Perkiraan gaji per bulan</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Potongan alpha dan terlambat mengikuti kehadiran pada periode payroll.</p>
+            {(() => {
+              const base = Number(values.baseSalary) || 0
+              const fixed = Number(values.fixedAllowance) || 0
+              const extraIncome = values.salaryComponents.reduce((sum, component) => {
+                if (component.type !== 'pendapatan' || ['TUN-TRANSPORT', 'PPH21', 'BPJS'].includes(component.code)) return sum
+                const amount = Number(component.value) || 0
+                return sum + (component.method === 'persen' ? base * amount / 100 : component.method === 'nominal_tetap' ? amount : 0)
+              }, 0)
+              const otherDeductions = values.salaryComponents.reduce((sum, component) => {
+                if (component.type !== 'potongan' || ['PPH21', 'BPJS', 'POT-LEMBUR'].includes(component.code)) return sum
+                const amount = Number(component.value) || 0
+                return sum + (component.method === 'persen' ? base * amount / 100 : component.method === 'nominal_tetap' ? amount : 0)
+              }, 0)
+              const pph21Val = Number(values.pph21) || 0
+              const bpjsPercentVal = Number(values.bpjsPercent) || 0
+              const overtimeDeductionVal = Number(values.overtimeDeduction) || 0
+              const pph21Amount = values.pph21Method === 'persen' ? base * pph21Val / 100 : pph21Val
+              const bpjsAmount = base * bpjsPercentVal / 100
+              const earnings = base + fixed + extraIncome
+              const deductions = pph21Amount + bpjsAmount + overtimeDeductionVal + otherDeductions
+              return (
+                <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                  <div><dt className="text-muted-foreground">Pendapatan</dt><dd className="font-semibold text-heading">{formatRupiah(earnings)}</dd></div>
+                  <div><dt className="text-muted-foreground">Potongan tetap</dt><dd className="font-semibold text-heading">{formatRupiah(deductions)}</dd></div>
+                  <div><dt className="text-muted-foreground">Perkiraan bersih</dt><dd className="font-semibold text-heading">{formatRupiah(Math.max(0, earnings - deductions))}</dd></div>
+                </dl>
+              )
+            })()}
+          </div>
           <div>
             <SelectField
               label="Status karyawan"

@@ -8,7 +8,7 @@ export type EmployeeSalaryComponent = {
   code: string
   name: string
   type: 'pendapatan' | 'potongan'
-  method: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_menit'
+  method: 'nominal_tetap' | 'persen' | 'per_hari' | 'per_jam' | 'per_menit' | 'manual_periode'
   value: number
 }
 
@@ -23,6 +23,7 @@ export type Employee = {
   baseSalary: number
   fixedAllowance: number
   pph21?: number
+  pph21Method?: 'nominal_tetap' | 'persen'
   bpjsPercent?: number
   overtimeDeduction?: number
   salaryComponents?: EmployeeSalaryComponent[]

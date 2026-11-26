@@ -56,6 +56,14 @@ export type PeriodeGajiDetail = {
     total_pendapatan: Uang
     total_potongan: Uang
     total_gaji_bersih: Uang
+    rekap_potongan: {
+      alpa: Uang
+      terlambat: Uang
+      bpjs: Uang
+      pph21: Uang
+      lainnya: Uang
+      total: Uang
+    }
   }
   riwayat_status: { status: StatusPeriode; oleh: string; waktu: string }[]
   jurnal_pengakuan_id: Id | null
@@ -122,7 +130,16 @@ export type PenggajianDetail = {
     total_menit_terlambat: number
   }
   tarif_harian: Uang
-  rincian: { komponen_id: Id | null; nama: string; tipe: TipeKomponen; keterangan: string | null; jumlah: Uang }[]
+  rincian: {
+    id: Id
+    komponen_id: Id | null
+    kode: string | null
+    sumber: 'otomatis' | 'manual'
+    nama: string
+    tipe: TipeKomponen
+    keterangan: string | null
+    jumlah: Uang
+  }[]
   total_pendapatan: Uang
   total_potongan: Uang
   gaji_bersih: Uang

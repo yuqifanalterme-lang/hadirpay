@@ -48,6 +48,7 @@ function mapSettings(settings: Pengaturan, holidays: HariLibur[], users: ApiUser
       workDayDivisor: settings.kebijakan_gaji.pembagi_hari_kerja,
       deductPermitWithoutLetter: settings.kebijakan_gaji.potongan_izin_tanpa_surat,
       cutoffDay: settings.kebijakan_gaji.tanggal_tutup_periode,
+      lateDeductionPerOccurrence: settings.kebijakan_gaji.potongan_terlambat_per_keterlambatan,
     },
     users: users.map((user) => ({
       id: String(user.id),
@@ -148,6 +149,7 @@ export async function saveDemoSettings(settings: DemoSettings): Promise<DemoSett
         pembagi_hari_kerja: settings.payrollPolicy.workDayDivisor,
         tanggal_tutup_periode: settings.payrollPolicy.cutoffDay,
         potongan_izin_tanpa_surat: settings.payrollPolicy.deductPermitWithoutLetter,
+        potongan_terlambat_per_keterlambatan: settings.payrollPolicy.lateDeductionPerOccurrence,
       },
       lokasi_absensi: updatedLocations,
     },

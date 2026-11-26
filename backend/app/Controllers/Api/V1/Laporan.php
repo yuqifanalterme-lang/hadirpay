@@ -223,7 +223,16 @@ class Laporan extends BaseController
         $dari = (string) ($this->request->getGet('periode_dari') ?: date('Y-m', strtotime('-5 months')));
         $sampai = (string) ($this->request->getGet('periode_sampai') ?: date('Y-m'));
         $dept = (int) $this->request->getGet('departemen_id');
-        $rows = $db->table('penggajian g')->select('p.periode, d.nama AS departemen, COUNT(*) AS jumlah_karyawan, SUM(g.total_pendapatan) AS total_pendapatan, SUM(g.total_potongan) AS total_potongan, SUM(g.gaji_bersih) AS total_gaji_bersih', false)
+        $rows = $db->table('penggajian g')->select(
+            'p.periode, d.nama AS departemen, COUNT(*) AS jumlah_karyawan, '
+            . 'SUM(g.total_pendapatan) AS total_pendapatan, SUM(g.total_potongan) AS total_potongan, '
+            . 'SUM(g.gaji_bersih) AS total_gaji_bersih, '
+            . 'SUM(g.total_pendapatan - COALESCE((SELECT SUM(dp.jumlah) FROM detail_penggajian dp '
+            . 'LEFT JOIN komponen_gaji kg ON kg.id = dp.komponen_id '
+            . 'WHERE dp.penggajian_id = g.id AND dp.tipe = \'potongan\' '
+            . 'AND COALESCE(NULLIF(dp.kode, \'\'), kg.kode) IN (\'POT-ALPHA\', \'POT-TELAT\')), 0)) AS total_beban_gaji',
+            false
+        )
             ->join('periode_gaji p', 'p.id = g.periode_gaji_id')->join('karyawan k', 'k.id = g.karyawan_id')
             ->join('departemen d', 'd.id = k.departemen_id', 'left')
             ->where('p.periode >=', $dari)->where('p.periode <=', $sampai)
@@ -234,10 +243,10 @@ class Laporan extends BaseController
                 return $row && $r['departemen'] === $row['nama'];
             }));
         }
-        $total = round(array_sum(array_column($rows, 'total_gaji_bersih')), 2);
+        $total = round(array_sum(array_column($rows, 'total_beban_gaji')), 2);
         $periode = [];
         foreach ($rows as $r) {
-            $periode[$r['periode']] = ($periode[$r['periode']] ?? 0) + (float) $r['total_gaji_bersih'];
+            $periode[$r['periode']] = ($periode[$r['periode']] ?? 0) + (float) $r['total_beban_gaji'];
         }
         arsort($periode);
         $highest = $periode ? array_key_first($periode) : null;
@@ -249,6 +258,7 @@ class Laporan extends BaseController
             'total_pendapatan' => (float) $r['total_pendapatan'],
             'total_potongan' => (float) $r['total_potongan'],
             'total_gaji_bersih' => (float) $r['total_gaji_bersih'],
+            'total_beban_gaji' => (float) $r['total_beban_gaji'],
         ], $rows);
         return $this->hasil([
             'filter' => ['periode_dari' => $dari, 'periode_sampai' => $sampai, 'departemen_id' => (int) $this->request->getGet('departemen_id') ?: null],

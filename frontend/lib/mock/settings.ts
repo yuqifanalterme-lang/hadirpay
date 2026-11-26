@@ -33,6 +33,7 @@ export type DemoSettings = {
     workDayDivisor: string
     deductPermitWithoutLetter: boolean
     cutoffDay: number
+    lateDeductionPerOccurrence: number
   }
   users: DemoUser[]
   attendanceLocation: {
@@ -82,6 +83,7 @@ export const mockSettings: DemoSettings = {
     workDayDivisor: '',
     deductPermitWithoutLetter: false,
     cutoffDay: 25,
+    lateDeductionPerOccurrence: 1000,
   },
   users: [
     { id: 'user-rina', name: 'Rina Kartika', email: 'rina.hrd@hadirpay.id', role: 'admin' },

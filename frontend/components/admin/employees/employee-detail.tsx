@@ -80,7 +80,9 @@ function formatComponentValue(component: NonNullable<Employee['salaryComponents'
   const units = {
     nominal_tetap: 'per periode',
     per_hari: 'per hari',
+    per_jam: 'per jam',
     per_menit: 'per menit',
+    manual_periode: 'diatur saat proses gaji',
   } as const
   return `${formatRupiah(component.value)} ${units[component.method]}`
 }
@@ -185,6 +187,7 @@ export function EmployeeDetail({ id }: { id: string }) {
       const attachedIds = new Set((employee?.salaryComponents ?? []).map((component) => String(component.id)))
       const available = options.filter((component) =>
         component.active
+        && component.method !== 'manual per periode'
         && !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code ?? '')
         && !['tunjangan-tetap', 'potongan-terlambat', 'potongan-alpha'].includes(component.id)
         && !attachedIds.has(component.id),
@@ -224,7 +227,9 @@ export function EmployeeDetail({ id }: { id: string }) {
           'nominal tetap': 'nominal_tetap',
           persen: 'persen',
           'per hari': 'per_hari',
+          'per jam': 'per_jam',
           'per menit': 'per_menit',
+          'manual per periode': 'manual_periode',
         } as const)[component.method],
         value,
       })

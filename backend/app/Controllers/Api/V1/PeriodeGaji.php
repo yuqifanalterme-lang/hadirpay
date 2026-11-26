@@ -460,6 +460,28 @@ class PeriodeGaji extends BaseController
             ->where('periode_gaji_id', $id)
             ->get()->getRowArray();
 
+        $potonganRows = $db->table('detail_penggajian dp')
+            ->select('COALESCE(NULLIF(dp.kode, \'\'), kg.kode) AS kode, SUM(dp.jumlah) AS total', false)
+            ->join('penggajian g', 'g.id = dp.penggajian_id')
+            ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
+            ->where('g.periode_gaji_id', $id)
+            ->where('dp.tipe', 'potongan')
+            ->groupBy('kode')
+            ->get()->getResultArray();
+        $rekapPotongan = ['alpa' => 0.0, 'terlambat' => 0.0, 'bpjs' => 0.0, 'pph21' => 0.0, 'lainnya' => 0.0];
+        foreach ($potonganRows as $row) {
+            $key = match ($row['kode']) {
+                'POT-ALPHA' => 'alpa',
+                'POT-TELAT' => 'terlambat',
+                'BPJS' => 'bpjs',
+                'PPH21' => 'pph21',
+                default => 'lainnya',
+            };
+            $rekapPotongan[$key] += (float) $row['total'];
+        }
+        $rekapPotongan = array_map(static fn ($amount) => round($amount, 2), $rekapPotongan);
+        $rekapPotongan['total'] = round(array_sum($rekapPotongan), 2);
+
         $log = $db->table('periode_status_log l')
             ->select('l.status, l.catatan, l.created_at, u.nama AS oleh_nama')
             ->join('users u', 'u.id = l.oleh', 'left')
@@ -493,6 +515,7 @@ class PeriodeGaji extends BaseController
                 'total_pendapatan' => (float) $ring['total_pendapatan'],
                 'total_potongan' => (float) $ring['total_potongan'],
                 'total_gaji_bersih' => (float) $ring['total_gaji_bersih'],
+                'rekap_potongan' => $rekapPotongan,
             ],
             'riwayat_status' => array_map(static fn($l) => [
                 'status' => $l['status'],

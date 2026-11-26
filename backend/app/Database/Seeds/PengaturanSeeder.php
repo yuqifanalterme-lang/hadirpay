@@ -27,6 +27,7 @@ class PengaturanSeeder extends Seeder
                 'pembagi_hari_kerja' => 'hari_kerja_periode',
                 'tanggal_tutup_periode' => 25,
                 'potongan_izin_tanpa_surat' => false,
+                'potongan_terlambat_per_keterlambatan' => 1000,
             ],
             'kuota_cuti_tahunan' => 12,
         ];

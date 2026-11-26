@@ -28,6 +28,7 @@ class Pengaturan extends BaseController
                 'pembagi_hari_kerja'        => 'hari_kerja_periode',
                 'tanggal_tutup_periode'     => 25,
                 'potongan_izin_tanpa_surat' => false,
+                'potongan_terlambat_per_keterlambatan' => 1000,
             ],
             'kuota_cuti_tahunan' => 12,
         ];
@@ -77,6 +78,10 @@ class Pengaturan extends BaseController
     private function gabungan(): array
     {
         $data                   = array_merge($this->bawaan(), $this->model->semua());
+        $data['kebijakan_gaji'] = array_merge(
+            $this->bawaan()['kebijakan_gaji'],
+            is_array($data['kebijakan_gaji'] ?? null) ? $data['kebijakan_gaji'] : []
+        );
         if (isset($data['kebijakan_gaji']) && is_array($data['kebijakan_gaji'])) {
             unset($data['kebijakan_gaji']['tarif_lembur_per_jam']);
         }

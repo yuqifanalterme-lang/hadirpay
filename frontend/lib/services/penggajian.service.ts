@@ -1,7 +1,7 @@
 import { apiBlob, apiRequest, ApiError, type ApiMeta } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import { listAccounts, listPayrollCashAccounts } from '@/lib/services/akuntansi.service'
-import type { PayrollComponent, PayrollLine, PayrollPeriod, PayrollPeriodStatus } from '@/lib/mock/payroll'
+import type { PayrollComponent, PayrollLine, PayrollManualComponent, PayrollPeriod, PayrollPeriodStatus } from '@/lib/mock/payroll'
 import type { Role as UiRole } from '@/lib/navigation'
 import type {
   KomponenGaji,
@@ -88,7 +88,9 @@ function methodToUi(method: KomponenGaji['metode']): PayrollComponent['method'] 
     nominal_tetap: 'nominal tetap',
     persen: 'persen',
     per_hari: 'per hari',
+    per_jam: 'per jam',
     per_menit: 'per menit',
+    manual_periode: 'manual per periode',
   } as const
   return values[method]
 }
@@ -112,7 +114,9 @@ function methodToApi(method: PayrollComponent['method']): KomponenGaji['metode']
     'nominal tetap': 'nominal_tetap',
     persen: 'persen',
     'per hari': 'per_hari',
+    'per jam': 'per_jam',
     'per menit': 'per_menit',
+    'manual per periode': 'manual_periode',
   }
   return values[method]
 }
@@ -401,6 +405,19 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
       absenceDays: detail.kehadiran.alpha,
       earnings: earnings.map((item) => ({ label: item.nama, amount: item.jumlah })),
       deductions: deductions.map((item) => ({ label: item.nama, amount: item.jumlah })),
+      manualComponents: detail.rincian
+        .filter((item) => item.sumber === 'manual')
+        .map((item) => ({
+          jenis: item.kode === 'PEND-LEMBUR'
+            ? 'lembur' as const
+            : item.kode === 'POT-LAIN'
+              ? 'potongan_lain' as const
+              : item.kode === 'PENYESUAIAN-PEND'
+                ? 'penyesuaian_pendapatan' as const
+                : 'penyesuaian_potongan' as const,
+          jumlah: item.jumlah,
+          catatan: item.keterangan ?? '',
+        })),
       isAggregate: false,
       isMock: false,
     }

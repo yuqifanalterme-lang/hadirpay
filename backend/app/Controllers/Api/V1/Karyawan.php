@@ -65,7 +65,7 @@ class Karyawan extends BaseController
         }
 
         $komp = db_connect()->table('karyawan_komponen kk')
-            ->select('kk.komponen_id, kg.kode, kg.nama, kg.tipe, kg.metode, kk.nilai')
+            ->select('kk.komponen_id, kg.kode, kg.nama, kg.tipe, kg.metode, kk.metode_override, kk.nilai')
             ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
             ->where('kk.karyawan_id', (int) $r['id'])
             ->orderBy('kg.tipe', 'ASC')->orderBy('kg.nama', 'ASC')
@@ -88,6 +88,7 @@ class Karyawan extends BaseController
             'gaji_pokok'       => (float) $r['gaji_pokok'],
             'tunjangan_tetap'  => (float) ($this->nilaiKomponen($komp, 'TUN-TRANSPORT') ?? 0),
             'bpjs_persen'      => (float) ($this->nilaiKomponen($komp, 'BPJS') ?? 3),
+            'pph21_metode'     => $this->metodeKomponen($komp, 'PPH21') ?? 'nominal_tetap',
             'potongan_lembur'  => (float) ($this->nilaiKomponen($komp, 'POT-LEMBUR') ?? 0),
             'npwp'             => $r['npwp'],
             'no_bpjs'          => $r['no_bpjs'],
@@ -98,7 +99,8 @@ class Karyawan extends BaseController
                 'kode'        => $k['kode'],
                 'nama'        => $k['nama'],
                 'tipe'        => $k['tipe'],
-                'metode'      => $k['metode'],
+                'metode'      => $k['metode_override'] ?: $k['metode'],
+                'metode_override' => $k['metode_override'],
                 'nilai'       => (float) $k['nilai'],
             ], $komp),
             'sisa_cuti'        => (float) $kuota['total'] - (float) $kuota['terpakai'],
@@ -171,6 +173,11 @@ class Karyawan extends BaseController
         if (! $validation->run($input)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
         }
+        if (($input['pph21_metode'] ?? 'nominal_tetap') === 'persen' && (float) ($input['pph21'] ?? 0) > 100) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'pph21' => 'Persentase PPh 21 tidak boleh lebih dari 100',
+            ], 422);
+        }
         if ($err = $this->cekJabatan($input)) {
             return $err;
         }
@@ -199,7 +206,13 @@ class Karyawan extends BaseController
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]);
-            $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
+            $this->syncPph21(
+                $db,
+                (int) $id,
+                (float) ($input['pph21'] ?? 0),
+                (string) ($input['pph21_metode'] ?? 'nominal_tetap'),
+                $now
+            );
             $this->syncBpjs($db, (int) $id, (float) ($input['bpjs_persen'] ?? 3), $now);
             $this->syncKomponenManual(
                 $db,
@@ -247,6 +260,7 @@ class Karyawan extends BaseController
             'gaji_pokok'       => $lama['gaji_pokok'],
             'tunjangan_tetap'  => $lama['tunjangan_tetap'],
             'tunjangan'        => 0,
+            'pph21_metode'     => 'nominal_tetap',
             'npwp'             => $lama['npwp'],
             'no_bpjs'          => $lama['no_bpjs'],
             'status'           => $lama['status'],
@@ -256,6 +270,11 @@ class Karyawan extends BaseController
         $validation->setRules($this->rules((int) $id), $this->messages());
         if (! $validation->run($gabung)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
+        }
+        if (($input['pph21_metode'] ?? 'nominal_tetap') === 'persen' && (float) ($input['pph21'] ?? 0) > 100) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'pph21' => 'Persentase PPh 21 tidak boleh lebih dari 100',
+            ], 422);
         }
         if ($err = $this->cekJabatan($gabung)) {
             return $err;
@@ -298,7 +317,7 @@ class Karyawan extends BaseController
                 $seen[$komponenId] = true;
 
                 $masterComponent = $db->table('komponen_gaji')
-                    ->select('kode, nilai')
+                    ->select('kode, nilai, metode')
                     ->where('id', $komponenId)
                     ->get()->getRowArray();
                 if ($masterComponent) {
@@ -309,7 +328,7 @@ class Karyawan extends BaseController
                 }
 
                 $assignment = $db->table('karyawan_komponen kk')
-                    ->select('kk.id, kg.metode')
+                    ->select('kk.id, COALESCE(kk.metode_override, kg.metode) AS metode')
                     ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
                     ->where('kk.karyawan_id', (int) $id)
                     ->where('kk.komponen_id', $komponenId)
@@ -346,7 +365,29 @@ class Karyawan extends BaseController
             }
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
             if (array_key_exists('pph21', $input)) {
-                $this->syncPph21($db, (int) $id, (float) $input['pph21'], date('Y-m-d H:i:s'));
+                $this->syncPph21(
+                    $db,
+                    (int) $id,
+                    (float) $input['pph21'],
+                    (string) ($input['pph21_metode'] ?? 'nominal_tetap'),
+                    date('Y-m-d H:i:s')
+                );
+            } elseif (array_key_exists('pph21_metode', $input)) {
+                $currentPph = $this->nilaiKomponen(
+                    $db->table('karyawan_komponen kk')
+                        ->select('kg.kode, kk.nilai')
+                        ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
+                        ->where('kk.karyawan_id', (int) $id)
+                        ->get()->getResultArray(),
+                    'PPH21'
+                );
+                $this->syncPph21(
+                    $db,
+                    (int) $id,
+                    $currentPph ?? 0,
+                    (string) $input['pph21_metode'],
+                    date('Y-m-d H:i:s')
+                );
             }
             if (array_key_exists('bpjs_persen', $input)) {
                 $this->syncBpjs($db, (int) $id, (float) $input['bpjs_persen'], date('Y-m-d H:i:s'));
@@ -582,8 +623,11 @@ class Karyawan extends BaseController
         ];
     }
 
-    private function syncPph21($db, int $karyawanId, float $nilai, string $now): void
+    private function syncPph21($db, int $karyawanId, float $nilai, string $metode, string $now): void
     {
+        if (! in_array($metode, ['nominal_tetap', 'persen'], true)) {
+            throw new \InvalidArgumentException('Metode PPh 21 tidak valid');
+        }
         $komponen = $db->table('komponen_gaji')->where('kode', 'PPH21')->get()->getRowArray();
         if (! $komponen) {
             $db->table('komponen_gaji')->insert([
@@ -616,6 +660,7 @@ class Karyawan extends BaseController
         if ($assigned) {
             $db->table('karyawan_komponen')->where('id', $assigned['id'])->update([
                 'nilai' => $nilai,
+                'metode_override' => $metode === $komponen['metode'] ? null : $metode,
                 'updated_at' => $now,
             ]);
             return;
@@ -625,6 +670,7 @@ class Karyawan extends BaseController
             'karyawan_id' => $karyawanId,
             'komponen_id' => (int) $komponen['id'],
             'nilai' => $nilai,
+            'metode_override' => $metode === $komponen['metode'] ? null : $metode,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
@@ -683,6 +729,16 @@ class Karyawan extends BaseController
         foreach ($komponen as $row) {
             if ($row['kode'] === $kode) {
                 return (float) $row['nilai'];
+            }
+        }
+        return null;
+    }
+
+    private function metodeKomponen(array $komponen, string $kode): ?string
+    {
+        foreach ($komponen as $row) {
+            if ($row['kode'] === $kode) {
+                return $row['metode_override'] ?: $row['metode'];
             }
         }
         return null;
@@ -758,6 +814,7 @@ class Karyawan extends BaseController
             'tunjangan_tetap'  => 'permit_empty|numeric|greater_than_equal_to[0]',
             'tunjangan'        => 'permit_empty|numeric|greater_than_equal_to[0]',
             'pph21'            => 'permit_empty|numeric|greater_than_equal_to[0]',
+            'pph21_metode'     => 'permit_empty|in_list[nominal_tetap,persen]',
             'bpjs_persen'      => 'permit_empty|numeric|greater_than_equal_to[0]|less_than_equal_to[100]',
             'potongan_lembur'  => 'permit_empty|numeric|greater_than_equal_to[0]',
             'npwp'             => 'permit_empty|max_length[25]',

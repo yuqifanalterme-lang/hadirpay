@@ -182,12 +182,12 @@ class AccountingService
             ->where('periode_gaji_id', $pid)
             ->get()->getRowArray()['total'];
         $deductions = $db->table('detail_penggajian dp')
-            ->select('kg.kode, SUM(dp.jumlah) AS total', false)
+            ->select('COALESCE(NULLIF(dp.kode, \'\'), kg.kode) AS kode, SUM(dp.jumlah) AS total', false)
             ->join('penggajian p', 'p.id = dp.penggajian_id')
-            ->join('komponen_gaji kg', 'kg.id = dp.komponen_id')
+            ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
             ->where('p.periode_gaji_id', $pid)
             ->where('dp.tipe', 'potongan')
-            ->groupBy('kg.kode')
+            ->groupBy('kode')
             ->get()->getResultArray();
         $withheld = [];
         foreach ($deductions as $row) {
@@ -196,8 +196,19 @@ class AccountingService
 
         $incomeTax = $withheld['PPH21'] ?? 0.0;
         $bpjs = $withheld['BPJS'] ?? 0.0;
-        $otherDeductions = array_sum(array_diff_key($withheld, ['PPH21' => true, 'BPJS' => true]));
-        $grossPay = $netPay + $incomeTax + $bpjs + $otherDeductions;
+        $alpha = $withheld['POT-ALPHA'] ?? 0.0;
+        $late = $withheld['POT-TELAT'] ?? 0.0;
+        $otherDeductions = array_sum(array_diff_key($withheld, [
+            'PPH21' => true,
+            'BPJS' => true,
+            'POT-ALPHA' => true,
+            'POT-TELAT' => true,
+        ]));
+        $totalPendapatan = (float) $db->table('penggajian')
+            ->select('COALESCE(SUM(total_pendapatan),0) AS total', false)
+            ->where('periode_gaji_id', $pid)
+            ->get()->getRowArray()['total'];
+        $grossPay = round($totalPendapatan - $alpha - $late, 2);
         $lines = [
             ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $grossPay, 'kredit' => 0],
             ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $netPay],

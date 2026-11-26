@@ -10,15 +10,16 @@ class KaryawanKomponenModel extends Model
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
     protected $useTimestamps = true;
-    protected $allowedFields = ['karyawan_id', 'komponen_id', 'nilai'];
+    protected $allowedFields = ['karyawan_id', 'komponen_id', 'nilai', 'metode_override'];
 
     /** Query dasar: komponen milik karyawan beserta info master-nya. */
     public function denganKomponen(): self
     {
         return $this->select(
             'karyawan_komponen.id, karyawan_komponen.karyawan_id, karyawan_komponen.komponen_id, '
-            . 'karyawan_komponen.nilai, karyawan_komponen.updated_at, '
-            . 'komponen_gaji.kode, komponen_gaji.nama, komponen_gaji.tipe, komponen_gaji.metode, '
+            . 'karyawan_komponen.nilai, karyawan_komponen.metode_override, karyawan_komponen.updated_at, '
+            . 'komponen_gaji.kode, komponen_gaji.nama, komponen_gaji.tipe, '
+            . 'COALESCE(karyawan_komponen.metode_override, komponen_gaji.metode) AS metode, '
             . 'komponen_gaji.nilai AS nilai_default, komponen_gaji.aktif AS komponen_aktif'
         )->join('komponen_gaji', 'komponen_gaji.id = karyawan_komponen.komponen_id');
     }

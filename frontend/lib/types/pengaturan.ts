@@ -13,6 +13,7 @@ export type Pengaturan = {
     pembagi_hari_kerja: string
     tanggal_tutup_periode: number
     potongan_izin_tanpa_surat: boolean
+    potongan_terlambat_per_keterlambatan: number
   }
   lokasi_absensi: {
     id: Id
