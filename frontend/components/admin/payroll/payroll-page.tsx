@@ -173,7 +173,7 @@ export function PayrollPage() {
       await load(pendingAction === 'delete_draft' ? undefined : selectedPeriodId)
       toast.success(
         pendingAction === 'cancel_payroll'
-          ? 'Periode payroll dan jurnal terkait dihapus permanen.'
+          ? 'Periode dibatalkan; jurnal otomatis dihapus dan rincian serta slip gaji tetap tersedia.'
           : pendingAction === 'delete_draft'
             ? 'Draf penggajian berhasil dihapus.'
             : 'Status proses penggajian berhasil diperbarui.',
@@ -412,7 +412,7 @@ export function PayrollPage() {
                 : pendingAction === 'return'
                   ? `Kembalikan periode ${period.period} untuk diperbaiki.`
                   : pendingAction === 'cancel_payroll'
-                      ? `Hapus permanen periode ${period.period}, rincian payroll, slip gaji, dan jurnal akuntansinya? Tindakan ini tidak dapat dibatalkan.`
+                      ? `Batalkan periode ${period.period} dan hapus jurnal otomatis yang terkait? Rincian payroll dan slip gaji akan tetap tersedia.`
                     : pendingAction === 'delete_draft'
                       ? `Hapus draf penggajian periode ${period.period} beserta rincian dan jurnalnya?`
                       : `${actionLabel(pendingAction ?? 'submit')} untuk periode ${period.period}?`

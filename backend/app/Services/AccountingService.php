@@ -7,13 +7,8 @@ use App\Libraries\Tanggal;
 /**
  * Jurnal otomatis dari payroll.
  *
- * Pengakuan (saat periode disetujui):
- *   Debit  Beban Gaji         = gaji bersih + PPh 21 + BPJS
- *   Kredit Utang Gaji         = total gaji bersih
- *   Kredit Utang PPh 21       = total potongan komponen PPH21 (jika ada)
- *   Kredit Utang Iuran BPJS   = total potongan komponen BPJS (jika ada)
- * Potongan keterlambatan, alpha, dan lain-lain bukan utang, tetapi mengurangi beban.
- * Debit dihitung dari kredit supaya jurnal selalu seimbang.
+ * Pengakuan (saat periode disetujui) hanya mencatat gaji bersih ke beban dan utang gaji.
+ * PPh 21 dan BPJS tetap dihitung di slip, tetapi jurnalnya dicatat manual.
  *
  * Pembayaran (saat periode dibayar):
  *   Debit  Utang Gaji = total gaji bersih
@@ -186,38 +181,12 @@ class AccountingService
             ->where('periode_gaji_id', $pid)
             ->get()->getRowArray();
 
-        $pot = $db->table('detail_penggajian d')
-            ->select('k.kode AS kode, COALESCE(SUM(d.jumlah),0) AS total', false)
-            ->join('penggajian g', 'g.id = d.penggajian_id')
-            ->join('komponen_gaji k', 'k.id = d.komponen_id', 'left')
-            ->where('g.periode_gaji_id', $pid)
-            ->where('d.tipe', 'potongan')
-            ->groupBy('k.kode')
-            ->get()->getResultArray();
-
-        $pph  = 0.0;
-        $bpjs = 0.0;
-        foreach ($pot as $r) {
-            if ($r['kode'] === 'PPH21') {
-                $pph += (float) $r['total'];
-            } elseif ($r['kode'] === 'BPJS') {
-                $bpjs += (float) $r['total'];
-            }
-        }
-
         $bersih = (float) $tot['bersih'];
-        $beban  = $bersih + $pph + $bpjs;
 
         $lines = [
-            ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $beban, 'kredit' => 0],
+            ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $bersih, 'kredit' => 0],
             ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $bersih],
         ];
-        if ($pph > 0) {
-            $lines[] = ['akun_id' => self::akunId($db, self::AKUN_PPH), 'debit' => 0, 'kredit' => $pph];
-        }
-        if ($bpjs > 0) {
-            $lines[] = ['akun_id' => self::akunId($db, self::AKUN_BPJS), 'debit' => 0, 'kredit' => $bpjs];
-        }
 
         return self::simpanJurnal($db, [
             'tanggal'         => $periode['tanggal_tutup'],
