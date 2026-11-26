@@ -56,7 +56,7 @@ type EmployeeTab = (typeof tabs)[number]
 const componentInputClass = 'min-h-12 w-full rounded-xl border border-border bg-white px-3 text-sm text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
 function canManageEmployeeComponent(component: EmployeeSalaryComponent) {
-  return !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code)
+  return !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR', 'POT-ALPHA', 'POT-TELAT'].includes(component.code)
     && !['tunjangan-tetap', 'potongan-terlambat', 'potongan-alpha'].includes(String(component.id))
 }
 
