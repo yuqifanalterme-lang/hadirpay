@@ -217,7 +217,7 @@ export function EmployeeDetail({ id }: { id: string }) {
       const available = options.filter((component) =>
         component.active
         && component.method !== 'manual per periode'
-        && !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code ?? '')
+        && !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR', 'POT-ALPHA', 'POT-TELAT'].includes(component.code ?? '')
         && !['tunjangan-tetap', 'potongan-terlambat', 'potongan-alpha'].includes(component.id)
         && !attachedIds.has(component.id),
       )

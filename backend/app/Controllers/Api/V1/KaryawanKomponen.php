@@ -63,9 +63,9 @@ class KaryawanKomponen extends BaseController
         if (! $komp) {
             return ApiResponse::error('NOT_FOUND', 'Komponen gaji tidak ditemukan', null, 404);
         }
-        if ($komp['kode'] === 'BPJS') {
+        if (in_array($komp['kode'], ['BPJS', 'POT-ALPHA', 'POT-TELAT'], true)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
-                'komponen_id' => 'BPJS dihitung otomatis dari komponen master',
+                'komponen_id' => 'Komponen ini dihitung otomatis dari absensi atau kebijakan payroll',
             ], 422);
         }
         if (! (int) $komp['aktif']) {
@@ -123,9 +123,9 @@ class KaryawanKomponen extends BaseController
         if ($row['metode'] === 'persen' && (float) $input['nilai'] > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
         }
-        if ($row['kode'] === 'BPJS') {
+        if (in_array($row['kode'], ['BPJS', 'POT-ALPHA', 'POT-TELAT'], true)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
-                'nilai' => 'BPJS dihitung otomatis dari komponen master',
+                'nilai' => 'Komponen ini dihitung otomatis dari absensi atau kebijakan payroll',
             ], 422);
         }
 

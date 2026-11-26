@@ -2,6 +2,7 @@
 
 use App\Commands\ResetPayroll;
 use App\Services\AccountingService;
+use App\Services\PayrollService;
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -85,7 +86,7 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $command = $this->makeCommand();
         [$exitCode, $output] = $this->runWithOutput($command, ['force' => true], [$this->db->getDatabase()]);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, $exitCode, $output);
         $this->assertStringContainsString('Deleted rows:', $output);
 
         foreach ($this->transactionTables as $table) {
@@ -250,6 +251,102 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->assertSame([2, 3, 4, 5, 6], $accountIds);
     }
 
+    public function testPayrollComponentsFlowIntoTotalsAndBalancedJournal(): void
+    {
+        $this->db->table('periode_gaji')->insert([
+            'id' => 2,
+            'dibuat_oleh' => 1,
+            'periode' => '2026-11',
+            'tanggal_tutup' => '2026-11-30',
+            'status' => 'disetujui',
+        ]);
+        $components = [
+            ['id' => 2, 'kode' => 'TUN-TRANSPORT', 'nama' => 'Tunjangan Tetap', 'tipe' => 'pendapatan', 'metode' => 'nominal_tetap', 'nilai' => null, 'aktif' => 1],
+            ['id' => 3, 'kode' => 'POT-ALPHA', 'nama' => 'Potongan Alpa', 'tipe' => 'potongan', 'metode' => 'per_hari', 'nilai' => 999999, 'aktif' => 1],
+            ['id' => 4, 'kode' => 'POT-TELAT', 'nama' => 'Potongan Terlambat', 'tipe' => 'potongan', 'metode' => 'per_menit', 'nilai' => 999999, 'aktif' => 1],
+            ['id' => 5, 'kode' => 'BPJS', 'nama' => 'Iuran BPJS', 'tipe' => 'potongan', 'metode' => 'persen', 'nilai' => 3, 'aktif' => 1],
+            ['id' => 6, 'kode' => 'PPH21', 'nama' => 'PPh 21', 'tipe' => 'potongan', 'metode' => 'nominal_tetap', 'nilai' => 200000, 'aktif' => 1],
+        ];
+        $this->db->table('komponen_gaji')->insertBatch(array_map(
+            static fn (array $component): array => array_intersect_key($component, array_flip(['id', 'kode'])),
+            $components
+        ));
+        $this->db->table('akun')->insertBatch([
+            ['id' => 4, 'kode' => '2-1200', 'nama' => 'Utang PPh 21', 'saldo_normal' => 'kredit', 'aktif' => 1],
+            ['id' => 5, 'kode' => '2-1300', 'nama' => 'Utang Iuran BPJS', 'saldo_normal' => 'kredit', 'aktif' => 1],
+        ]);
+
+        $byKode = [];
+        foreach ($components as $component) {
+            $byKode[$component['kode']] = $component;
+        }
+        $hasil = (new PayrollService())->hitungKaryawan(
+            [
+                'id' => 1,
+                'jenis_penggajian' => 'bulanan',
+                'gaji_pokok' => 4500000,
+                'tanggal_mulai' => '2020-01-01',
+            ],
+            ['2026-11-02', '2026-11-03'],
+            array_column($components, null, 'id'),
+            $byKode,
+            [
+                2 => ['nilai' => 100000],
+                3 => ['nilai' => 999999],
+                4 => ['nilai' => 999999],
+                5 => ['nilai' => 3],
+                6 => ['nilai' => 200000],
+            ],
+            [
+                '2026-11-02' => ['status' => 'alpha', 'menit_terlambat' => 0],
+                '2026-11-03' => ['status' => 'terlambat', 'menit_terlambat' => 5],
+            ],
+            [],
+            '2026-12-01',
+            [],
+            1000
+        );
+
+        $this->assertSame(4600000.0, $hasil['penggajian']['total_pendapatan']);
+        $this->assertSame(2586000.0, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(2014000.0, $hasil['penggajian']['gaji_bersih']);
+        $this->db->table('penggajian')->insert(['id' => 2, 'periode_gaji_id' => 2, 'karyawan_id' => 1] + $hasil['penggajian']);
+
+        foreach ($hasil['detail'] as $index => $detail) {
+            $this->db->table('detail_penggajian')->insert([
+                'id' => $index + 2,
+                'penggajian_id' => 2,
+                'komponen_id' => $detail['komponen_id'],
+                'kode' => $detail['kode'],
+                'sumber' => $detail['sumber'],
+                'tipe' => $detail['tipe'],
+                'jumlah' => $detail['jumlah'],
+            ]);
+        }
+
+        $journalId = AccountingService::jurnalPengakuan(
+            new SqliteJournalConnection($this->db),
+            ['id' => 2, 'periode' => '2026-11', 'tanggal_tutup' => '2026-11-30'],
+            1
+        );
+        $journal = $this->db->table('jurnal')->where('id', $journalId)->get()->getRowArray();
+        $lines = $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->get()->getResultArray();
+        $amountByAccount = [];
+        foreach ($lines as $line) {
+            $amountByAccount[(int) $line['akun_id']] = [
+                'debit' => (float) $line['debit'],
+                'kredit' => (float) $line['kredit'],
+            ];
+        }
+
+        $this->assertSame(2349000.0, (float) $journal['total_debit']);
+        $this->assertSame(2349000.0, (float) $journal['total_kredit']);
+        $this->assertSame(2349000.0, $amountByAccount[3]['debit']);
+        $this->assertSame(2014000.0, $amountByAccount[2]['kredit']);
+        $this->assertSame(200000.0, $amountByAccount[4]['kredit']);
+        $this->assertSame(135000.0, $amountByAccount[5]['kredit']);
+    }
+
     private function makeCommand(?string $environment = null)
     {
         return new class(service('logger'), service('commands'), $environment) extends ResetPayroll {
@@ -292,7 +389,7 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             'jabatan' => 'id INTEGER PRIMARY KEY',
             'departemen' => 'id INTEGER PRIMARY KEY',
             'akun' => "id INTEGER PRIMARY KEY, kode VARCHAR(10), nama VARCHAR(100), saldo_normal VARCHAR(10), aktif INTEGER",
-            'komponen_gaji' => 'id INTEGER PRIMARY KEY, kode VARCHAR(30)',
+            'komponen_gaji' => 'id INTEGER PRIMARY KEY, kode VARCHAR(30), nama VARCHAR(100), tipe VARCHAR(20), metode VARCHAR(30), nilai DECIMAL(15,2), aktif INTEGER',
             'karyawan_komponen' => 'id INTEGER PRIMARY KEY',
             'pengaturan' => '`key` VARCHAR(80) PRIMARY KEY',
             'jadwal_kerja' => 'id INTEGER PRIMARY KEY',
@@ -300,11 +397,11 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             'hari_libur' => 'id INTEGER PRIMARY KEY',
             'kuota_cuti' => 'id INTEGER PRIMARY KEY',
             'refresh_tokens' => 'id INTEGER PRIMARY KEY',
-            'periode_gaji' => 'id INTEGER PRIMARY KEY, dibuat_oleh INTEGER, jurnal_pengakuan_id INTEGER, jurnal_pembayaran_id INTEGER, periode VARCHAR(7), tanggal_tutup DATE, FOREIGN KEY (dibuat_oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id), FOREIGN KEY (jurnal_pengakuan_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT, FOREIGN KEY (jurnal_pembayaran_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT',
+            'periode_gaji' => 'id INTEGER PRIMARY KEY, dibuat_oleh INTEGER, jurnal_pengakuan_id INTEGER, jurnal_pembayaran_id INTEGER, periode VARCHAR(7), tanggal_tutup DATE, status VARCHAR(40), FOREIGN KEY (dibuat_oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id), FOREIGN KEY (jurnal_pengakuan_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT, FOREIGN KEY (jurnal_pembayaran_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT',
             'jurnal' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, nomor_bukti VARCHAR(30), tanggal DATE, keterangan VARCHAR(255), sumber VARCHAR(20), jenis VARCHAR(30), status VARCHAR(20), reversal_of INTEGER, periode_gaji_id INTEGER, total_debit DECIMAL(15,2), total_kredit DECIMAL(15,2), dibuat_oleh INTEGER, created_at DATETIME, updated_at DATETIME, FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE RESTRICT, FOREIGN KEY (reversal_of) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT',
             'periode_status_log' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, oleh INTEGER, FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id) ON DELETE RESTRICT',
-            'penggajian' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, karyawan_id INTEGER, total_pendapatan DECIMAL(15,2), gaji_bersih DECIMAL(15,2), FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT',
-            'detail_penggajian' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, komponen_id INTEGER, kode VARCHAR(50), sumber VARCHAR(20), tipe VARCHAR(20), jumlah DECIMAL(15,2), FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE CASCADE, FOREIGN KEY (komponen_id) REFERENCES ' . $this->db->prefixTable('komponen_gaji') . '(id) ON DELETE RESTRICT',
+            'penggajian' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, karyawan_id INTEGER, gaji_pokok DECIMAL(15,2), tunjangan DECIMAL(15,2), total_pendapatan DECIMAL(15,2), total_potongan DECIMAL(15,2), gaji_bersih DECIMAL(15,2), tarif_harian DECIMAL(15,2), rekap_json TEXT, FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT',
+            'detail_penggajian' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, komponen_id INTEGER, kode VARCHAR(50), sumber VARCHAR(20), nama VARCHAR(100), keterangan VARCHAR(150), urutan INTEGER, tipe VARCHAR(20), jumlah DECIMAL(15,2), FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE CASCADE, FOREIGN KEY (komponen_id) REFERENCES ' . $this->db->prefixTable('komponen_gaji') . '(id) ON DELETE RESTRICT',
             'slip_gaji' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE RESTRICT',
             'detail_jurnal' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, jurnal_id INTEGER, akun_id INTEGER, debit DECIMAL(15,2), kredit DECIMAL(15,2), urutan INTEGER, FOREIGN KEY (jurnal_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE CASCADE, FOREIGN KEY (akun_id) REFERENCES ' . $this->db->prefixTable('akun') . '(id) ON DELETE RESTRICT',
             'pengajuan_izin' => 'id INTEGER PRIMARY KEY, karyawan_id INTEGER, diproses_oleh INTEGER, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT, FOREIGN KEY (diproses_oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id) ON DELETE RESTRICT',

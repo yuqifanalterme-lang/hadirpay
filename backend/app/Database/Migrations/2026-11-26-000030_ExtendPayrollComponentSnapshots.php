@@ -13,6 +13,10 @@ class ExtendPayrollComponentSnapshots extends Migration
                 "ALTER TABLE komponen_gaji MODIFY COLUMN metode
                  ENUM('nominal_tetap', 'persen', 'per_hari', 'per_jam', 'per_menit', 'manual_periode') NOT NULL"
             );
+            $this->db->table('komponen_gaji')
+                ->where('kode', 'POT-TELAT')
+                ->where('sistem', 1)
+                ->update(['metode' => 'nominal_tetap', 'nilai' => null]);
         }
 
         if ($this->db->tableExists('karyawan_komponen')
@@ -58,6 +62,10 @@ class ExtendPayrollComponentSnapshots extends Migration
     {
         if ($this->db->tableExists('komponen_gaji')) {
             $this->db->table('komponen_gaji')
+                ->where('kode', 'POT-TELAT')
+                ->where('sistem', 1)
+                ->update(['metode' => 'per_menit', 'nilai' => 1000]);
+            $this->db->table('komponen_gaji')
                 ->where('metode', 'manual_periode')
                 ->update(['metode' => 'nominal_tetap']);
             $this->db->query(
@@ -91,7 +99,7 @@ class ExtendPayrollComponentSnapshots extends Migration
             ['TUN-TRANSPORT', 'Tunjangan Tetap', 'pendapatan', 'nominal_tetap', null],
             ['PEND-LEMBUR', 'Pendapatan Lembur', 'pendapatan', 'manual_periode', null],
             ['POT-ALPHA', 'Potongan Alpa', 'potongan', 'per_hari', null],
-            ['POT-TELAT', 'Potongan Terlambat', 'potongan', 'nominal_tetap', 1000],
+            ['POT-TELAT', 'Potongan Terlambat', 'potongan', 'nominal_tetap', null],
             ['BPJS', 'Potongan Iuran BPJS', 'potongan', 'persen', 3],
             ['PPH21', 'Potongan PPh 21', 'potongan', 'nominal_tetap', null],
             ['POT-LAIN', 'Potongan Lain', 'potongan', 'nominal_tetap', null],

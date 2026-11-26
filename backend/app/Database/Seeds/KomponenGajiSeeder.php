@@ -12,8 +12,9 @@ class KomponenGajiSeeder extends Seeder
         // kode, nama, tipe, metode, nilai, aktif
         $data = [
             ['TUN-TRANSPORT', 'Tunjangan transport',    'pendapatan', 'nominal_tetap', null,   1],
+            ['PEND-LEMBUR',   'Pendapatan Lembur',      'pendapatan', 'manual_periode', null,   1],
             ['POT-ALPHA',     'Potongan alpha',         'potongan',   'per_hari',      null,   1],
-            ['POT-TELAT',     'Potongan keterlambatan', 'potongan',   'per_menit',     1000,   1],
+            ['POT-TELAT',     'Potongan keterlambatan', 'potongan',   'nominal_tetap', null,   1],
             ['BPJS',          'Iuran BPJS',             'potongan',   'persen',        3,      1],
             ['PPH21',         'PPh 21',                 'potongan',   'nominal_tetap', null,   1],
             ['POT-LEMBUR',    'Potongan lembur per periode', 'potongan', 'nominal_tetap', 0, 1],

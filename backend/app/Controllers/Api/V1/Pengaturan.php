@@ -129,7 +129,13 @@ class Pengaturan extends BaseController
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['value' => 'Value wajib diisi'], 422);
         }
 
-        $this->model->simpan($key, $in['value']);
+        $errors = $this->validasiKebijakanGaji($key, $in['value']);
+        if ($errors) {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $errors, 422);
+        }
+
+        $value = $this->normalisasiKebijakanGaji($key, $in['value']);
+        $this->model->simpan($key, $value);
 
         return ApiResponse::success($this->model->ambil($key), 'Pengaturan disimpan');
     }
@@ -165,11 +171,17 @@ class Pengaturan extends BaseController
                 $errors[(string) $k] = 'Value wajib diisi';
             }
         }
+        if (array_key_exists('kebijakan_gaji', $data)) {
+            $errors += $this->validasiKebijakanGaji('kebijakan_gaji', $data['kebijakan_gaji']);
+        }
         if ($jadwal !== null) {
             $errors += $this->cekJadwal($jadwal);
         }
         if ($errors) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $errors, 422);
+        }
+        if (array_key_exists('kebijakan_gaji', $data)) {
+            $data['kebijakan_gaji'] = $this->normalisasiKebijakanGaji('kebijakan_gaji', $data['kebijakan_gaji']);
         }
 
         $db = db_connect();
@@ -189,6 +201,36 @@ class Pengaturan extends BaseController
         }
 
         return ApiResponse::success((object) $this->gabungan(), 'Pengaturan disimpan');
+    }
+
+    private function validasiKebijakanGaji(string $key, $value): array
+    {
+        if ($key !== 'kebijakan_gaji') {
+            return [];
+        }
+        if (! is_array($value)) {
+            return [$key => 'Kebijakan gaji harus berupa objek'];
+        }
+
+        $field = 'potongan_terlambat_per_keterlambatan';
+        if (! array_key_exists($field, $value)) {
+            return [];
+        }
+        if (! is_numeric($value[$field]) || ! is_finite((float) $value[$field]) || (float) $value[$field] < 0) {
+            return [$key . '.' . $field => 'Potongan terlambat harus berupa angka nol atau lebih'];
+        }
+
+        return [];
+    }
+
+    private function normalisasiKebijakanGaji(string $key, $value)
+    {
+        $field = 'potongan_terlambat_per_keterlambatan';
+        if ($key === 'kebijakan_gaji' && is_array($value) && array_key_exists($field, $value)) {
+            $value[$field] = (float) $value[$field];
+        }
+
+        return $value;
     }
 
     // POST /api/v1/pengaturan/logo   multipart/form-data field: logo

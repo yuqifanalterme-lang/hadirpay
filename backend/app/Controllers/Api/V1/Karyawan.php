@@ -322,7 +322,7 @@ class Karyawan extends BaseController
                     ->get()->getRowArray();
                 if ($masterComponent) {
                     $kode = $masterComponent['kode'];
-                    if (in_array($kode, ['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'], true)) {
+                    if (in_array($kode, ['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR', 'POT-ALPHA', 'POT-TELAT'], true)) {
                         continue;
                     }
                 }

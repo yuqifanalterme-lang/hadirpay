@@ -35,7 +35,7 @@ final class PayrollServiceTest extends CIUnitTestCase
         $komponen = [
             1 => ['id' => 1, 'kode' => 'TUN-TRANSPORT', 'nama' => 'Tunjangan transport', 'tipe' => 'pendapatan', 'metode' => 'nominal_tetap', 'nilai' => 245000, 'aktif' => 1],
             3 => ['id' => 3, 'kode' => 'POT-ALPHA', 'nama' => 'Potongan alpha', 'tipe' => 'potongan', 'metode' => 'per_hari', 'nilai' => null, 'aktif' => 1],
-            4 => ['id' => 4, 'kode' => 'POT-TELAT', 'nama' => 'Potongan keterlambatan', 'tipe' => 'potongan', 'metode' => 'per_menit', 'nilai' => 1000, 'aktif' => 1],
+            4 => ['id' => 4, 'kode' => 'POT-TELAT', 'nama' => 'Potongan Terlambat', 'tipe' => 'potongan', 'metode' => 'per_menit', 'nilai' => 1000, 'aktif' => 1],
             5 => ['id' => 5, 'kode' => 'BPJS', 'nama' => 'Iuran BPJS', 'tipe' => 'potongan', 'metode' => 'persen', 'nilai' => 3, 'aktif' => 1],
             6 => ['id' => 6, 'kode' => 'POT-LAIN', 'nama' => 'Potongan lainnya', 'tipe' => 'potongan', 'metode' => 'nominal_tetap', 'nilai' => 0, 'aktif' => 1],
         ];
@@ -71,8 +71,7 @@ final class PayrollServiceTest extends CIUnitTestCase
         $this->assertSame(450545.45, $hasil['penggajian']['total_potongan']);
         $this->assertSame(4294454.55, $hasil['penggajian']['gaji_bersih']);
         $this->assertNotContains('Upah lembur', array_column($hasil['detail'], 'nama'));
-        // Late row is now named 'Potongan Terlambat' (global rate, no per-menit label)
-        $this->assertNotContains('Potongan keterlambatan', array_column($hasil['detail'], 'nama'));
+        $this->assertContains('Potongan Terlambat', array_column($hasil['detail'], 'nama'));
         $bpjsRows = array_values(array_filter($hasil['detail'], static fn ($row) => $row['nama'] === 'Iuran BPJS'));
         $this->assertCount(1, $bpjsRows);
         $this->assertSame(45000.0, $bpjsRows[0]['jumlah']);
@@ -307,6 +306,24 @@ final class PayrollServiceTest extends CIUnitTestCase
             ],
         ];
 
+        $alphaComponent = [
+            'id' => 10,
+            'kode' => 'POT-ALPHA',
+            'nama' => 'Potongan alpha',
+            'tipe' => 'potongan',
+            'metode' => 'per_hari',
+            'nilai' => 300000,
+            'aktif' => 1,
+        ];
+        $lateComponent = [
+            'id' => 11,
+            'kode' => 'POT-TELAT',
+            'nama' => 'Potongan keterlambatan',
+            'tipe' => 'potongan',
+            'metode' => 'per_menit',
+            'nilai' => 1000,
+            'aktif' => 1,
+        ];
         $hasil = $service->hitungKaryawan(
             [
                 'id'                => 1,
@@ -316,9 +333,9 @@ final class PayrollServiceTest extends CIUnitTestCase
                 'tanggal_mulai'     => '2020-01-01',
             ],
             $hariKerja,
-            [10 => ['id' => 10, 'kode' => 'POT-ALPHA', 'nama' => 'Potongan alpha', 'tipe' => 'potongan', 'metode' => 'per_hari', 'nilai' => null, 'aktif' => 1]],
-            ['POT-ALPHA' => ['id' => 10, 'kode' => 'POT-ALPHA', 'nama' => 'Potongan alpha', 'tipe' => 'potongan', 'metode' => 'per_hari', 'nilai' => null, 'aktif' => 1]],
-            [],
+            [10 => $alphaComponent, 11 => $lateComponent],
+            ['POT-ALPHA' => $alphaComponent, 'POT-TELAT' => $lateComponent],
+            [10 => ['nilai' => 300000], 11 => ['nilai' => 1000]],
             $absensi,
             [],
             '2026-11-01',
@@ -431,39 +448,110 @@ final class PayrollServiceTest extends CIUnitTestCase
         }
     }
 
-    /**
-     * STEP 2(c): Snapshot is determined by detail_penggajian at payroll time;
-     * changing master komponen after the fact must NOT alter the stored totals.
-     */
+    /** STEP 2(c): A saved payroll detail remains unchanged after its master component changes. */
     public function testSnapshotIsImmutableAfterMasterKomponenChange(): void
     {
-        // The snapshot is enforced architecturally: hitungKaryawan stores the computed
-        // amount into detail_penggajian, not the master nilai. Changing komponen_gaji.nilai
-        // afterward does not retroactively recalculate past payrolls.
-        // Here we verify that two calls with different master nilai produce different results
-        // (each call is independent), confirming the snapshot pattern.
-        $service    = new PayrollService();
-        $days       = ['2026-11-03'];
-        $absensiHadir = ['2026-11-03' => ['status' => 'hadir', 'menit_terlambat' => 0]];
-        $bpjs       = ['id' => 1, 'kode' => 'BPJS', 'nama' => 'Iuran BPJS', 'tipe' => 'potongan', 'metode' => 'persen', 'nilai' => 3, 'aktif' => 1];
+        $db = db_connect();
+        $schemas = [
+            'jadwal_kerja' => 'id INTEGER PRIMARY KEY, hari_kerja VARCHAR(100), is_default INTEGER',
+            'hari_libur' => 'id INTEGER PRIMARY KEY, tanggal DATE',
+            'karyawan' => 'id INTEGER PRIMARY KEY, status VARCHAR(20), tanggal_mulai DATE, jenis_penggajian VARCHAR(20), gaji_pokok DECIMAL(15,2), tunjangan_tetap DECIMAL(15,2)',
+            'komponen_gaji' => 'id INTEGER PRIMARY KEY, kode VARCHAR(30), nama VARCHAR(100), tipe VARCHAR(20), metode VARCHAR(30), nilai DECIMAL(15,2), aktif INTEGER',
+            'karyawan_komponen' => 'id INTEGER PRIMARY KEY, karyawan_id INTEGER, komponen_id INTEGER, nilai DECIMAL(15,2), metode_override VARCHAR(20)',
+            'pengaturan' => '`key` VARCHAR(80) PRIMARY KEY, value_json TEXT',
+            'periode_gaji' => 'id INTEGER PRIMARY KEY, status VARCHAR(30), tanggal_mulai DATE, tanggal_selesai DATE, dihitung_pada DATETIME, hari_kerja INTEGER, jumlah_karyawan INTEGER, total_pendapatan DECIMAL(15,2), total_potongan DECIMAL(15,2), total_gaji_bersih DECIMAL(15,2)',
+            'penggajian' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, periode_gaji_id INTEGER, karyawan_id INTEGER, gaji_pokok DECIMAL(15,2), tunjangan DECIMAL(15,2), total_pendapatan DECIMAL(15,2), total_potongan DECIMAL(15,2), gaji_bersih DECIMAL(15,2), tarif_harian DECIMAL(15,2), rekap_json TEXT, created_at DATETIME, updated_at DATETIME',
+            'detail_penggajian' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, penggajian_id INTEGER, komponen_id INTEGER, kode VARCHAR(50), sumber VARCHAR(20), nama VARCHAR(100), tipe VARCHAR(20), keterangan VARCHAR(150), jumlah DECIMAL(15,2), urutan INTEGER',
+            'absensi' => 'id INTEGER PRIMARY KEY, karyawan_id INTEGER, tanggal DATE, status VARCHAR(20), menit_terlambat INTEGER',
+            'pengajuan_izin' => 'id INTEGER PRIMARY KEY, karyawan_id INTEGER, jenis VARCHAR(20), status VARCHAR(20), tanggal_mulai DATE, tanggal_selesai DATE',
+        ];
+        $tables = array_keys($schemas);
+        $tables = array_map([$db, 'prefixTable'], $tables);
 
-        $hasilBefore = $service->hitungKaryawan(
-            ['id' => 1, 'jenis_penggajian' => 'bulanan', 'gaji_pokok' => 5000000, 'tunjangan_tetap' => 0, 'tanggal_mulai' => '2020-01-01'],
-            $days, [1 => $bpjs], ['BPJS' => $bpjs], [], $absensiHadir, [], '2026-12-01'
-        );
+        foreach (array_reverse($tables) as $table) {
+            $db->query('DROP TABLE IF EXISTS ' . $table);
+        }
 
-        // "Change" master: 3% → 5%
-        $bpjsV2 = array_merge($bpjs, ['nilai' => 5]);
-        $hasilAfter = $service->hitungKaryawan(
-            ['id' => 1, 'jenis_penggajian' => 'bulanan', 'gaji_pokok' => 5000000, 'tunjangan_tetap' => 0, 'tanggal_mulai' => '2020-01-01'],
-            $days, [1 => $bpjsV2], ['BPJS' => $bpjsV2], [], $absensiHadir, [], '2026-12-01'
-        );
+        try {
+            foreach ($schemas as $table => $schema) {
+                $db->query('CREATE TABLE ' . $db->prefixTable($table) . ' (' . $schema . ')');
+            }
 
-        // Old snapshot: BPJS = 3% × 5.000.000 = 150.000
-        $this->assertSame(150000.0, $hasilBefore['penggajian']['total_potongan']);
-        // New calculation: BPJS = 5% × 5.000.000 = 250.000
-        $this->assertSame(250000.0, $hasilAfter['penggajian']['total_potongan']);
-        // The two are distinct (snapshot is per-run)
-        $this->assertNotSame($hasilBefore['penggajian']['total_potongan'], $hasilAfter['penggajian']['total_potongan']);
+            $workday = new DateTimeImmutable('yesterday');
+            while ((int) $workday->format('N') > 5) {
+                $workday = $workday->modify('-1 day');
+            }
+            $date = $workday->format('Y-m-d');
+            $db->table('jadwal_kerja')->insert([
+                'id' => 1,
+                'hari_kerja' => 'senin,selasa,rabu,kamis,jumat',
+                'is_default' => 1,
+            ]);
+            $db->table('karyawan')->insert([
+                'id' => 1,
+                'status' => 'aktif',
+                'tanggal_mulai' => '2020-01-01',
+                'jenis_penggajian' => 'bulanan',
+                'gaji_pokok' => 5000000,
+                'tunjangan_tetap' => 0,
+            ]);
+            $db->table('komponen_gaji')->insert([
+                'id' => 1,
+                'kode' => 'BPJS',
+                'nama' => 'Iuran BPJS',
+                'tipe' => 'potongan',
+                'metode' => 'persen',
+                'nilai' => 3,
+                'aktif' => 1,
+            ]);
+            $db->table('pengaturan')->insert([
+                'key' => 'kebijakan_gaji',
+                'value_json' => json_encode(['potongan_terlambat_per_keterlambatan' => 1000]),
+            ]);
+            $db->table('periode_gaji')->insert([
+                'id' => 1,
+                'status' => 'draft',
+                'tanggal_mulai' => $date,
+                'tanggal_selesai' => $date,
+            ]);
+            $db->table('absensi')->insert([
+                'id' => 1,
+                'karyawan_id' => 1,
+                'tanggal' => $date,
+                'status' => 'hadir',
+                'menit_terlambat' => 0,
+            ]);
+
+            $service = new PayrollService();
+            $service->hitungPeriode([
+                'id' => 1,
+                'tanggal_mulai' => $date,
+                'tanggal_selesai' => $date,
+            ]);
+
+            $payroll = $db->table('penggajian')->where('periode_gaji_id', 1)->get()->getRowArray();
+            $snapshot = $db->table('detail_penggajian')
+                ->where('penggajian_id', (int) $payroll['id'])
+                ->where('kode', 'BPJS')
+                ->get()->getRowArray();
+            $this->assertNotNull($snapshot);
+            $this->assertSame(150000.0, (float) $snapshot['jumlah']);
+            $this->assertSame(150000.0, (float) $payroll['total_potongan']);
+
+            $db->table('komponen_gaji')->where('id', 1)->update(['nilai' => 5]);
+
+            $payrollAfterEdit = $db->table('penggajian')->where('id', (int) $payroll['id'])->get()->getRowArray();
+            $snapshotAfterEdit = $db->table('detail_penggajian')
+                ->where('id', (int) $snapshot['id'])
+                ->get()->getRowArray();
+            $this->assertSame(5.0, (float) $db->table('komponen_gaji')->where('id', 1)->get()->getRowArray()['nilai']);
+            $this->assertSame(150000.0, (float) $payrollAfterEdit['total_potongan']);
+            $this->assertSame(150000.0, (float) $snapshotAfterEdit['jumlah']);
+        } finally {
+            foreach (array_reverse($tables) as $table) {
+                $db->query('DROP TABLE IF EXISTS ' . $table);
+            }
+            $db->resetTransStatus();
+        }
     }
 }

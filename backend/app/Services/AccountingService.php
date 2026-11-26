@@ -7,8 +7,8 @@ use App\Libraries\Tanggal;
 /**
  * Jurnal otomatis dari payroll.
  *
- * Pengakuan (saat periode disetujui) mencatat beban bruto dan memisahkan utang gaji,
- * PPh 21, BPJS, serta potongan karyawan lainnya.
+ * Pengakuan (saat periode disetujui) mencatat pendapatan dikurangi potongan alpa dan
+ * terlambat sebagai beban, lalu memisahkan utang gaji, PPh 21, BPJS, serta potongan lainnya.
  *
  * Pembayaran (saat periode dibayar):
  *   Debit  Utang Gaji = total gaji bersih

@@ -8,11 +8,11 @@ namespace App\Services;
  * ATURAN YANG DIPAKAI (ubah di sini kalau kebijakan perusahaan berbeda):
  *  - Hari kerja = jadwal_kerja default dikurangi hari_libur.
  *  - Karyawan "bulanan": gaji pokok penuh (prorata kalau mulai kerja di tengah periode);
- *    potongan alpha = jumlah alpha x (gaji pokok / hari kerja periode), kecuali POT-ALPHA punya nilai sendiri.
+ *    potongan alpha = jumlah alpha x (gaji pokok / hari kerja periode).
  *  - Karyawan "harian": gaji_pokok = upah PER HARI, dibayar untuk hari hadir, terlambat, dan dinas luar.
  *  - Izin dan sakit tidak memotong gaji bulanan.
  *  - Hari tanpa absensi baru dihitung alpha untuk tanggal SEBELUM hari ini.
- *  - Potongan terlambat memakai aturan per kejadian di Pengaturan; penetapan per karyawan tetap dapat memakai tarif per menit.
+ *  - Potongan terlambat memakai tarif per kejadian di Pengaturan.
  *  - Komponen lain hanya berlaku bila dipasang di karyawan_komponen. Persen dihitung dari gaji pokok.
  *  - Total potongan tidak boleh melebihi pendapatan agar hasil payroll tetap seimbang.
  */
@@ -357,36 +357,35 @@ class PayrollService
         }
 
         // --- potongan keterlambatan ---
-        $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned, false);
-        if ($hitung['terlambat'] > 0) {
-            $telatMethod = $telat['metode'] ?? null;
-            $telatRate = $telat['nilai'] ?? $lateAmountPerOccurrence ?? 1000;
-            if ($telatMethod === 'per_menit' && $telat && $telat['nilai'] !== null) {
-                $jml = round($menitTelat * $telatRate, 2);
-                $ketTelat = $menitTelat . ' menit x ' . $this->rp($telatRate);
-            } else {
-                $jml = round($hitung['terlambat'] * $telatRate, 2);
-                $ketTelat = $hitung['terlambat'] . ' kali terlambat x ' . $this->rp($telatRate);
-            }
-            if ($jml > 0) {
-                $pot[] = $this->baris(
-                    isset($telat['m']['id']) ? (int) $telat['m']['id'] : null,
-                    self::KODE_TELAT,
-                    $telat['m']['nama'] ?? 'Potongan Terlambat',
-                    'potongan',
-                    $ketTelat,
-                    $jml
-                );
-            }
+        $telat = $byKode[self::KODE_TELAT] ?? null;
+        $telatRate = max(0, $lateAmountPerOccurrence ?? 1000);
+        if ($hitung['terlambat'] > 0 && $telatRate > 0) {
+            $jml = round($hitung['terlambat'] * $telatRate, 2);
+            $ketTelat = $hitung['terlambat'] . ' kali terlambat x ' . $this->rp($telatRate);
+            $pot[] = $this->baris(
+                isset($telat['id']) ? (int) $telat['id'] : null,
+                self::KODE_TELAT,
+                $telat['nama'] ?? 'Potongan Terlambat',
+                'potongan',
+                $ketTelat,
+                $jml
+            );
         }
 
         // --- komponen otomatis: alpha (hanya karyawan bulanan) ---
-        $alpha = $this->aturan(self::KODE_ALPHA, $byKode, $assigned);
-        if ($jenis === 'bulanan' && $alpha && $hitung['alpha'] > 0) {
-            $rate = $alpha['nilai'] ?? $tarifHarian;
+        $alpha = $byKode[self::KODE_ALPHA] ?? null;
+        if ($jenis === 'bulanan' && $hitung['alpha'] > 0) {
+            $rate = $tarifHarian;
             $jml  = round($hitung['alpha'] * $rate, 2);
             if ($jml > 0) {
-                $pot[] = $this->baris((int) $alpha['m']['id'], self::KODE_ALPHA, $alpha['m']['nama'], 'potongan', $hitung['alpha'] . ' hari x ' . $this->rp($rate), $jml);
+                $pot[] = $this->baris(
+                    isset($alpha['id']) ? (int) $alpha['id'] : null,
+                    self::KODE_ALPHA,
+                    $alpha['nama'] ?? 'Potongan Alpa',
+                    'potongan',
+                    $hitung['alpha'] . ' hari x ' . $this->rp($rate),
+                    $jml
+                );
             }
         }
 

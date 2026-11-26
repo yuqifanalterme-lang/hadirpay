@@ -529,7 +529,10 @@ export function EmployeeFormDialog({
             {fieldError('overtimeDeduction', 'employee-overtime-deduction-error')}
           </div>
           {values.salaryComponents
-            .filter((component) => !['PPH21', 'BPJS', 'POT-LEMBUR'].includes(component.code) && component.method !== 'manual_periode')
+            .filter((component) =>
+              !['PPH21', 'BPJS', 'POT-LEMBUR', 'POT-ALPHA', 'POT-TELAT'].includes(component.code)
+              && component.method !== 'manual_periode'
+            )
             .map((component) => {
               const unit = {
                 nominal_tetap: 'Rp per periode',

@@ -145,7 +145,7 @@ class Dashboard extends BaseController
             }
             $t = (float) ($r['s'] ?? 0);
         }
-        if ($t <= 0) {
+        if ($t <= 0 && $kolom !== 'total_beban_gaji') {
             $r = $db->table('karyawan')->select('COALESCE(SUM(gaji_pokok + tunjangan_tetap), 0) AS s', false)->where('status', 'aktif')->get()->getRowArray();
             $t = (float) ($r['s'] ?? 0);
         }
