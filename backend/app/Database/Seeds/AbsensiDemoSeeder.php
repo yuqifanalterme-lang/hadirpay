@@ -5,11 +5,11 @@ namespace App\Database\Seeds;
 use CodeIgniter\Database\Seeder;
 
 /**
- * DATA DEMO. Mengisi 20 hari kerja pertama November 2026 untuk karyawan aktif.
+ * DATA DEMO. Mengisi hari kerja dari November 2026 sampai Januari 2027 untuk karyawan aktif.
  * Baris manual dipertahankan, data demo yang sudah ada diperbarui tanpa lembur.
  *
  * Semua baris diberi sumber = 'sistem', jadi mudah dihapus:
- *   DELETE FROM absensi WHERE sumber = 'sistem' AND tanggal BETWEEN '2026-11-01' AND '2026-11-30';
+ *   DELETE FROM absensi WHERE sumber = 'sistem' AND tanggal BETWEEN '2026-11-01' AND '2027-01-31';
  */
 class AbsensiDemoSeeder extends Seeder
 {
@@ -18,7 +18,7 @@ class AbsensiDemoSeeder extends Seeder
         $db    = $this->db;
         $now   = date('Y-m-d H:i:s');
         $awal  = '2026-11-01';
-        $akhir = '2026-11-30';
+        $akhir = '2027-01-31';
 
         $jadwal = $db->table('jadwal_kerja')->where('is_default', 1)->get()->getRowArray();
         $hari   = $jadwal
@@ -32,14 +32,11 @@ class AbsensiDemoSeeder extends Seeder
 
         $nama     = [1 => 'senin', 2 => 'selasa', 3 => 'rabu', 4 => 'kamis', 5 => 'jumat', 6 => 'sabtu', 7 => 'minggu'];
         $tanggal  = [];
-        for ($d = new \DateTime($awal); $d->format('Y-m-d') <= $akhir && count($tanggal) < 20; $d->modify('+1 day')) {
+        for ($d = new \DateTime($awal); $d->format('Y-m-d') <= $akhir; $d->modify('+1 day')) {
             $t = $d->format('Y-m-d');
             if (in_array($nama[(int) $d->format('N')], $hari, true) && ! in_array($t, $libur, true)) {
                 $tanggal[] = $t;
             }
-        }
-        if (count($tanggal) !== 20) {
-            throw new \RuntimeException('Jadwal kerja November 2026 tidak menyediakan 20 hari kerja untuk data demo.');
         }
 
         $lokasi = $db->table('lokasi_absensi')->where('aktif', 1)->orderBy('id')->get(1)->getRowArray();
@@ -51,8 +48,7 @@ class AbsensiDemoSeeder extends Seeder
 
         $dibuat = 0;
         $diperbarui = 0;
-        $kodeDemo = array_map(static fn ($n) => sprintf('KRY-%04d', $n), range(1, 10));
-        foreach ($db->table('karyawan')->whereIn('kode', $kodeDemo)->where('status', 'aktif')->orderBy('id')->get()->getResultArray() as $k) {
+        foreach ($db->table('karyawan')->where('status', 'aktif')->orderBy('id')->get()->getResultArray() as $k) {
             foreach ($tanggal as $t) {
                 $existing = $ada[$k['id'] . '|' . $t] ?? null;
                 if ($t < $k['tanggal_mulai'] || ($existing && $existing['sumber'] !== 'sistem')) {
@@ -110,6 +106,6 @@ class AbsensiDemoSeeder extends Seeder
             }
         }
 
-        echo "{$dibuat} baris absensi demo dibuat dan {$diperbarui} diperbarui untuk 20 hari kerja November 2026 tanpa lembur.\n";
+        echo "{$dibuat} baris absensi demo dibuat dan {$diperbarui} diperbarui untuk " . count($tanggal) . " hari kerja dari {$awal} sampai {$akhir} tanpa lembur.\n";
     }
 }

@@ -310,13 +310,16 @@ class Karyawan extends BaseController
                     ->select('kode, nilai')
                     ->where('id', $komponenId)
                     ->get()->getRowArray();
-                if ($masterComponent && $masterComponent['kode'] === 'BPJS') {
-                    if ((float) $item['nilai'] !== (float) $masterComponent['nilai']) {
+                if ($masterComponent) {
+                    $kode = $masterComponent['kode'];
+                    if ($kode === 'BPJS' && (float) $item['nilai'] !== (float) $masterComponent['nilai']) {
                         return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
                             'komponen_gaji' => 'Nilai BPJS mengikuti persentase pada komponen master',
                         ], 422);
                     }
-                    continue;
+                    if (in_array($kode, ['BPJS', 'PPH21', 'TUN-TRANSPORT'], true)) {
+                        continue;
+                    }
                 }
 
                 $assignment = $db->table('karyawan_komponen kk')

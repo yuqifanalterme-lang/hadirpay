@@ -12,10 +12,10 @@ class ResetPayroll extends BaseCommand
 {
     protected $group       = 'Hadirpay';
     protected $name        = 'hadirpay:reset-payroll';
-    protected $description = 'Dry-run or clear payroll and accounting transaction data.';
+    protected $description = 'Dry-run or clear payroll and accounting data.';
     protected $usage       = 'hadirpay:reset-payroll [--force] [--with-attendance] [--i-know-this-is-production]';
     protected $options     = [
-        '--force'                       => 'Delete the listed transaction data. Without this option, only show row counts.',
+        '--force'                       => 'Delete financial and payroll data. Without this option, only show row counts.',
         '--with-attendance'             => 'Also delete absensi and pengajuan_izin rows.',
         '--i-know-this-is-production'   => 'Allow a destructive run in the production environment.',
     ];
@@ -28,6 +28,12 @@ class ResetPayroll extends BaseCommand
         'penggajian',
         'periode_status_log',
         'periode_gaji',
+    ];
+
+    private const FINANCIAL_MASTER_TABLES = [
+        'karyawan_komponen',
+        'komponen_gaji',
+        'akun',
     ];
 
     private const ATTENDANCE_TABLES = [
@@ -44,7 +50,7 @@ class ResetPayroll extends BaseCommand
         $force            = $this->optionEnabled($params, 'force');
         $withAttendance   = $this->optionEnabled($params, 'with-attendance');
         $productionOptIn  = $this->optionEnabled($params, 'i-know-this-is-production');
-        $tables           = self::TRANSACTION_TABLES;
+        $tables           = [...self::TRANSACTION_TABLES, ...self::FINANCIAL_MASTER_TABLES];
 
         if ($withAttendance) {
             $tables = [...$tables, ...self::ATTENDANCE_TABLES];

@@ -20,6 +20,10 @@ Tambahkan environment variables berikut di Render:
 
 Jangan menambahkan `.env` atau secret ke image Docker maupun repository. `writable/uploads` pada filesystem container bersifat sementara; gunakan persistent disk atau object storage bila file unggahan harus bertahan setelah deploy/restart. Jangan jalankan `DatabaseSeeder` atau seeder demo pada database production. Seeder pemulihan yang cakupannya terbatas hanya boleh dijalankan satu per satu setelah pemeriksaan dan persetujuan eksplisit, serta tidak boleh didaftarkan ke `DatabaseSeeder`.
 
+`hadirpay:reset-payroll` menampilkan jumlah baris yang akan dihapus tanpa mengubah data secara default. Perintah ini mengosongkan transaksi payroll/akuntansi serta master akun dan komponen gaji, tetapi mempertahankan karyawan, jabatan, departemen, absensi, login, dan data operasional lainnya. Untuk menjalankan penghapusan, gunakan `php spark hadirpay:reset-payroll --force`, lalu ketik nama database yang ditampilkan. Pada environment production, tambahkan `--i-know-this-is-production`. Opsi `--with-attendance` juga menghapus absensi dan pengajuan izin, jadi jangan gunakan bila absensi harus dipertahankan. Ambil backup database sebelum reset.
+
+`DatabaseSeeder` tidak lagi membuat data akun, komponen gaji, periode, atau payroll demo. `AbsensiDemoSeeder` menghasilkan absensi dummy hari kerja sampai 31 Januari 2027, mempertahankan baris manual, dan memperbarui hanya baris demo bersumber `sistem`.
+
 ## What is CodeIgniter?
 
 CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.

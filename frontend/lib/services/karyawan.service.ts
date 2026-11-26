@@ -204,7 +204,7 @@ export async function updateEmployee(id: string, changes: Employee): Promise<Emp
     no_bpjs: changes.noBpjs ?? null,
     role: current.data.role,
     komponen_gaji: changes.salaryComponents
-      ?.filter((component) => component.code !== 'PPH21')
+      ?.filter((component) => !['PPH21', 'TUN-TRANSPORT', 'BPJS'].includes(component.code))
       .map((component) => ({ komponen_id: component.id, nilai: component.value })),
   }
   await apiRequest<KaryawanDetail>(`karyawan/${employeeId}`, {

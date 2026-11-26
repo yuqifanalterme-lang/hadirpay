@@ -28,14 +28,17 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
 
     private array $attendanceTables = ['absensi', 'pengajuan_izin'];
 
+    private array $financialMasterTables = [
+        'akun',
+        'komponen_gaji',
+        'karyawan_komponen',
+    ];
+
     private array $masterTables = [
         'users',
         'karyawan',
         'jabatan',
         'departemen',
-        'akun',
-        'komponen_gaji',
-        'karyawan_komponen',
         'pengaturan',
         'jadwal_kerja',
         'lokasi_absensi',
@@ -67,12 +70,16 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             $expected = $table === 'jurnal' ? 2 : 1;
             $this->assertSame($expected, $this->countRows($table), $table);
         }
+        foreach ($this->financialMasterTables as $table) {
+            $expected = $table === 'akun' ? 3 : 1;
+            $this->assertSame($expected, $this->countRows($table), $table);
+        }
         foreach ($this->attendanceTables as $table) {
             $this->assertSame(1, $this->countRows($table), $table);
         }
     }
 
-    public function testForceDeletesOnlyTransactionTablesAndPreservesMasters(): void
+    public function testForceDeletesFinancialDataAndPreservesOperationalMasters(): void
     {
         $mastersBefore = $this->masterSnapshot();
         $command = $this->makeCommand();
@@ -82,6 +89,9 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->assertStringContainsString('Deleted rows:', $output);
 
         foreach ($this->transactionTables as $table) {
+            $this->assertSame(0, $this->countRows($table), $table);
+        }
+        foreach ($this->financialMasterTables as $table) {
             $this->assertSame(0, $this->countRows($table), $table);
         }
         foreach ($this->attendanceTables as $table) {
@@ -100,7 +110,7 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         ], [$this->db->getDatabase()]);
 
         $this->assertSame(0, $exitCode);
-        foreach (array_merge($this->transactionTables, $this->attendanceTables) as $table) {
+        foreach (array_merge($this->transactionTables, $this->financialMasterTables, $this->attendanceTables) as $table) {
             $this->assertSame(0, $this->countRows($table), $table);
         }
         $this->assertSame($mastersBefore, $this->masterSnapshot());
@@ -153,11 +163,14 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('detail_penggajian'));
         $this->assertSame(2, $this->countRows('jurnal'));
         $this->assertSame(1, $this->countRows('penggajian'));
+        $this->assertSame(3, $this->countRows('akun'));
+        $this->assertSame(1, $this->countRows('komponen_gaji'));
+        $this->assertSame(1, $this->countRows('karyawan_komponen'));
         $this->assertSame(10, (int) $this->db->table('periode_gaji')->get()->getRowArray()['jurnal_pengakuan_id']);
         $this->assertSame(10, (int) $this->db->table('jurnal')->where('id', 11)->get()->getRowArray()['reversal_of']);
     }
 
-    public function testBalanceAndLedgerReportsWorkWithNoJournals(): void
+    public function testBalanceReportIsEmptyAndLedgerRejectsMissingAccountAfterReset(): void
     {
         $command = $this->makeCommand();
         [$exitCode, $output] = $this->runWithOutput($command, ['force' => true], [$this->db->getDatabase()]);
@@ -177,12 +190,9 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->assertTrue($balance['data']['seimbang']);
 
         $ledgerResponse = $this->get('/buku-besar?akun_id=1');
-        $ledgerResponse->assertOK();
+        $ledgerResponse->assertStatus(404);
         $ledger = json_decode($ledgerResponse->getJSON(), true);
-        $this->assertSame([], $ledger['data']['mutasi']);
-        $this->assertSame(0, $ledger['data']['total_debit']);
-        $this->assertSame(0, $ledger['data']['total_kredit']);
-        $this->assertSame(0, $ledger['data']['saldo_akhir']);
+        $this->assertSame('NOT_FOUND', $ledger['code']);
     }
 
     public function testPayrollJournalCanBeCreatedAfterResetAndNumbersStartAtOne(): void
@@ -206,6 +216,10 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->db->table('komponen_gaji')->insertBatch([
             ['id' => 2, 'kode' => 'PPH21'],
             ['id' => 3, 'kode' => 'BPJS'],
+        ]);
+        $this->db->table('akun')->insertBatch([
+            ['id' => 2, 'kode' => '2-1100', 'nama' => 'Utang Gaji', 'saldo_normal' => 'kredit', 'aktif' => 1],
+            ['id' => 3, 'kode' => '5-1100', 'nama' => 'Beban Gaji', 'saldo_normal' => 'debit', 'aktif' => 1],
         ]);
         $this->db->table('detail_penggajian')->insertBatch([
             ['id' => 2, 'penggajian_id' => 2, 'komponen_id' => 2, 'tipe' => 'potongan', 'jumlah' => '10.00'],
@@ -298,7 +312,7 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
 
     private function seedData(): void
     {
-        foreach ($this->masterTables as $table) {
+        foreach (array_merge($this->masterTables, $this->financialMasterTables) as $table) {
             if ($table === 'pengaturan') {
                 $data = ['key' => 'sample'];
             } else {
@@ -358,7 +372,7 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
     {
         $this->db->query('PRAGMA foreign_keys = OFF');
         $this->db->query('DROP TRIGGER IF EXISTS ' . $this->db->prefixTable('fail_jurnal_delete'));
-        foreach (array_reverse(array_merge($this->masterTables, $this->transactionTables, $this->attendanceTables)) as $table) {
+        foreach (array_reverse(array_merge($this->masterTables, $this->financialMasterTables, $this->transactionTables, $this->attendanceTables)) as $table) {
             $this->db->query('DROP TABLE IF EXISTS ' . $this->db->prefixTable($table));
         }
         $this->db->query('PRAGMA foreign_keys = ON');
