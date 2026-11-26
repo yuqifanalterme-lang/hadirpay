@@ -382,12 +382,7 @@ class Karyawan extends BaseController
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Gagal update karyawan: ' . $e->getMessage());
-            return ApiResponse::error(
-                'SERVER_ERROR',
-                'Gagal memperbarui karyawan: ' . $e->getMessage(),
-                null,
-                500
-            );
+            return ApiResponse::error('SERVER_ERROR', 'Gagal memperbarui karyawan', null, 500);
         }
 
         return ApiResponse::success($this->detail($id), 'Karyawan diperbarui');
@@ -593,7 +588,7 @@ class Karyawan extends BaseController
     {
         $komponen = $db->table('komponen_gaji')->where('kode', 'PPH21')->get()->getRowArray();
         if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
-            throw new \RuntimeException('Komponen PPh 21 nominal tetap belum tersedia.');
+            return;
         }
 
         $assigned = $db->table('karyawan_komponen')
@@ -631,7 +626,7 @@ class Karyawan extends BaseController
     {
         $komponen = $db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
         if (! $komponen || ! (int) $komponen['aktif'] || $komponen['metode'] !== 'nominal_tetap') {
-            throw new \RuntimeException('Komponen ' . $kode . ' nominal tetap belum tersedia.');
+            return;
         }
 
         $assigned = $db->table('karyawan_komponen')
