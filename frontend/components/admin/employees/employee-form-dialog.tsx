@@ -29,6 +29,8 @@ type FormValues = {
   baseSalary: string
   fixedAllowance: string
   pph21: string
+  bpjsPercent: string
+  overtimeDeduction: string
   salaryComponents: SalaryComponentFormValue[]
   npwp: string
   noBpjs: string
@@ -53,6 +55,8 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: String(employee.baseSalary),
         fixedAllowance: String(employee.fixedAllowance),
         pph21: String(employee.pph21 ?? 0),
+        bpjsPercent: String(employee.bpjsPercent ?? 3),
+        overtimeDeduction: String(employee.overtimeDeduction ?? 0),
         salaryComponents: (employee.salaryComponents ?? []).map((component) => ({
           ...component,
           value: String(component.value),
@@ -75,6 +79,8 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: '',
         fixedAllowance: '0',
         pph21: '0',
+        bpjsPercent: '3',
+        overtimeDeduction: '0',
         salaryComponents: [],
         npwp: '',
         noBpjs: '',
@@ -127,6 +133,8 @@ export function EmployeeFormDialog({
     const baseSalary = Number(values.baseSalary)
     const fixedAllowance = Number(values.fixedAllowance)
     const pph21 = Number(values.pph21)
+    const bpjsPercent = Number(values.bpjsPercent)
+    const overtimeDeduction = Number(values.overtimeDeduction)
 
     if (config.mock.karyawan && !id) nextErrors.id = 'ID karyawan wajib diisi.'
     else if (id && !/^[A-Za-z0-9._-]+$/.test(id)) nextErrors.id = 'Gunakan huruf, angka, titik, garis bawah, atau tanda hubung.'
@@ -147,6 +155,12 @@ export function EmployeeFormDialog({
     }
     if (values.pph21 === '' || !Number.isFinite(pph21) || pph21 < 0) {
       nextErrors.pph21 = 'PPh 21 tidak boleh kurang dari nol.'
+    }
+    if (values.bpjsPercent === '' || !Number.isFinite(bpjsPercent) || bpjsPercent < 0 || bpjsPercent > 100) {
+      nextErrors.bpjsPercent = 'Persentase BPJS harus antara 0 sampai 100.'
+    }
+    if (values.overtimeDeduction === '' || !Number.isFinite(overtimeDeduction) || overtimeDeduction < 0) {
+      nextErrors.overtimeDeduction = 'Potongan lembur tidak boleh kurang dari nol.'
     }
     const invalidComponent = values.salaryComponents.find((component) => {
       const value = Number(component.value)
@@ -181,9 +195,17 @@ export function EmployeeFormDialog({
       baseSalary,
       fixedAllowance,
       pph21,
+      bpjsPercent,
+      overtimeDeduction,
       salaryComponents: values.salaryComponents.map((component) => ({
         ...component,
-        value: component.code === 'PPH21' ? pph21 : Number(component.value),
+        value: component.code === 'PPH21'
+          ? pph21
+          : component.code === 'BPJS'
+            ? bpjsPercent
+            : component.code === 'POT-LEMBUR'
+              ? overtimeDeduction
+              : Number(component.value),
       })),
       npwp: values.npwp.trim() || undefined,
       noBpjs: values.noBpjs.trim() || undefined,
@@ -231,6 +253,8 @@ export function EmployeeFormDialog({
           tunjangan: 'fixedAllowance',
           tunjangan_tetap: 'fixedAllowance',
           pph21: 'pph21',
+          bpjs_persen: 'bpjsPercent',
+          potongan_lembur: 'overtimeDeduction',
           npwp: 'npwp',
           no_bpjs: 'noBpjs',
           role: 'role',
@@ -455,8 +479,37 @@ export function EmployeeFormDialog({
             />
             {fieldError('pph21', 'employee-pph21-error')}
           </div>
+          <div>
+            <TextField
+              id="employee-bpjs-percent"
+              label="Iuran BPJS (% dari gaji pokok)"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={values.bpjsPercent}
+              onChange={(event) => update('bpjsPercent', event.target.value)}
+              aria-invalid={Boolean(errors.bpjsPercent)}
+              aria-describedby={errors.bpjsPercent ? 'employee-bpjs-percent-error' : undefined}
+            />
+            {fieldError('bpjsPercent', 'employee-bpjs-percent-error')}
+          </div>
+          <div>
+            <TextField
+              id="employee-overtime-deduction"
+              label="Potongan lembur per periode (Rp)"
+              type="number"
+              min="0"
+              step="1"
+              value={values.overtimeDeduction}
+              onChange={(event) => update('overtimeDeduction', event.target.value)}
+              aria-invalid={Boolean(errors.overtimeDeduction)}
+              aria-describedby={errors.overtimeDeduction ? 'employee-overtime-deduction-error' : undefined}
+            />
+            {fieldError('overtimeDeduction', 'employee-overtime-deduction-error')}
+          </div>
           {values.salaryComponents
-            .filter((component) => component.code !== 'PPH21')
+            .filter((component) => !['PPH21', 'BPJS', 'POT-LEMBUR'].includes(component.code))
             .map((component) => {
               const unit = {
                 nominal_tetap: 'Rp per periode',

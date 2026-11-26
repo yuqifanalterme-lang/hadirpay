@@ -7,8 +7,8 @@ use App\Libraries\Tanggal;
 /**
  * Jurnal otomatis dari payroll.
  *
- * Pengakuan (saat periode disetujui) hanya mencatat gaji bersih ke beban dan utang gaji.
- * PPh 21 dan BPJS tetap dihitung di slip, tetapi jurnalnya dicatat manual.
+ * Pengakuan (saat periode disetujui) mencatat beban bruto dan memisahkan utang gaji,
+ * PPh 21, BPJS, serta potongan karyawan lainnya.
  *
  * Pembayaran (saat periode dibayar):
  *   Debit  Utang Gaji = total gaji bersih
@@ -20,6 +20,7 @@ class AccountingService
     public const AKUN_UTANG = '2-1100';
     public const AKUN_PPH   = '2-1200';
     public const AKUN_BPJS  = '2-1300';
+    public const AKUN_POTONGAN = '2-1500';
     public const AKUN_BEBAN = '5-1100';
 
     /** Rupiah ke sen (integer) supaya tidak ada selisih pembulatan desimal. */
@@ -176,17 +177,40 @@ class AccountingService
     {
         $pid = (int) $periode['id'];
 
-        $tot = $db->table('penggajian')
-            ->select('COALESCE(SUM(gaji_bersih),0) AS bersih', false)
+        $netPay = (float) $db->table('penggajian')
+            ->select('COALESCE(SUM(gaji_bersih),0) AS total', false)
             ->where('periode_gaji_id', $pid)
-            ->get()->getRowArray();
+            ->get()->getRowArray()['total'];
+        $deductions = $db->table('detail_penggajian dp')
+            ->select('kg.kode, SUM(dp.jumlah) AS total', false)
+            ->join('penggajian p', 'p.id = dp.penggajian_id')
+            ->join('komponen_gaji kg', 'kg.id = dp.komponen_id')
+            ->where('p.periode_gaji_id', $pid)
+            ->where('dp.tipe', 'potongan')
+            ->groupBy('kg.kode')
+            ->get()->getResultArray();
+        $withheld = [];
+        foreach ($deductions as $row) {
+            $withheld[$row['kode']] = (float) $row['total'];
+        }
 
-        $bersih = (float) $tot['bersih'];
-
+        $incomeTax = $withheld['PPH21'] ?? 0.0;
+        $bpjs = $withheld['BPJS'] ?? 0.0;
+        $otherDeductions = array_sum(array_diff_key($withheld, ['PPH21' => true, 'BPJS' => true]));
+        $grossPay = $netPay + $incomeTax + $bpjs + $otherDeductions;
         $lines = [
-            ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $bersih, 'kredit' => 0],
-            ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $bersih],
+            ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $grossPay, 'kredit' => 0],
+            ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $netPay],
         ];
+        foreach ([
+            [self::AKUN_PPH, $incomeTax],
+            [self::AKUN_BPJS, $bpjs],
+            [self::AKUN_POTONGAN, $otherDeductions],
+        ] as [$accountCode, $amount]) {
+            if ($amount > 0) {
+                $lines[] = ['akun_id' => self::akunId($db, $accountCode), 'debit' => 0, 'kredit' => $amount];
+            }
+        }
 
         return self::simpanJurnal($db, [
             'tanggal'         => $periode['tanggal_tutup'],

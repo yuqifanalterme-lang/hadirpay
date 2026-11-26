@@ -225,7 +225,7 @@ export function PayrollComponentsPage() {
         </div>
       </div>
 
-      <Panel title="Daftar komponen" description="Perubahan tersimpan ke layanan penggajian.">
+      <Panel title="Daftar komponen" description="Setelah disimpan, pasang komponen ke profil karyawan agar ikut dihitung dalam payroll.">
         {components.length === 0 ? (
           <EmptyState
             title="Belum ada komponen gaji"

@@ -59,13 +59,13 @@ final class PayrollServiceTest extends CIUnitTestCase
         $this->assertSame(1, json_decode($hasil['penggajian']['rekap_json'], true)['alpha']);
         $this->assertArrayNotHasKey('upah_lembur', $hasil['penggajian']);
         $this->assertSame(4745000.0, $hasil['penggajian']['total_pendapatan']);
-        $this->assertSame(539545.45, $hasil['penggajian']['total_potongan']);
-        $this->assertSame(4205454.55, $hasil['penggajian']['gaji_bersih']);
+        $this->assertSame(449545.45, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(4295454.55, $hasil['penggajian']['gaji_bersih']);
         $this->assertNotContains('Upah lembur', array_column($hasil['detail'], 'nama'));
         $this->assertNotContains('Potongan keterlambatan', array_column($hasil['detail'], 'nama'));
         $bpjsRows = array_values(array_filter($hasil['detail'], static fn ($row) => $row['nama'] === 'Iuran BPJS'));
         $this->assertCount(1, $bpjsRows);
-        $this->assertSame(135000.0, $bpjsRows[0]['jumlah']);
+        $this->assertSame(45000.0, $bpjsRows[0]['jumlah']);
         $this->assertSame(204545.45, $hasil['penggajian']['tarif_harian']);
         $this->assertSame(
             $hasil['penggajian']['total_pendapatan'] - $hasil['penggajian']['total_potongan'],
@@ -213,5 +213,50 @@ final class PayrollServiceTest extends CIUnitTestCase
 
         $this->assertSame(150000.0, $hasil['penggajian']['total_potongan']);
         $this->assertSame(5000000.0, $hasil['penggajian']['total_pendapatan']);
+    }
+
+    public function testEmployeeBpjsRateAndManualOvertimeDeductionAffectNetPay(): void
+    {
+        $bpjs = [
+            'id' => 1,
+            'kode' => 'BPJS',
+            'nama' => 'Iuran BPJS',
+            'tipe' => 'potongan',
+            'metode' => 'persen',
+            'nilai' => 3,
+            'aktif' => 1,
+        ];
+        $overtime = [
+            'id' => 2,
+            'kode' => 'POT-LEMBUR',
+            'nama' => 'Potongan lembur per periode',
+            'tipe' => 'potongan',
+            'metode' => 'nominal_tetap',
+            'nilai' => 0,
+            'aktif' => 1,
+        ];
+        $hasil = (new PayrollService())->hitungKaryawan(
+            [
+                'id' => 1,
+                'jenis_penggajian' => 'bulanan',
+                'gaji_pokok' => 5000000,
+                'tunjangan_tetap' => 0,
+                'tanggal_mulai' => '2020-01-01',
+            ],
+            ['2026-10-01'],
+            [1 => $bpjs, 2 => $overtime],
+            ['BPJS' => $bpjs, 'POT-LEMBUR' => $overtime],
+            [1 => 2.5, 2 => 40000],
+            ['2026-10-01' => ['status' => 'hadir', 'menit_terlambat' => 0]],
+            [],
+            '2026-10-02'
+        );
+
+        $this->assertSame(165000.0, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(4835000.0, $hasil['penggajian']['gaji_bersih']);
+        $deductions = array_filter($hasil['detail'], static fn ($row) => $row['tipe'] === 'potongan');
+        $deductionAmounts = array_column($deductions, 'jumlah', 'nama');
+        $this->assertSame(125000.0, $deductionAmounts['Iuran BPJS']);
+        $this->assertSame(40000.0, $deductionAmounts['Potongan lembur per periode']);
     }
 }

@@ -50,6 +50,7 @@ export const mockAccounts: AccountingAccount[] = [
   { code: '2-1100', name: 'Utang Gaji', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
   { code: '2-1200', name: 'Utang PPh 21', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
   { code: '2-1300', name: 'Utang Iuran BPJS', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
+  { code: '2-1500', name: 'Utang Potongan Karyawan', category: 'Liabilitas', normalBalance: 'Kredit', isMock: true },
   { code: '5-1100', name: 'Beban Gaji', category: 'Beban', normalBalance: 'Debit', isMock: true },
 ]
 

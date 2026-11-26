@@ -70,25 +70,6 @@ class Karyawan extends BaseController
             ->where('kk.karyawan_id', (int) $r['id'])
             ->orderBy('kg.tipe', 'ASC')->orderBy('kg.nama', 'ASC')
             ->get()->getResultArray();
-        $bpjs = db_connect()->table('komponen_gaji')
-            ->where('kode', 'BPJS')
-            ->where('aktif', 1)
-            ->get()->getRowArray();
-        if ($bpjs && $bpjs['nilai'] !== null) {
-            $komp = array_values(array_filter(
-                $komp,
-                static fn (array $item): bool => $item['kode'] !== 'BPJS'
-            ));
-            $komp[] = [
-                'komponen_id' => (int) $bpjs['id'],
-                'kode'        => $bpjs['kode'],
-                'nama'        => $bpjs['nama'],
-                'tipe'        => $bpjs['tipe'],
-                'metode'      => $bpjs['metode'],
-                'nilai'       => (float) $bpjs['nilai'],
-            ];
-        }
-
         $kuota = (new KuotaCutiModel())->ambilAtauBuat((int) $r['id'], (int) date('Y'));
 
         return [
@@ -106,6 +87,8 @@ class Karyawan extends BaseController
             'jenis_penggajian' => $r['jenis_penggajian'],
             'gaji_pokok'       => (float) $r['gaji_pokok'],
             'tunjangan_tetap'  => (float) ($this->nilaiKomponen($komp, 'TUN-TRANSPORT') ?? 0),
+            'bpjs_persen'      => (float) ($this->nilaiKomponen($komp, 'BPJS') ?? 3),
+            'potongan_lembur'  => (float) ($this->nilaiKomponen($komp, 'POT-LEMBUR') ?? 0),
             'npwp'             => $r['npwp'],
             'no_bpjs'          => $r['no_bpjs'],
             'status'           => $r['status'],
@@ -217,11 +200,19 @@ class Karyawan extends BaseController
                 'updated_at'    => $now,
             ]);
             $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
+            $this->syncBpjs($db, (int) $id, (float) ($input['bpjs_persen'] ?? 3), $now);
             $this->syncKomponenManual(
                 $db,
                 (int) $id,
                 'TUN-TRANSPORT',
                 (float) ($input['tunjangan'] ?? $input['tunjangan_tetap'] ?? 0),
+                $now
+            );
+            $this->syncKomponenManual(
+                $db,
+                (int) $id,
+                'POT-LEMBUR',
+                (float) ($input['potongan_lembur'] ?? 0),
                 $now
             );
             $db->transCommit();
@@ -312,12 +303,7 @@ class Karyawan extends BaseController
                     ->get()->getRowArray();
                 if ($masterComponent) {
                     $kode = $masterComponent['kode'];
-                    if ($kode === 'BPJS' && (float) $item['nilai'] !== (float) $masterComponent['nilai']) {
-                        return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
-                            'komponen_gaji' => 'Nilai BPJS mengikuti persentase pada komponen master',
-                        ], 422);
-                    }
-                    if (in_array($kode, ['BPJS', 'PPH21', 'TUN-TRANSPORT'], true)) {
+                    if (in_array($kode, ['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'], true)) {
                         continue;
                     }
                 }
@@ -361,6 +347,18 @@ class Karyawan extends BaseController
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
             if (array_key_exists('pph21', $input)) {
                 $this->syncPph21($db, (int) $id, (float) $input['pph21'], date('Y-m-d H:i:s'));
+            }
+            if (array_key_exists('bpjs_persen', $input)) {
+                $this->syncBpjs($db, (int) $id, (float) $input['bpjs_persen'], date('Y-m-d H:i:s'));
+            }
+            if (array_key_exists('potongan_lembur', $input)) {
+                $this->syncKomponenManual(
+                    $db,
+                    (int) $id,
+                    'POT-LEMBUR',
+                    (float) $input['potongan_lembur'],
+                    date('Y-m-d H:i:s')
+                );
             }
             if (array_key_exists('tunjangan', $input) || array_key_exists('tunjangan_tetap', $input)) {
                 $this->syncKomponenManual(
@@ -632,6 +630,54 @@ class Karyawan extends BaseController
         ]);
     }
 
+    private function syncBpjs($db, int $karyawanId, float $nilai, string $now): void
+    {
+        $komponen = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
+        if (! $komponen) {
+            $db->table('komponen_gaji')->insert([
+                'kode' => 'BPJS',
+                'nama' => 'Iuran BPJS',
+                'tipe' => 'potongan',
+                'metode' => 'persen',
+                'nilai' => 3,
+                'keterangan' => null,
+                'sistem' => 1,
+                'aktif' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $komponen = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
+        } elseif ((int) $komponen['aktif'] !== 1 || $komponen['tipe'] !== 'potongan' || $komponen['metode'] !== 'persen') {
+            $db->table('komponen_gaji')->where('id', (int) $komponen['id'])->update([
+                'tipe' => 'potongan',
+                'metode' => 'persen',
+                'nilai' => $komponen['nilai'] ?? 3,
+                'aktif' => 1,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $assigned = $db->table('karyawan_komponen')
+            ->where('karyawan_id', $karyawanId)
+            ->where('komponen_id', (int) $komponen['id'])
+            ->get()->getRowArray();
+        if ($assigned) {
+            $db->table('karyawan_komponen')->where('id', $assigned['id'])->update([
+                'nilai' => $nilai,
+                'updated_at' => $now,
+            ]);
+            return;
+        }
+
+        $db->table('karyawan_komponen')->insert([
+            'karyawan_id' => $karyawanId,
+            'komponen_id' => (int) $komponen['id'],
+            'nilai' => $nilai,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
     private function nilaiKomponen(array $komponen, string $kode): ?float
     {
         foreach ($komponen as $row) {
@@ -646,7 +692,9 @@ class Karyawan extends BaseController
     {
         $komponen = $db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
         if (! $komponen) {
-            $pendingName = $kode === 'TUN-TRANSPORT' ? 'Tunjangan transport' : $kode;
+            $pendingName = $kode === 'TUN-TRANSPORT'
+                ? 'Tunjangan transport'
+                : ($kode === 'POT-LEMBUR' ? 'Potongan lembur per periode' : $kode);
             $pendingType = $kode === 'TUN-TRANSPORT' ? 'pendapatan' : 'potongan';
             $db->table('komponen_gaji')->insert([
                 'kode' => $kode,
@@ -710,6 +758,8 @@ class Karyawan extends BaseController
             'tunjangan_tetap'  => 'permit_empty|numeric|greater_than_equal_to[0]',
             'tunjangan'        => 'permit_empty|numeric|greater_than_equal_to[0]',
             'pph21'            => 'permit_empty|numeric|greater_than_equal_to[0]',
+            'bpjs_persen'      => 'permit_empty|numeric|greater_than_equal_to[0]|less_than_equal_to[100]',
+            'potongan_lembur'  => 'permit_empty|numeric|greater_than_equal_to[0]',
             'npwp'             => 'permit_empty|max_length[25]',
             'no_bpjs'          => 'permit_empty|max_length[25]',
             'status'           => 'permit_empty|in_list[aktif,nonaktif]',
@@ -744,6 +794,15 @@ class Karyawan extends BaseController
             ],
             'jenis_penggajian' => ['in_list' => 'Pilih bulanan atau harian'],
             'pph21'             => ['numeric' => 'Nilai PPh 21 harus berupa angka', 'greater_than_equal_to' => 'Nilai PPh 21 tidak boleh negatif'],
+            'bpjs_persen'       => [
+                'numeric' => 'Persentase BPJS harus berupa angka',
+                'greater_than_equal_to' => 'Persentase BPJS tidak boleh negatif',
+                'less_than_equal_to' => 'Persentase BPJS tidak boleh lebih dari 100',
+            ],
+            'potongan_lembur' => [
+                'numeric' => 'Potongan lembur harus berupa angka',
+                'greater_than_equal_to' => 'Potongan lembur tidak boleh negatif',
+            ],
             'status'           => ['in_list' => 'Pilih aktif atau nonaktif'],
             'role'             => ['in_list' => 'Role harus admin_hrd, karyawan, keuangan, atau pemilik'],
             'password'         => [

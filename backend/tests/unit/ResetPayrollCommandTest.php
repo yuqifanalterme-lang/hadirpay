@@ -216,14 +216,19 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->db->table('komponen_gaji')->insertBatch([
             ['id' => 2, 'kode' => 'PPH21'],
             ['id' => 3, 'kode' => 'BPJS'],
+            ['id' => 4, 'kode' => 'POT-LEMBUR'],
         ]);
         $this->db->table('akun')->insertBatch([
             ['id' => 2, 'kode' => '2-1100', 'nama' => 'Utang Gaji', 'saldo_normal' => 'kredit', 'aktif' => 1],
             ['id' => 3, 'kode' => '5-1100', 'nama' => 'Beban Gaji', 'saldo_normal' => 'debit', 'aktif' => 1],
+            ['id' => 4, 'kode' => '2-1200', 'nama' => 'Utang PPh 21', 'saldo_normal' => 'kredit', 'aktif' => 1],
+            ['id' => 5, 'kode' => '2-1300', 'nama' => 'Utang Iuran BPJS', 'saldo_normal' => 'kredit', 'aktif' => 1],
+            ['id' => 6, 'kode' => '2-1500', 'nama' => 'Utang Potongan Karyawan', 'saldo_normal' => 'kredit', 'aktif' => 1],
         ]);
         $this->db->table('detail_penggajian')->insertBatch([
             ['id' => 2, 'penggajian_id' => 2, 'komponen_id' => 2, 'tipe' => 'potongan', 'jumlah' => '10.00'],
             ['id' => 3, 'penggajian_id' => 2, 'komponen_id' => 3, 'tipe' => 'potongan', 'jumlah' => '5.00'],
+            ['id' => 4, 'penggajian_id' => 2, 'komponen_id' => 4, 'tipe' => 'potongan', 'jumlah' => '40.00'],
         ]);
 
         $journalId = AccountingService::jurnalPengakuan(
@@ -235,13 +240,13 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
 
         $this->assertSame(12, $journalId);
         $this->assertSame('JU/2026/11/0001', $journal['nomor_bukti']);
-        $this->assertSame('100.00', number_format((float) $journal['total_debit'], 2, '.', ''));
-        $this->assertSame('100.00', number_format((float) $journal['total_kredit'], 2, '.', ''));
-        $this->assertSame(2, $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->countAllResults());
+        $this->assertSame('155.00', number_format((float) $journal['total_debit'], 2, '.', ''));
+        $this->assertSame('155.00', number_format((float) $journal['total_kredit'], 2, '.', ''));
+        $this->assertSame(5, $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->countAllResults());
         $journalLines = $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->get()->getResultArray();
         $accountIds = array_map('intval', array_column($journalLines, 'akun_id'));
         sort($accountIds);
-        $this->assertSame([2, 3], $accountIds);
+        $this->assertSame([2, 3, 4, 5, 6], $accountIds);
     }
 
     private function makeCommand(?string $environment = null)

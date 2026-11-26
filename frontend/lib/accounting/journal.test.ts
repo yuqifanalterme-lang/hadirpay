@@ -40,15 +40,16 @@ test('membentuk jurnal pengakuan gaji yang seimbang dan terhubung ke periode', (
   assert.equal(journal.sourcePeriodId, mockPayrollPeriod.id)
   assert.deepEqual(
     journal.lines.map(({ accountCode }) => accountCode),
-    ['5-1100', '2-1100', '2-1200', '2-1300'],
+    ['5-1100', '2-1100', '2-1200', '2-1300', '2-1500'],
   )
   assert.deepEqual(
     journal.lines.map(({ accountName, debit, credit }) => [accountName, debit, credit]),
     [
-      ['Beban Gaji', 4_620_454.55, 0],
+      ['Beban Gaji', 4_845_000, 0],
       ['Utang Gaji', 0, 4_375_454.55],
       ['Utang PPh 21', 0, 85_000],
       ['Utang Iuran BPJS', 0, 160_000],
+      ['Utang Potongan Karyawan', 0, 224_545.45],
     ],
   )
 })

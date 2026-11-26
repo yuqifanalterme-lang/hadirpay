@@ -4,7 +4,7 @@ export type PayrollType = 'bulanan' | 'harian'
 export type EmployeeStatus = 'Aktif' | 'Nonaktif'
 
 export type EmployeeSalaryComponent = {
-  id: number
+  id: number | string
   code: string
   name: string
   type: 'pendapatan' | 'potongan'
@@ -23,6 +23,8 @@ export type Employee = {
   baseSalary: number
   fixedAllowance: number
   pph21?: number
+  bpjsPercent?: number
+  overtimeDeduction?: number
   salaryComponents?: EmployeeSalaryComponent[]
   npwp?: string
   noBpjs?: string

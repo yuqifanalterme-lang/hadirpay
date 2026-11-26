@@ -159,21 +159,47 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     }
 
     const incomeTax = employee.pph21 ?? input.incomeTaxDeduction
-    const bpjs = Math.round(input.baseSalary * 0.03 * 100) / 100
+    const bpjsRate = employee.bpjsPercent ?? 3
+    const bpjs = Math.round(input.baseSalary * bpjsRate / 100 * 100) / 100
+    const additionalEarnings: { label: string; amount: number }[] = []
+    const additionalDeductions: { label: string; amount: number }[] = []
+    for (const component of employee.salaryComponents ?? []) {
+      if (!component.code || ['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code)) continue
+      const amount = component.method === 'nominal_tetap'
+        ? component.value
+        : component.method === 'persen'
+          ? input.baseSalary * component.value / 100
+          : component.method === 'per_hari'
+            ? Math.max(input.workDays - input.absenceDays, 0) * component.value
+            : (input.lateMinutes ?? 0) * component.value
+      const roundedAmount = Math.round(amount * 100) / 100
+      if (roundedAmount <= 0) continue
+      const item = { label: component.name, amount: roundedAmount }
+      if (component.type === 'pendapatan') additionalEarnings.push(item)
+      else additionalDeductions.push(item)
+    }
+    if ((employee.overtimeDeduction ?? 0) > 0) {
+      additionalDeductions.push({
+        label: 'Potongan lembur',
+        amount: Math.round((employee.overtimeDeduction ?? 0) * 100) / 100,
+      })
+    }
     const calculation = calculatePayroll({
       ...input,
-      otherDeductions: incomeTax + bpjs,
+      otherDeductions: incomeTax + bpjs + additionalDeductions.reduce((sum, item) => sum + item.amount, 0),
     })
     const initials = employee.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
     const earnings = [
       { label: 'Gaji pokok', amount: input.baseSalary },
       ...(input.fixedAllowance > 0 ? [{ label: 'Tunjangan tetap', amount: input.fixedAllowance }] : []),
+      ...additionalEarnings,
     ]
     const deductions = [
       ...(calculation.absenceDeduction > 0 ? [{ label: `Potongan alpha (${input.absenceDays} hari)`, amount: calculation.absenceDeduction }] : []),
       ...(input.lateDeduction > 0 ? [{ label: 'Potongan keterlambatan', amount: input.lateDeduction }] : []),
-      ...(bpjs > 0 ? [{ label: 'Iuran BPJS (3%)', amount: bpjs }] : []),
+      ...(bpjs > 0 ? [{ label: `Iuran BPJS (${bpjsRate}%)`, amount: bpjs }] : []),
       ...(incomeTax > 0 ? [{ label: 'PPh 21', amount: incomeTax }] : []),
+      ...additionalDeductions,
     ]
 
     return [{
@@ -186,9 +212,9 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       employeeCount: 1,
       baseSalary: input.baseSalary,
       fixedAllowance: input.fixedAllowance,
-      totalEarnings: input.baseSalary + input.fixedAllowance,
+      totalEarnings: input.baseSalary + input.fixedAllowance + additionalEarnings.reduce((sum, item) => sum + item.amount, 0),
       totalDeductions: calculation.totalDeductions,
-      netPay: calculation.netPay,
+      netPay: Math.round((calculation.netPay + additionalEarnings.reduce((sum, item) => sum + item.amount, 0)) * 100) / 100,
       workDays: input.workDays,
       presentDays: input.workDays - input.absenceDays,
       lateCount: input.lateDeduction > 0 ? 1 : 0,
@@ -198,6 +224,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       statutoryDeductions: {
         incomeTax,
         bpjs,
+        otherDeductions: additionalDeductions.reduce((sum, item) => sum + item.amount, 0),
       },
       isAggregate: false,
       isMock: true as const,

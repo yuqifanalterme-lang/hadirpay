@@ -33,6 +33,8 @@ export type KaryawanDetail = {
   jenis_penggajian: JenisPenggajian
   gaji_pokok: Uang
   tunjangan_tetap: Uang
+  bpjs_persen: number
+  potongan_lembur: Uang
   npwp: string | null
   no_bpjs: string | null
   status: 'aktif' | 'nonaktif'
@@ -53,6 +55,8 @@ export type KaryawanCreateRequest = {
   tunjangan_tetap: Uang
   tunjangan?: Uang
   pph21: Uang
+  bpjs_persen: number
+  potongan_lembur: Uang
   npwp: string | null
   no_bpjs: string | null
   role: Role

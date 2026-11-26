@@ -116,11 +116,19 @@ export function createPayrollAccrualJournal(
     (sum, line) => sum + (line.statutoryDeductions?.bpjs ?? 0),
     0,
   ))
+  const otherDeductions = roundMoney(payrollLines.reduce(
+    (sum, line) => sum + line.totalDeductions
+      - (line.statutoryDeductions?.incomeTax ?? 0)
+      - (line.statutoryDeductions?.bpjs ?? 0),
+    0,
+  ))
+  if (otherDeductions < 0) throw new RangeError('Total potongan tidak boleh kurang dari potongan PPh 21 dan BPJS.')
   const lines = [
-    makeLine('5-1100', netPay + incomeTax + bpjs, 0),
+    makeLine('5-1100', netPay + incomeTax + bpjs + otherDeductions, 0),
     makeLine('2-1100', 0, netPay),
     makeLine('2-1200', 0, incomeTax),
     makeLine('2-1300', 0, bpjs),
+    makeLine('2-1500', 0, otherDeductions),
   ]
 
   return createBalancedEntry({

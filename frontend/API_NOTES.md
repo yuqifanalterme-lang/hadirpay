@@ -92,14 +92,16 @@ not used as the source of truth.
   `hadirpay-accounting-data-changed` event refreshes mounted journal, payroll-period,
   general-ledger, and trial-balance views after approval, payment, cancellation, or
   draft deletion; each view loads its current API query when revisited.
-- The BPJS master component value is synchronized to every employee assignment when
-  updated; new employee records inherit the current master percentage. Payroll
-  calculates the percentage from the employee's period salary after proration.
+- The BPJS master component keeps its default percentage; each employee can override
+  their BPJS percentage in their profile. Payroll calculates that percentage from
+  the employee's period salary after proration.
   PPh 21 remains a per-employee manual amount, and fixed allowance remains editable
   in the employee profile.
 - New payroll calculations exclude overtime pay and omit overtime minutes from the
   new payroll recap. Existing attendance and payroll records are retained; historical
-  slip recaps can still expose overtime data saved before this change.
+  slip recaps can still expose overtime data saved before this change. A separate
+  employee profile field stores a manual overtime deduction per payroll period; it
+  reduces net pay and posts to the other employee deductions liability account.
 - Editing a payroll component with only its amount changed sends a partial PUT body,
   for example `{"nilai":3}` for BPJS changing from 1 to 3. The value is a JSON number;
   an empty amount is sent as `null`. Unchanged `kode` is omitted, never replaced with

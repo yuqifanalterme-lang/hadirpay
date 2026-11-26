@@ -332,8 +332,7 @@ class PayrollService
             }
         }
 
-        // BPJS is always based on the master rate so employee records stay linked to it.
-        $bpjs = $this->aturan(self::KODE_BPJS, $byKode, []);
+        $bpjs = $this->aturan(self::KODE_BPJS, $byKode, $assigned);
         if ($bpjs && $bpjs['nilai'] !== null) {
             $jml = round($gajiPokok * $bpjs['nilai'] / 100, 2);
             if ($jml > 0) {

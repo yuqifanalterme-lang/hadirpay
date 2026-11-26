@@ -1,6 +1,6 @@
 import { apiRequest, ApiError, type ApiMeta } from '@/lib/api/client'
 import { config } from '@/lib/config'
-import type { Employee } from '@/lib/mock/employees'
+import type { Employee, EmployeeSalaryComponent } from '@/lib/mock/employees'
 import type { MasterKind, MasterRecord } from '@/lib/mock/master-data'
 import type {
   KaryawanDetail,
@@ -54,6 +54,8 @@ function toEmployee(item: KaryawanDetail, positionName?: string, departmentName?
     baseSalary: item.gaji_pokok,
     fixedAllowance: item.komponen_gaji.find((component) => component.kode === 'TUN-TRANSPORT')?.nilai ?? 0,
     pph21: item.komponen_gaji.find((component) => component.kode === 'PPH21')?.nilai ?? 0,
+    bpjsPercent: item.bpjs_persen,
+    overtimeDeduction: item.potongan_lembur,
     salaryComponents: item.komponen_gaji.map((component) => ({
       id: component.komponen_id,
       code: component.kode,
@@ -104,6 +106,8 @@ function toWriteRequest(
   | 'gaji_pokok'
   | 'tunjangan'
   | 'pph21'
+  | 'bpjs_persen'
+  | 'potongan_lembur'
   | 'npwp'
 > {
   return {
@@ -115,6 +119,8 @@ function toWriteRequest(
     gaji_pokok: employee.baseSalary,
     tunjangan: employee.fixedAllowance,
     pph21: employee.pph21 ?? 0,
+    bpjs_persen: employee.bpjsPercent ?? 3,
+    potongan_lembur: employee.overtimeDeduction ?? 0,
     npwp: employee.npwp ?? null,
   }
 }
@@ -204,7 +210,7 @@ export async function updateEmployee(id: string, changes: Employee): Promise<Emp
     no_bpjs: changes.noBpjs ?? null,
     role: current.data.role,
     komponen_gaji: changes.salaryComponents
-      ?.filter((component) => !['PPH21', 'TUN-TRANSPORT', 'BPJS'].includes(component.code))
+      ?.filter((component) => !['PPH21', 'TUN-TRANSPORT', 'BPJS', 'POT-LEMBUR'].includes(component.code))
       .map((component) => ({ komponen_id: component.id, nilai: component.value })),
   }
   await apiRequest<KaryawanDetail>(`karyawan/${employeeId}`, {
@@ -223,6 +229,56 @@ export async function updateEmployee(id: string, changes: Employee): Promise<Emp
   const positionName = positions.data.find((entry) => entry.id === result.data.jabatan_id)?.nama
   const departmentName = departments.data.find((entry) => entry.id === result.data.departemen_id)?.nama
   return toEmployee(result.data, positionName, departmentName)
+}
+
+export async function assignEmployeeSalaryComponent(
+  employeeId: string,
+  component: EmployeeSalaryComponent,
+): Promise<Employee> {
+  if (config.mock.karyawan) {
+    const employee = await getEmployeeMock(employeeId)
+    if (!employee) throw new ApiError(404, 'EMPLOYEE_NOT_FOUND', 'Karyawan tidak ditemukan.')
+    if (employee.salaryComponents?.some((item) => String(item.id) === String(component.id))) {
+      throw new ApiError(409, 'COMPONENT_ALREADY_ASSIGNED', 'Komponen ini sudah terpasang pada karyawan.')
+    }
+    return updateEmployeeMock(employeeId, {
+      ...employee,
+      salaryComponents: [...(employee.salaryComponents ?? []), component],
+    })
+  }
+
+  const componentId = Number(component.id)
+  if (!Number.isSafeInteger(componentId) || componentId < 1) {
+    throw new ApiError(0, 'INVALID_RESOURCE_ID', 'ID komponen harus berupa bilangan bulat positif dari API.')
+  }
+  await apiRequest<unknown>(`karyawan/${apiId(employeeId)}/komponen`, {
+    method: 'POST',
+    body: { komponen_id: componentId, nilai: component.value },
+  })
+  const updated = await getEmployee(employeeId)
+  if (!updated) throw new ApiError(404, 'EMPLOYEE_NOT_FOUND', 'Karyawan tidak ditemukan setelah komponen dipasang.')
+  return updated
+}
+
+export async function removeEmployeeSalaryComponent(employeeId: string, componentId: number | string): Promise<Employee> {
+  if (config.mock.karyawan) {
+    const employee = await getEmployeeMock(employeeId)
+    if (!employee) throw new ApiError(404, 'EMPLOYEE_NOT_FOUND', 'Karyawan tidak ditemukan.')
+    const salaryComponents = (employee.salaryComponents ?? []).filter((item) => String(item.id) !== String(componentId))
+    if (salaryComponents.length === (employee.salaryComponents ?? []).length) {
+      throw new ApiError(404, 'COMPONENT_NOT_ASSIGNED', 'Komponen tidak terpasang pada karyawan ini.')
+    }
+    return updateEmployeeMock(employeeId, { ...employee, salaryComponents })
+  }
+
+  const parsedComponentId = Number(componentId)
+  if (!Number.isSafeInteger(parsedComponentId) || parsedComponentId < 1) {
+    throw new ApiError(0, 'INVALID_RESOURCE_ID', 'ID komponen harus berupa bilangan bulat positif dari API.')
+  }
+  await apiRequest<unknown>(`karyawan/${apiId(employeeId)}/komponen/${parsedComponentId}`, { method: 'DELETE' })
+  const updated = await getEmployee(employeeId)
+  if (!updated) throw new ApiError(404, 'EMPLOYEE_NOT_FOUND', 'Karyawan tidak ditemukan setelah komponen dilepas.')
+  return updated
 }
 
 export async function deleteEmployee(id: string): Promise<void> {

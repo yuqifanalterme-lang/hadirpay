@@ -14,6 +14,8 @@ import {
   FileCheck2,
   FileText,
   HeartPulse,
+  Plus,
+  Trash2,
   UserCheck,
 } from 'lucide-react'
 import { Panel } from '@/components/hadirpay/panel'
@@ -21,24 +23,41 @@ import { StatCard } from '@/components/hadirpay/stat-card'
 import { StatusBadge } from '@/components/hadirpay/status-badge'
 import { Avatar } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Dialog, DialogFooter, DialogHeader } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/ui/empty-state'
 import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
+import { TableActionIcon } from '@/components/ui/table-action-icon'
 import { toast } from 'sonner'
 import { TextField } from '@/components/auth/fields'
 import { EmployeeFormDialog } from '@/components/admin/employees/employee-form-dialog'
 import { config } from '@/lib/config'
-import type { Employee, EmployeeHistory } from '@/lib/mock/employees'
+import type { Employee, EmployeeHistory, EmployeeSalaryComponent } from '@/lib/mock/employees'
 import { mockEmployeeHistory } from '@/lib/mock/employees'
 import type { MasterRecord } from '@/lib/mock/master-data'
 import { formatTanggal } from '@/lib/format'
 import { formatRupiah } from '@/lib/mock-data'
-import { getEmployee, getEmployeeAttendanceSummary, listMasterRecords } from '@/lib/services/karyawan.service'
+import {
+  assignEmployeeSalaryComponent,
+  getEmployee,
+  getEmployeeAttendanceSummary,
+  listMasterRecords,
+  removeEmployeeSalaryComponent,
+} from '@/lib/services/karyawan.service'
+import { listPayrollComponents } from '@/lib/services/penggajian.service'
+import type { PayrollComponent } from '@/lib/mock/payroll'
 import { downloadPayslipPdf, getPayslip, listPayslips } from '@/lib/services/penggajian.service'
 import type { KaryawanKehadiranRingkas } from '@/lib/types/karyawan'
 import type { SlipGajiDetail, SlipGajiItem } from '@/lib/types/penggajian'
 
 const tabs = ['Profil', 'Riwayat Kehadiran', 'Komponen Gaji', 'Riwayat Slip'] as const
 type EmployeeTab = (typeof tabs)[number]
+
+const componentInputClass = 'min-h-12 w-full rounded-xl border border-border bg-white px-3 text-sm text-heading focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
+
+function canManageEmployeeComponent(component: EmployeeSalaryComponent) {
+  return !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code)
+    && !['tunjangan-tetap', 'potongan-terlambat', 'potongan-alpha'].includes(String(component.id))
+}
 
 function currentPeriod() {
   const now = new Date()
@@ -81,6 +100,12 @@ export function EmployeeDetail({ id }: { id: string }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [editing, setEditing] = useState(false)
+  const [componentOptions, setComponentOptions] = useState<PayrollComponent[]>([])
+  const [assignmentOpen, setAssignmentOpen] = useState(false)
+  const [selectedComponentId, setSelectedComponentId] = useState('')
+  const [componentValue, setComponentValue] = useState('')
+  const [assignmentSaving, setAssignmentSaving] = useState(false)
+  const [removingComponent, setRemovingComponent] = useState<EmployeeSalaryComponent | null>(null)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   async function load() {
@@ -152,6 +177,80 @@ export function EmployeeDetail({ id }: { id: string }) {
       router.replace(`/app/karyawan/${encodeURIComponent(updated.id)}`)
     }
     void load()
+  }
+
+  async function openAssignment() {
+    try {
+      const options = await listPayrollComponents()
+      const attachedIds = new Set((employee?.salaryComponents ?? []).map((component) => String(component.id)))
+      const available = options.filter((component) =>
+        component.active
+        && !['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code ?? '')
+        && !['tunjangan-tetap', 'potongan-terlambat', 'potongan-alpha'].includes(component.id)
+        && !attachedIds.has(component.id),
+      )
+      setComponentOptions(available)
+      setSelectedComponentId(available[0]?.id ?? '')
+      setComponentValue(available[0]?.amount === null || available[0]?.amount === undefined ? '' : String(available[0].amount))
+      setAssignmentOpen(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Daftar komponen gagal dimuat.')
+    }
+  }
+
+  async function saveAssignment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const currentEmployee = employee
+    if (!currentEmployee) return
+    const component = componentOptions.find((item) => item.id === selectedComponentId)
+    const value = Number(componentValue)
+    if (!component) {
+      toast.error('Pilih komponen gaji yang akan dipasang.')
+      return
+    }
+    if (componentValue.trim() === '' || !Number.isFinite(value) || value < 0 || (component.method === 'persen' && value > 100)) {
+      toast.error(component.method === 'persen' ? 'Nilai persen harus antara 0 sampai 100.' : 'Nilai komponen harus berupa angka nol atau lebih.')
+      return
+    }
+
+    setAssignmentSaving(true)
+    try {
+      const updated = await assignEmployeeSalaryComponent(currentEmployee.id, {
+        id: component.id,
+        code: component.code ?? component.id,
+        name: component.name,
+        type: component.category,
+        method: ({
+          'nominal tetap': 'nominal_tetap',
+          persen: 'persen',
+          'per hari': 'per_hari',
+          'per menit': 'per_menit',
+        } as const)[component.method],
+        value,
+      })
+      setEmployee(updated)
+      setAssignmentOpen(false)
+      toast.success(`${component.name} dipasang ke ${currentEmployee.name}. Hitung ulang payroll draft agar potongan masuk ke penggajian.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Komponen gagal dipasang ke karyawan.')
+    } finally {
+      setAssignmentSaving(false)
+    }
+  }
+
+  async function confirmRemoveComponent() {
+    if (!removingComponent || !employee) return
+    setAssignmentSaving(true)
+    try {
+      const updated = await removeEmployeeSalaryComponent(employee.id, removingComponent.id)
+      setEmployee(updated)
+      setRemovingComponent(null)
+      toast.success(`${removingComponent.name} dilepas dari ${employee.name}.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Komponen gagal dilepas dari karyawan.')
+    } finally {
+      setAssignmentSaving(false)
+    }
   }
 
   if (loading) return <PageLoadingSkeleton label="detail karyawan" />
@@ -306,17 +405,32 @@ export function EmployeeDetail({ id }: { id: string }) {
                 value={`${formatRupiah(employee.fixedAllowance)}${employee.payrollType === 'harian' ? ' per hari' : ''}`}
               />
             </dl>
-            <h3 className="mb-2 mt-4 text-sm font-semibold text-heading">Komponen terpasang</h3>
+            <div className="mb-2 mt-4 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-heading">Komponen terpasang</h3>
+              <Button type="button" variant="outline" size="sm" onClick={() => void openAssignment()}>
+                <Plus aria-hidden="true" />
+                Pasang komponen
+              </Button>
+            </div>
             {employee.salaryComponents?.length ? (
-              <dl className="grid gap-x-8 sm:grid-cols-2">
+              <div className="grid gap-x-8 sm:grid-cols-2">
                 {employee.salaryComponents.map((component) => (
-                  <DetailValue
-                    key={component.id}
-                    label={component.name}
-                    value={formatComponentValue(component)}
-                  />
+                  <div key={component.id} className="flex items-center justify-between gap-3">
+                    <dl className="min-w-0 flex-1">
+                      <DetailValue label={component.name} value={formatComponentValue(component)} />
+                    </dl>
+                    {canManageEmployeeComponent(component) && (
+                      <TableActionIcon
+                        label="Lepas"
+                        ariaLabel={`Lepas ${component.name} dari ${employee.name}`}
+                        icon={Trash2}
+                        tone="red"
+                        onClick={() => setRemovingComponent(component)}
+                      />
+                    )}
+                  </div>
                 ))}
-              </dl>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">Belum ada komponen tambahan yang dipasang untuk karyawan ini.</p>
             )}
@@ -361,6 +475,73 @@ export function EmployeeDetail({ id }: { id: string }) {
             </Panel>
           ))}
       </section>
+
+      <Dialog open={assignmentOpen} onOpenChange={setAssignmentOpen} label="Pasang komponen gaji" size="md">
+        <form noValidate onSubmit={(event) => void saveAssignment(event)}>
+          <DialogHeader
+            title="Pasang komponen gaji"
+            description={`Pilih komponen yang berlaku untuk ${employee.name}. Nilainya akan digunakan saat payroll dihitung.`}
+            onClose={() => setAssignmentOpen(false)}
+          />
+          <div className="grid gap-4 p-5 sm:p-6">
+            {componentOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada komponen aktif yang bisa dipasang. Tambahkan komponen terlebih dahulu atau periksa komponen yang sudah terpasang.</p>
+            ) : (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Komponen
+                  <select
+                    className={componentInputClass}
+                    value={selectedComponentId}
+                    onChange={(event) => {
+                      const selected = componentOptions.find((item) => item.id === event.target.value)
+                      setSelectedComponentId(event.target.value)
+                      setComponentValue(selected?.amount === null || selected?.amount === undefined ? '' : String(selected.amount))
+                    }}
+                  >
+                    {componentOptions.map((component) => (
+                      <option key={component.id} value={component.id}>{component.name} · {component.category}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                  Nilai {componentOptions.find((item) => item.id === selectedComponentId)?.method === 'persen' ? '(persen)' : '(rupiah)'}
+                  <input
+                    className={componentInputClass}
+                    type="number"
+                    min="0"
+                    max={componentOptions.find((item) => item.id === selectedComponentId)?.method === 'persen' ? 100 : undefined}
+                    step="0.01"
+                    value={componentValue}
+                    onChange={(event) => setComponentValue(event.target.value)}
+                    required
+                  />
+                </label>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="action" onClick={() => setAssignmentOpen(false)}>Batal</Button>
+            <Button type="submit" variant="primary" size="action" disabled={assignmentSaving || componentOptions.length === 0}>
+              {assignmentSaving ? 'Menyimpan…' : 'Pasang komponen'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+
+      <Dialog open={removingComponent !== null} onOpenChange={(open) => { if (!open) setRemovingComponent(null) }} label="Lepas komponen gaji">
+        <DialogHeader
+          title="Lepas komponen?"
+          description={`${removingComponent?.name ?? 'Komponen'} tidak akan lagi dihitung untuk karyawan ini pada payroll berikutnya.`}
+          onClose={() => setRemovingComponent(null)}
+        />
+        <DialogFooter>
+          <Button type="button" variant="outline" size="action" onClick={() => setRemovingComponent(null)}>Batal</Button>
+          <Button type="button" variant="destructive" size="action" disabled={assignmentSaving} onClick={() => void confirmRemoveComponent()}>
+            {assignmentSaving ? 'Menyimpan…' : 'Lepas komponen'}
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       <EmployeeFormDialog
         open={editing}
