@@ -5,8 +5,22 @@ function readBoolean(value: string | undefined, fallback: boolean): boolean {
 
 const useMock = readBoolean(process.env.NEXT_PUBLIC_USE_MOCK, true)
 
+function resolveApiUrl(value: string | undefined): string {
+  const configured = value?.trim().replace(/\/+$/, '') ?? ''
+  if (
+    configured &&
+    !configured.includes('production-api.vercel.app') &&
+    !(process.env.NODE_ENV === 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)/.test(configured))
+  ) {
+    return configured
+  }
+  return process.env.NODE_ENV === 'production'
+    ? 'https://hadirpay-production.up.railway.app/api/v1'
+    : 'http://localhost:8080/api/v1'
+}
+
 export const config = {
-  apiUrl: process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '',
+  apiUrl: resolveApiUrl(process.env.NEXT_PUBLIC_API_URL),
   useMock,
   mock: {
     auth: readBoolean(process.env.NEXT_PUBLIC_MOCK_AUTH, useMock),
