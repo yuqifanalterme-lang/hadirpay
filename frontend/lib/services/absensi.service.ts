@@ -492,7 +492,6 @@ export async function getMonthlyAttendanceSummary(query: AbsensiRekapQuery): Pro
         rata_rata_hadir_persen: workDays ? (present / workDays) * 100 : 0,
         total_terlambat: items.reduce((sum, item) => sum + item.late, 0),
         total_alpha: items.reduce((sum, item) => sum + item.absent, 0),
-        total_jam_lembur: items.reduce((sum, item) => sum + item.overtimeMinutes, 0) / 60,
       },
       items,
     }
@@ -508,7 +507,6 @@ export async function getMonthlyAttendanceSummary(query: AbsensiRekapQuery): Pro
     sick: item.sakit,
     leave: item.cuti,
     absent: item.alpha,
-    overtimeMinutes: item.jam_lembur_menit,
     lateMinutes: item.total_menit_terlambat,
     name: item.nama,
     initials: item.nama.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),

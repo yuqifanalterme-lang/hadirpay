@@ -6,7 +6,6 @@ test('menghitung contoh potongan alpha dan keterlambatan dengan pembulatan dua d
   const result = calculatePayroll({
     baseSalary: 4_500_000,
     fixedAllowance: 0,
-    overtimePay: 100_000,
     workDays: 22,
     absenceDays: 1,
     lateDeduction: 20_000,
@@ -23,7 +22,6 @@ test('menolak hari kerja nol dan nilai potongan yang tidak valid', () => {
     () => calculatePayroll({
       baseSalary: 4_500_000,
       fixedAllowance: 0,
-      overtimePay: 0,
       workDays: 0,
       absenceDays: 0,
       lateDeduction: 0,
@@ -35,7 +33,6 @@ test('menolak hari kerja nol dan nilai potongan yang tidak valid', () => {
     () => calculatePayroll({
       baseSalary: 4_500_000,
       fixedAllowance: 0,
-      overtimePay: 0,
       workDays: 22,
       absenceDays: 0,
       lateDeduction: -1,

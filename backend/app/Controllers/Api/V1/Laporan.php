@@ -185,28 +185,6 @@ class Laporan extends BaseController
         ]);
     }
 
-    public function lembur()
-    {
-        [$dari, $sampai, $periode] = $this->periode();
-        $db = db_connect();
-        $rows = $db->table('absensi a')->select('a.tanggal, k.id AS karyawan_id, k.nama, d.nama AS departemen, a.lembur_menit', false)
-            ->join('karyawan k', 'k.id = a.karyawan_id')->join('departemen d', 'd.id = k.departemen_id', 'left')
-            ->where('a.tanggal >=', $dari)->where('a.tanggal <=', $sampai)->where('a.lembur_menit >', 0)
-            ->orderBy('k.id', 'ASC')->orderBy('a.tanggal', 'DESC')->get()->getResultArray();
-        $menit = array_sum(array_column($rows, 'lembur_menit'));
-        $upah = $db->table('detail_penggajian d')->select('COALESCE(SUM(d.jumlah),0) AS total', false)
-            ->join('penggajian g', 'g.id = d.penggajian_id')->join('periode_gaji p', 'p.id = g.periode_gaji_id')
-            ->join('komponen_gaji k', 'k.id = d.komponen_id')
-            ->where('p.periode', $periode)->where('k.kode', 'LEMBUR')->get()->getRowArray();
-        $totalUpah = (float) ($upah['total'] ?? 0);
-        return $this->hasil([
-            'filter' => ['periode' => $periode],
-            'ringkasan' => ['total_jam' => round($menit / 60, 2), 'total_upah' => $totalUpah, 'jumlah_karyawan' => count(array_unique(array_column($rows, 'karyawan_id')))],
-            'grafik' => [['label' => $periode, 'nilai' => $menit]],
-            'tabel' => $rows,
-        ]);
-    }
-
     public function penggajian()
     {
         [$dari, $sampai, $periode] = $this->periode();
@@ -227,7 +205,6 @@ class Laporan extends BaseController
             'departemen' => $r['departemen'],
             'gaji_pokok' => (float) $r['gaji_pokok'],
             'tunjangan' => (float) $r['tunjangan'],
-            'upah_lembur' => (float) $r['upah_lembur'],
             'total_pendapatan' => (float) $r['total_pendapatan'],
             'total_potongan' => (float) $r['total_potongan'],
             'gaji_bersih' => (float) $r['gaji_bersih'],
@@ -288,9 +265,6 @@ class Laporan extends BaseController
         $b = $db->table('jurnal j')->select('j.*, p.periode', false)->join('periode_gaji p', 'p.id = j.periode_gaji_id', 'left')
             ->where('j.status', 'aktif')
             ->where('j.jenis !=', 'manual')->where('p.periode', $periode);
-        if ($db->fieldExists('reversal_of', 'jurnal')) {
-            $b->where('j.reversal_of IS NULL', null, false);
-        }
         $rows = $b->orderBy('j.tanggal', 'DESC')->get()->getResultArray();
         $debit = round(array_sum(array_column($rows, 'total_debit')), 2);
         $kredit = round(array_sum(array_column($rows, 'total_kredit')), 2);
@@ -317,7 +291,7 @@ class Laporan extends BaseController
             return false;
         }
         if (in_array($key, [
-            'gaji_pokok', 'tunjangan', 'tunjangan_tetap', 'upah_lembur', 'total_upah',
+            'gaji_pokok', 'tunjangan', 'tunjangan_tetap', 'total_upah',
             'total_pendapatan', 'pendapatan', 'total_potongan', 'potongan',
             'gaji_bersih', 'total_gaji_bersih', 'total_beban_gaji', 'rata_rata_per_bulan',
             'total_debit', 'total_kredit', 'debit', 'kredit',
@@ -343,14 +317,14 @@ class Laporan extends BaseController
 
     public function export($jenis = null)
     {
-        $allowed = ['kehadiran', 'keterlambatan', 'izin-cuti', 'lembur', 'penggajian', 'beban-gaji', 'jurnal-penggajian'];
+        $allowed = ['kehadiran', 'keterlambatan', 'izin-cuti', 'penggajian', 'beban-gaji', 'jurnal-penggajian'];
         if (! in_array((string) $jenis, $allowed, true)) {
             return ApiResponse::error('NOT_FOUND', 'Jenis laporan tidak ditemukan', null, 404);
         }
         $format = strtolower((string) ($this->request->getGet('format') ?: 'xlsx'));
         $methods = [
             'kehadiran' => 'kehadiran', 'keterlambatan' => 'keterlambatan',
-            'izin-cuti' => 'izinCuti', 'lembur' => 'lembur', 'penggajian' => 'penggajian',
+            'izin-cuti' => 'izinCuti', 'penggajian' => 'penggajian',
             'beban-gaji' => 'bebanGaji', 'jurnal-penggajian' => 'jurnalPenggajian',
         ];
         $_GET['page'] = '1';
@@ -435,7 +409,6 @@ class Laporan extends BaseController
                 'kehadiran' => 'Laporan Kehadiran',
                 'keterlambatan' => 'Laporan Keterlambatan',
                 'izin-cuti' => 'Laporan Izin dan Cuti',
-                'lembur' => 'Laporan Lembur',
                 'penggajian' => 'Laporan Penggajian Bulanan',
                 'beban-gaji' => 'Laporan Beban Gaji',
                 'jurnal-penggajian' => 'Laporan Jurnal Penggajian',

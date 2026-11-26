@@ -22,13 +22,6 @@ class PayrollCancellationPolicy
                 'errors'  => ['catatan' => 'Alasan pembatalan wajib diisi (maksimal 255 karakter)'],
             ];
         }
-        if (! empty($period['ditutup'])) {
-            return [
-                'code'    => 'PERIOD_CLOSED',
-                'message' => 'Periode penggajian sudah ditutup',
-                'status'  => 409,
-            ];
-        }
         if ($period['status'] === 'dibatalkan') {
             return [
                 'code'    => 'INVALID_STATUS_TRANSITION',

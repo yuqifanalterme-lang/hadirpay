@@ -97,7 +97,6 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1'], static funct
             $routes->get('laporan/kehadiran', 'Laporan::kehadiran');
             $routes->get('laporan/keterlambatan', 'Laporan::keterlambatan');
             $routes->get('laporan/izin-cuti', 'Laporan::izinCuti');
-            $routes->get('laporan/lembur', 'Laporan::lembur');
             $routes->get('laporan/penggajian', 'Laporan::penggajian');
             $routes->get('laporan/beban-gaji', 'Laporan::bebanGaji');
             $routes->get('laporan/jurnal-penggajian', 'Laporan::jurnalPenggajian');

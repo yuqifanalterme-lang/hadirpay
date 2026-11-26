@@ -362,9 +362,11 @@ export function PayrollComponentsPage() {
                 step="0.01"
                 value={form.amount}
                 onChange={(event) => updateFormField('amount', event.target.value)}
+                readOnly={form.code === 'BPJS'}
                 aria-invalid={Boolean(fieldErrors.nilai?.length)}
                 aria-describedby={fieldErrors.nilai?.length ? 'component-amount-error' : undefined}
               />
+              {form.code === 'BPJS' && <span className="text-xs font-normal text-muted-foreground">BPJS tetap 3% dari gaji pokok.</span>}
               {renderFieldErrors('nilai', 'component-amount-error')}
             </label>
             <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-heading sm:col-span-2">

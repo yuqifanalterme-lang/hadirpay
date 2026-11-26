@@ -26,7 +26,6 @@ class Pengaturan extends BaseController
             'kebijakan_gaji'     => [
                 'metode_potongan_alpha'     => 'tarif_harian',
                 'pembagi_hari_kerja'        => 'hari_kerja_periode',
-                'tarif_lembur_per_jam'      => 25000,
                 'tanggal_tutup_periode'     => 25,
                 'potongan_izin_tanpa_surat' => false,
             ],
@@ -78,6 +77,9 @@ class Pengaturan extends BaseController
     private function gabungan(): array
     {
         $data                   = array_merge($this->bawaan(), $this->model->semua());
+        if (isset($data['kebijakan_gaji']) && is_array($data['kebijakan_gaji'])) {
+            unset($data['kebijakan_gaji']['tarif_lembur_per_jam']);
+        }
         $data['jadwal_kerja']   = $this->jadwal();
         $data['lokasi_absensi'] = $this->lokasi();
         return $data;

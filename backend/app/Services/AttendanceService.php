@@ -220,13 +220,12 @@ class AttendanceService
 
         $jadwal = $this->jadwal();
         $durasi = max(0, intdiv($now->getTimestamp() - strtotime($tanggal . ' ' . $abs['jam_masuk']), 60));
-        $lembur = (int) ($abs['lembur_menit'] ?? 0); // lembur hanya dari pengajuan lembur yang disetujui (kontrak)
         $jam    = $now->format('H:i:s');
 
         $this->db->table('absensi')->where('id', $abs['id'])->update([
             'jam_pulang'        => $jam,
             'durasi_menit'      => $durasi,
-            'lembur_menit'      => $lembur,
+            'lembur_menit'      => 0,
             'lokasi_pulang_lat' => is_numeric($lat) ? $lat : null,
             'lokasi_pulang_lng' => is_numeric($lng) ? $lng : null,
             'updated_at'        => $now->format('Y-m-d H:i:s'),
@@ -237,7 +236,6 @@ class AttendanceService
             'jam_masuk'        => $abs['jam_masuk'],
             'jam_pulang'       => $jam,
             'durasi_menit'     => $durasi,
-            'jam_lembur_menit' => $lembur,
         ]];
     }
 

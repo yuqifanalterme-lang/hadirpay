@@ -4,7 +4,6 @@ export type ReportId =
   | 'kehadiran'
   | 'keterlambatan'
   | 'izin-cuti'
-  | 'lembur'
   | 'penggajian-bulanan'
   | 'beban-gaji'
   | 'jurnal-penggajian'
@@ -17,7 +16,6 @@ export const reportCatalog: {
   { id: 'kehadiran', title: 'Kehadiran', description: 'Ringkasan hadir dan status karyawan per departemen.' },
   { id: 'keterlambatan', title: 'Keterlambatan', description: 'Frekuensi dan total menit keterlambatan karyawan.' },
   { id: 'izin-cuti', title: 'Izin & Cuti', description: 'Daftar pengajuan izin, sakit, dan cuti.' },
-  { id: 'lembur', title: 'Lembur', description: 'Jam dan nilai lembur pada periode penggajian.' },
   { id: 'penggajian-bulanan', title: 'Penggajian Bulanan', description: 'Rincian gaji bersih setiap karyawan pada periode.' },
   { id: 'beban-gaji', title: 'Beban Gaji', description: 'Tren biaya gaji bulanan untuk pemantauan.' },
   { id: 'jurnal-penggajian', title: 'Jurnal Umum Penggajian', description: 'Jurnal otomatis yang terbentuk dari proses penggajian.' },
@@ -43,10 +41,10 @@ export const mockDepartmentAttendance = [
 
 export const mockTardinessLeaderboard = [
   { employeeId: 'HP-0005', employeeName: 'Rudi Hartono', department: 'Gudang', lateDays: 5, lateMinutes: 86 },
-  { employeeId: 'HP-0002', employeeName: 'Budi Santoso', department: 'Gudang', lateDays: 4, lateMinutes: 65 },
-  { employeeId: 'HP-0009', employeeName: 'Ratna Puspita', department: 'Pemasaran', lateDays: 3, lateMinutes: 42 },
-  { employeeId: 'HP-0001', employeeName: 'Andi Wijaya', department: 'Keuangan', lateDays: 2, lateMinutes: 18 },
-  { employeeId: 'HP-0007', employeeName: 'Maya Lestari', department: 'Operasional', lateDays: 2, lateMinutes: 12 },
+  { employeeId: 'HP-0002', employeeName: 'Andi Wijaya', department: 'Keuangan', lateDays: 4, lateMinutes: 65 },
+  { employeeId: 'HP-0009', employeeName: 'Agus Saputra', department: 'Penjualan', lateDays: 3, lateMinutes: 42 },
+  { employeeId: 'HP-0001', employeeName: 'Rina Kartika', department: 'HRD', lateDays: 2, lateMinutes: 18 },
+  { employeeId: 'HP-0007', employeeName: 'Maya Lestari', department: 'Pemasaran', lateDays: 2, lateMinutes: 12 },
 ].map((employee) => ({ ...employee, isMock: true as const }))
 
 export const mockPayrollExpenseTrend = [

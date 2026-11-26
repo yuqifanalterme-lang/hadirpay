@@ -1,7 +1,6 @@
 export type PayrollCalculationInput = {
   baseSalary: number
   fixedAllowance: number
-  overtimePay: number
   workDays: number
   absenceDays: number
   lateDeduction: number
@@ -23,7 +22,6 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   const amounts = [
     input.baseSalary,
     input.fixedAllowance,
-    input.overtimePay,
     input.absenceDays,
     input.lateDeduction,
     input.otherDeductions,
@@ -48,7 +46,7 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
     absenceDeduction + input.lateDeduction + input.otherDeductions,
   )
   const netPay = roundMoney(
-    input.baseSalary + input.fixedAllowance + input.overtimePay - totalDeductions,
+    input.baseSalary + input.fixedAllowance - totalDeductions,
   )
 
   return { ...input, dailyRate, absenceDeduction, totalDeductions, netPay }

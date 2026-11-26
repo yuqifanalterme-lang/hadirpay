@@ -60,6 +60,14 @@ class KaryawanKomponen extends BaseController
         }
 
         $komp = db_connect()->table('komponen_gaji')->where('id', (int) $input['komponen_id'])->get()->getRowArray();
+        if (! $komp) {
+            return ApiResponse::error('NOT_FOUND', 'Komponen gaji tidak ditemukan', null, 404);
+        }
+        if ($komp['kode'] === 'BPJS') {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'komponen_id' => 'BPJS dihitung otomatis dari komponen master',
+            ], 422);
+        }
         if (! (int) $komp['aktif']) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['komponen_id' => 'Komponen ini sedang nonaktif'], 422);
         }
@@ -115,6 +123,12 @@ class KaryawanKomponen extends BaseController
         if ($row['metode'] === 'persen' && (float) $input['nilai'] > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
         }
+        if ($row['kode'] === 'BPJS') {
+            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
+                'nilai' => 'BPJS dihitung otomatis dari komponen master',
+            ], 422);
+        }
+
         $this->model->update($row['id'], ['nilai' => $input['nilai']]);
 
         $baru = $this->model->denganKomponen()->where('karyawan_komponen.id', $row['id'])->first();

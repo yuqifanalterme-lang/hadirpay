@@ -42,7 +42,7 @@ class Penggajian extends BaseController
         $total = $dasar()->countAllResults();
 
         $rows = $dasar()
-            ->select('g.id, g.gaji_pokok, g.tunjangan, g.upah_lembur, g.total_pendapatan, g.total_potongan, g.gaji_bersih, '
+            ->select('g.id, g.gaji_pokok, g.tunjangan, g.total_pendapatan, g.total_potongan, g.gaji_bersih, '
                 . 'k.id AS karyawan_id, k.kode AS karyawan_kode, k.nama AS karyawan_nama, d.nama AS departemen_nama')
             ->orderBy('k.nama', 'ASC')
             ->limit($perPage, ($page - 1) * $perPage)
@@ -58,7 +58,6 @@ class Penggajian extends BaseController
             ],
             'gaji_pokok'       => (float) $r['gaji_pokok'],
             'tunjangan'        => (float) $r['tunjangan'],
-            'upah_lembur'      => (float) $r['upah_lembur'],
             'total_pendapatan' => (float) $r['total_pendapatan'],
             'total_potongan'   => (float) $r['total_potongan'],
             'gaji_bersih'      => (float) $r['gaji_bersih'],

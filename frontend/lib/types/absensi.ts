@@ -45,7 +45,6 @@ export type CheckOutResponse = {
   jam_masuk: Waktu
   jam_pulang: Waktu
   durasi_menit: number
-  jam_lembur_menit: number
 }
 
 export type AbsensiRiwayatQuery = { periode: string; page?: number; per_page?: number }
@@ -119,7 +118,6 @@ export type AbsensiRekap = {
     rata_rata_hadir_persen: number
     total_terlambat: number
     total_alpha: number
-    total_jam_lembur: number
   }
   karyawan: {
     karyawan_id: Id
@@ -133,7 +131,6 @@ export type AbsensiRekap = {
     sakit: number
     cuti: number
     alpha: number
-    jam_lembur_menit: number
     total_menit_terlambat: number
   }[]
 }

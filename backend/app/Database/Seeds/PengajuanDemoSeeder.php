@@ -14,7 +14,6 @@ class PengajuanDemoSeeder extends Seeder
         $rows = [
             ['Budi Santoso', 'cuti', '2026-11-24', '2026-11-26', 3.0, 'Acara keluarga', null, null, 'menunggu'],
             ['Siti Rahmawati', 'sakit', '2026-11-17', '2026-11-17', 1.0, 'Demam, surat dokter menyusul', null, null, 'menunggu'],
-            ['Dimas Pratama', 'lembur', '2026-11-15', '2026-11-15', 1.0, 'Lembur tutup buku', json_encode(['jam_mulai' => '17:00', 'jam_selesai' => '20:00', 'durasi_menit' => 180]), null, 'menunggu'],
             ['Andi Wijaya', 'cuti', '2026-11-24', '2026-11-24', 1.0, 'Keperluan keluarga', null, (int) $rina['id'], 'disetujui'],
             ['Rudi Hartono', 'koreksi_absensi', '2026-11-10', '2026-11-10', 1.0, 'Lupa absen', json_encode(['jam_masuk_benar' => '07:55', 'jam_pulang_benar' => '17:00']), (int) $rina['id'], 'disetujui'],
             ['Agus Saputra', 'izin', '2026-11-05', '2026-11-05', 1.0, 'Keperluan pribadi', null, (int) $rina['id'], 'ditolak'],

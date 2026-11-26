@@ -30,7 +30,6 @@ function isDemoSettings(value: unknown): value is DemoSettings {
       typeof settings.payrollPolicy.workDayDivisor === 'string') &&
     (settings.payrollPolicy.deductPermitWithoutLetter === undefined ||
       typeof settings.payrollPolicy.deductPermitWithoutLetter === 'boolean') &&
-    typeof settings.payrollPolicy.overtimeRatePerHour === 'number' &&
     typeof settings.payrollPolicy.cutoffDay === 'number' &&
     Array.isArray(settings.users) &&
     settings.users.every((user) =>
@@ -97,7 +96,6 @@ function validateSettings(settings: DemoSettings) {
     throw new Error('Pembagi hari kerja harus lebih besar dari nol.')
   }
   if (settings.payrollPolicy.absenceDeductionAmount < 0 ||
-      settings.payrollPolicy.overtimeRatePerHour < 0 ||
       !Number.isInteger(settings.payrollPolicy.cutoffDay) ||
       settings.payrollPolicy.cutoffDay < 1 ||
       settings.payrollPolicy.cutoffDay > 28) {

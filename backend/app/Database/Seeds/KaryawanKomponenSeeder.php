@@ -10,10 +10,22 @@ class KaryawanKomponenSeeder extends Seeder
     {
         $now = date('Y-m-d H:i:s');
         $components = array_column(
-            $this->db->table('komponen_gaji')->whereIn('kode', ['TUN-TRANSPORT', 'BPJS', 'PPH21'])->get()->getResultArray(),
+            $this->db->table('komponen_gaji')->whereIn('kode', ['TUN-TRANSPORT', 'PPH21'])->get()->getResultArray(),
             null,
             'kode'
         );
+        $tunjangan = [
+            'rina@hadirpay.test' => 245000,
+            'andi@hadirpay.test' => 275000,
+            'dimas@hadirpay.test' => 300000,
+            'budi@hadirpay.test' => 250000,
+            'rudi@hadirpay.test' => 220000,
+            'siti@hadirpay.test' => 265000,
+            'maya@hadirpay.test' => 230000,
+            'ratna@hadirpay.test' => 280000,
+            'agus@hadirpay.test' => 240000,
+            'dewi@hadirpay.test' => 290000,
+        ];
         $pph21 = [
             'rina@hadirpay.test' => 35000,
             'andi@hadirpay.test' => 85000,
@@ -30,8 +42,7 @@ class KaryawanKomponenSeeder extends Seeder
         $kodeDemo = array_map(static fn ($n) => sprintf('KRY-%04d', $n), range(1, 10));
         foreach ($this->db->table('karyawan')->whereIn('kode', $kodeDemo)->orderBy('id')->get()->getResultArray() as $k) {
             $assignments = [
-                'TUN-TRANSPORT' => 245000,
-                'BPJS' => 3,
+                'TUN-TRANSPORT' => $tunjangan[$k['email']] ?? 0,
                 'PPH21' => $pph21[$k['email']] ?? 0,
             ];
             foreach ($assignments as $code => $nilai) {
@@ -51,6 +62,14 @@ class KaryawanKomponenSeeder extends Seeder
                         'updated_at'  => $now,
                     ]);
                 }
+            }
+
+        }
+
+        foreach (['BPJS', 'LEMBUR'] as $kode) {
+            $komponen = $this->db->table('komponen_gaji')->where('kode', $kode)->get()->getRowArray();
+            if ($komponen) {
+                $this->db->table('karyawan_komponen')->where('komponen_id', $komponen['id'])->delete();
             }
         }
     }

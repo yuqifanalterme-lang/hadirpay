@@ -21,7 +21,6 @@ const requestTypeToApi: Record<RequestType, JenisPengajuan> = {
   Sakit: 'sakit',
   Cuti: 'cuti',
   'Koreksi Absensi': 'koreksi_absensi',
-  Lembur: 'lembur',
 }
 const periodStatusLabels: Record<StatusPeriode, Extract<StatusBadgeStatus, 'Draft' | 'Menunggu validasi keuangan' | 'Disetujui' | 'Dibayar' | 'Dibatalkan'>> = {
   draft: 'Draft',

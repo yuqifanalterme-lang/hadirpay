@@ -429,9 +429,6 @@ export function SettingsPage() {
                   <input className={fieldClass} value={settings.payrollPolicy.apiAbsenceDeductionMethod ?? ''} readOnly />
                 </Field>
               )}
-              <Field label="Tarif lembur per jam (rupiah)" error={fieldError('kebijakan_gaji.tarif_lembur_per_jam', 'tarif_lembur_per_jam')}>
-                <input type="number" min={0} className={fieldClass} value={settings.payrollPolicy.overtimeRatePerHour} onChange={(event) => updatePayroll('overtimeRatePerHour', Number(event.target.value))} />
-              </Field>
               <Field label="Tanggal tutup periode" error={fieldError('kebijakan_gaji.tanggal_tutup_periode', 'tanggal_tutup_periode')}>
                 <input type="number" min={1} max={28} className={fieldClass} value={settings.payrollPolicy.cutoffDay} onChange={(event) => updatePayroll('cutoffDay', Number(event.target.value))} />
               </Field>

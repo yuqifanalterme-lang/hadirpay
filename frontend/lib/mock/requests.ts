@@ -1,4 +1,4 @@
-export const requestTypes = ['Izin', 'Sakit', 'Cuti', 'Koreksi Absensi', 'Lembur'] as const
+export const requestTypes = ['Izin', 'Sakit', 'Cuti', 'Koreksi Absensi'] as const
 export type RequestType = (typeof requestTypes)[number]
 
 export const requestStatuses = ['Menunggu persetujuan', 'Disetujui', 'Ditolak'] as const
@@ -32,7 +32,7 @@ export const mockLeaveQuota = {
 export const mockRequests: ApprovalRequest[] = [
   {
     id: 'rq-andi-cuti-nov-2026',
-    employeeId: 'HP-0001',
+    employeeId: 'HP-0002',
     name: 'Andi Wijaya',
     initials: 'AW',
     position: 'Staf Keuangan',
@@ -49,7 +49,7 @@ export const mockRequests: ApprovalRequest[] = [
   },
   {
     id: 'pg-101',
-    employeeId: 'HP-0002',
+    employeeId: 'HP-0004',
     name: 'Budi Santoso',
     initials: 'BS',
     position: 'Staf Gudang',
@@ -65,11 +65,11 @@ export const mockRequests: ApprovalRequest[] = [
   },
   {
     id: 'pg-102',
-    employeeId: 'HP-0003',
+    employeeId: 'HP-0006',
     name: 'Siti Rahmawati',
     initials: 'SR',
-    position: 'Staf Pemasaran',
-    department: 'Pemasaran',
+    position: 'Staf Operasional',
+    department: 'Operasional',
     type: 'Sakit',
     startDate: '2026-11-18',
     endDate: '2026-11-18',
@@ -77,22 +77,6 @@ export const mockRequests: ApprovalRequest[] = [
     reason: 'Tidak dapat bekerja karena kondisi kesehatan.',
     attachmentName: 'Surat dokter.pdf',
     submittedAt: '2026-11-18',
-    status: 'Menunggu persetujuan',
-    isMock: true,
-  },
-  {
-    id: 'pg-103',
-    employeeId: 'HP-0004',
-    name: 'Dimas Pratama',
-    initials: 'DP',
-    position: 'Akuntan',
-    department: 'Keuangan',
-    type: 'Lembur',
-    startDate: '2026-11-15',
-    endDate: '2026-11-15',
-    days: 1,
-    reason: 'Lembur tutup buku selama 3 jam.',
-    submittedAt: '2026-11-15',
     status: 'Menunggu persetujuan',
     isMock: true,
   },

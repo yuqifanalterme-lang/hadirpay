@@ -50,10 +50,23 @@ function readRequests(): ApprovalRequest[] {
       cause: error,
     })
   }
-  if (!Array.isArray(parsed) || !parsed.every(isRequest)) {
+  if (!Array.isArray(parsed)) {
     throw new Error('Format data pengajuan tidak valid. Periksa data sebelum melanjutkan.')
   }
-  return parsed
+  const activeRequests: ApprovalRequest[] = []
+  for (const item of parsed) {
+    if (typeof item === 'object' && item !== null && (item as Record<string, unknown>).type === 'Lembur') {
+      continue
+    }
+    if (!isRequest(item)) {
+      throw new Error('Format data pengajuan tidak valid. Periksa data sebelum melanjutkan.')
+    }
+    activeRequests.push(item)
+  }
+  if (activeRequests.length !== parsed.length) {
+    window.localStorage.setItem(requestStorageKey, JSON.stringify(activeRequests))
+  }
+  return activeRequests
 }
 
 function writeRequests(requests: ApprovalRequest[]) {

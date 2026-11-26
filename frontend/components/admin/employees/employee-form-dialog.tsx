@@ -228,6 +228,7 @@ export function EmployeeFormDialog({
           tanggal_mulai: 'startedAt',
           jenis_penggajian: 'payrollType',
           gaji_pokok: 'baseSalary',
+          tunjangan: 'fixedAllowance',
           tunjangan_tetap: 'fixedAllowance',
           pph21: 'pph21',
           npwp: 'npwp',

@@ -13,7 +13,6 @@ class NotifikasiSeeder extends Seeder
         $rows = [
             [$users['rina@hadirpay.test'] ?? null, 'Pengajuan cuti baru', 'Budi Santoso mengajukan cuti 24-26 Nov 2026', 'pengajuan', '/app/pengajuan'],
             [$users['rina@hadirpay.test'] ?? null, 'Pengajuan sakit baru', 'Siti Rahmawati mengajukan sakit', 'pengajuan', '/app/pengajuan'],
-            [$users['rina@hadirpay.test'] ?? null, 'Pengajuan lembur baru', 'Dimas Pratama mengajukan lembur', 'pengajuan', '/app/pengajuan'],
             [$users['andi@hadirpay.test'] ?? null, 'Slip gaji tersedia', 'Slip gaji Oktober 2026 sudah tersedia', 'slip', '/app/slip-gaji'],
         ];
         foreach ($rows as [$uid, $judul, $pesan, $tipe, $tautan]) {

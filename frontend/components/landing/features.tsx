@@ -18,7 +18,7 @@ const features: Feature[] = [
   },
   {
     title: 'Hitung Gaji Otomatis',
-    body: 'Gaji pokok, tunjangan, lembur, dan potongan absen terhitung presisi.',
+    body: 'Gaji pokok, tunjangan, dan potongan absen terhitung presisi.',
     image: '/kalkulator.svg',
     alt: 'Ilustrasi kalkulator untuk perhitungan gaji otomatis',
     rotation: '2deg',

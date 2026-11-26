@@ -22,7 +22,6 @@ const typeToApi = {
   Sakit: 'sakit',
   Cuti: 'cuti',
   'Koreksi Absensi': 'koreksi_absensi',
-  Lembur: 'lembur',
 } satisfies Record<RequestType, PengajuanCreateRequest['jenis']>
 
 const statusToApi: Record<RequestStatus, NonNullable<PengajuanListQuery['status']>> = {
@@ -187,8 +186,6 @@ export async function createRequest(
     attachment?: File
     correctedCheckInTime?: string
     correctedCheckOutTime?: string
-    overtimeStartTime?: string
-    overtimeEndTime?: string
   },
   submittedAt = new Date(),
 ): Promise<ApprovalRequest> {
@@ -225,17 +222,12 @@ export async function createRequest(
     if (attachment) {
       throw new ApiError(0, 'REQUEST_FORM_INCOMPLETE', 'Lampiran hanya dapat dikirim untuk izin, sakit, atau cuti.')
     }
-    const overtimeStartTime = request.overtimeStartTime
-    const overtimeEndTime = request.overtimeEndTime
-    if (!overtimeStartTime || !overtimeEndTime) {
-      throw new ApiError(0, 'REQUEST_FORM_INCOMPLETE', 'Isi jam mulai dan selesai lembur.')
-    }
     body = {
-      jenis: typeToApi[request.type],
+      jenis: typeToApi['Koreksi Absensi'],
       tanggal_mulai: request.startDate,
       alasan: request.reason,
-      jam_mulai: overtimeStartTime,
-      jam_selesai: overtimeEndTime,
+      ...(request.correctedCheckInTime ? { jam_masuk_benar: request.correctedCheckInTime } : {}),
+      ...(request.correctedCheckOutTime ? { jam_pulang_benar: request.correctedCheckOutTime } : {}),
     }
   }
   if (request.attachmentName && !attachment) {
@@ -254,8 +246,6 @@ export async function createRequest(
     if ('tanggal_selesai' in body) formData.append('tanggal_selesai', body.tanggal_selesai)
     if ('jam_masuk_benar' in body && body.jam_masuk_benar) formData.append('jam_masuk_benar', body.jam_masuk_benar)
     if ('jam_pulang_benar' in body && body.jam_pulang_benar) formData.append('jam_pulang_benar', body.jam_pulang_benar)
-    if ('jam_mulai' in body) formData.append('jam_mulai', body.jam_mulai)
-    if ('jam_selesai' in body) formData.append('jam_selesai', body.jam_selesai)
     if ('lampiran' in body && body.lampiran) formData.append('lampiran', body.lampiran)
   }
   const result = formData

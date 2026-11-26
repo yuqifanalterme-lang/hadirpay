@@ -203,6 +203,14 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             'karyawan_id'     => 1,
             'gaji_bersih'     => '100.00',
         ]);
+        $this->db->table('komponen_gaji')->insertBatch([
+            ['id' => 2, 'kode' => 'PPH21'],
+            ['id' => 3, 'kode' => 'BPJS'],
+        ]);
+        $this->db->table('detail_penggajian')->insertBatch([
+            ['id' => 2, 'penggajian_id' => 2, 'komponen_id' => 2, 'tipe' => 'potongan', 'jumlah' => '10.00'],
+            ['id' => 3, 'penggajian_id' => 2, 'komponen_id' => 3, 'tipe' => 'potongan', 'jumlah' => '5.00'],
+        ]);
 
         $journalId = AccountingService::jurnalPengakuan(
             new SqliteJournalConnection($this->db),
@@ -216,6 +224,10 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
         $this->assertSame('100.00', number_format((float) $journal['total_debit'], 2, '.', ''));
         $this->assertSame('100.00', number_format((float) $journal['total_kredit'], 2, '.', ''));
         $this->assertSame(2, $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->countAllResults());
+        $journalLines = $this->db->table('detail_jurnal')->where('jurnal_id', $journalId)->get()->getResultArray();
+        $accountIds = array_map('intval', array_column($journalLines, 'akun_id'));
+        sort($accountIds);
+        $this->assertSame([2, 3], $accountIds);
     }
 
     private function makeCommand(?string $environment = null)

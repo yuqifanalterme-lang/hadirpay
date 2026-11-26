@@ -32,7 +32,8 @@ function writeStored<T>(key: string, value: T) {
 }
 
 export async function listPayrollComponents(): Promise<PayrollComponent[]> {
-  return readStored(COMPONENTS_KEY, mockPayrollComponents)
+  return readStored<PayrollComponent[]>(COMPONENTS_KEY, mockPayrollComponents)
+    .filter((component) => component.code !== 'LEMBUR' && component.id !== 'upah-lembur')
 }
 
 export async function savePayrollComponent(
@@ -145,7 +146,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
   const employees = (await listEmployees()).filter((employee) => employee.status === 'Aktif')
   const details = employees.flatMap((employee) => {
     const savedInput = mockPayrollInputs[employee.id] ?? {
-      overtimePay: 0,
       workDays: mockPayrollPeriod.workDays,
       absenceDays: 0,
       lateDeduction: 0,
@@ -154,7 +154,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     }
     const input = {
       ...savedInput,
-      overtimePay: 0,
       baseSalary: employee.baseSalary,
       fixedAllowance: employee.fixedAllowance,
     }
@@ -187,7 +186,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       employeeCount: 1,
       baseSalary: input.baseSalary,
       fixedAllowance: input.fixedAllowance,
-      overtimePay: 0,
       totalEarnings: input.baseSalary + input.fixedAllowance,
       totalDeductions: calculation.totalDeductions,
       netPay: calculation.netPay,
@@ -195,7 +193,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       presentDays: input.workDays - input.absenceDays,
       lateCount: input.lateDeduction > 0 ? 1 : 0,
       absenceDays: input.absenceDays,
-      overtimeHours: 0,
       earnings,
       deductions,
       statutoryDeductions: {
@@ -221,7 +218,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
         employeeCount: aggregateCount,
         baseSalary: 0,
         fixedAllowance: 0,
-        overtimePay: 0,
         totalEarnings: 0,
         totalDeductions: 0,
         netPay: aggregateNet,
@@ -229,7 +225,6 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
         presentDays: 0,
         lateCount: 0,
         absenceDays: 0,
-        overtimeHours: 0,
         earnings: [],
         deductions: [],
         isAggregate: true,

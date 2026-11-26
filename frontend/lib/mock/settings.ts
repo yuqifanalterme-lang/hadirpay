@@ -32,7 +32,6 @@ export type DemoSettings = {
     apiAbsenceDeductionMethod?: string
     workDayDivisor: string
     deductPermitWithoutLetter: boolean
-    overtimeRatePerHour: number
     cutoffDay: number
   }
   users: DemoUser[]
@@ -82,7 +81,6 @@ export const mockSettings: DemoSettings = {
     absenceDeductionAmount: 0,
     workDayDivisor: '',
     deductPermitWithoutLetter: false,
-    overtimeRatePerHour: 25000,
     cutoffDay: 25,
   },
   users: [

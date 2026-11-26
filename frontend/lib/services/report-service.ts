@@ -236,41 +236,6 @@ export async function getReportDataset(
     )
   }
 
-  if (id === 'lembur') {
-    const lines = (await listPayrollLines())
-      .filter((line) => !line.isAggregate && line.overtimeHours > 0)
-      .filter((line) => department === 'Semua departemen' || line.department === department)
-    const hours = lines.reduce((total, line) => total + line.overtimeHours, 0)
-    const overtimePay = lines.reduce((total, line) => total + line.overtimePay, 0)
-    const chart = reportDepartments.map((name) => ({
-      label: name,
-      value: lines.filter((line) => line.department === name)
-        .reduce((total, line) => total + line.overtimeHours, 0),
-    })).filter((item) => item.value > 0)
-    return makeDataset(id,
-      [
-        { key: 'karyawan', label: 'Karyawan' },
-        { key: 'departemen', label: 'Departemen' },
-        { key: 'jam', label: 'Jam lembur' },
-        { key: 'nilai', label: 'Nilai lembur' },
-      ],
-      lines.map((line) => ({
-        karyawan: line.employeeName,
-        departemen: line.department,
-        jam: line.overtimeHours,
-        nilai: formatRupiah(line.overtimePay),
-      })),
-      [
-        metric('Karyawan lembur', String(lines.length), formatMonth(period), 'users'),
-        metric('Total jam', String(hours), 'Dari rincian payroll individu', 'clock'),
-        metric('Nilai lembur', formatRupiah(overtimePay), 'Termasuk dalam penggajian bulanan', 'wallet'),
-      ],
-      'Jam lembur per departemen',
-      chart,
-      'Belum ada rincian lembur untuk departemen terpilih.',
-    )
-  }
-
   if (id === 'penggajian-bulanan') {
     const lines = (await listPayrollLines())
       .filter((line) =>

@@ -76,7 +76,6 @@ export type PeriodeRekapAbsensi = {
     sakit: number
     cuti: number
     alpha: number
-    jam_lembur_menit: number
     total_menit_terlambat: number
   }[]
   peringatan: { karyawan_id: Id; jenis: string; pesan: string }[]
@@ -98,7 +97,6 @@ export type PenggajianListItem = {
   karyawan: { id: Id; kode: string; nama: string; departemen: string }
   gaji_pokok: Uang
   tunjangan: Uang
-  upah_lembur: Uang
   total_pendapatan: Uang
   total_potongan: Uang
   gaji_bersih: Uang
@@ -122,7 +120,6 @@ export type PenggajianDetail = {
     cuti: number
     alpha: number
     total_menit_terlambat: number
-    jam_lembur?: number
   }
   tarif_harian: Uang
   rincian: { komponen_id: Id | null; nama: string; tipe: TipeKomponen; keterangan: string | null; jumlah: Uang }[]

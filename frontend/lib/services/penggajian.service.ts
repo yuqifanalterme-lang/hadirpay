@@ -88,7 +88,6 @@ function methodToUi(method: KomponenGaji['metode']): PayrollComponent['method'] 
     nominal_tetap: 'nominal tetap',
     persen: 'persen',
     per_hari: 'per hari',
-    per_jam: 'per jam',
     per_menit: 'per menit',
   } as const
   return values[method]
@@ -113,7 +112,6 @@ function methodToApi(method: PayrollComponent['method']): KomponenGaji['metode']
     'nominal tetap': 'nominal_tetap',
     persen: 'persen',
     'per hari': 'per_hari',
-    'per jam': 'per_jam',
     'per menit': 'per_menit',
   }
   return values[method]
@@ -137,7 +135,7 @@ function requestComponent(component: Omit<PayrollComponent, 'isMock'> & { isMock
 export async function listPayrollComponents(): Promise<PayrollComponent[]> {
   if (config.mock.penggajian) return listPayrollComponentsMock()
   const result = await apiRequest<KomponenGaji[]>('komponen-gaji')
-  return result.data.map(toUiComponent)
+  return result.data.filter((component) => component.kode !== 'LEMBUR').map(toUiComponent)
 }
 
 export async function savePayrollComponent(
@@ -394,7 +392,6 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
       employeeCount: 1,
       baseSalary: line.gaji_pokok,
       fixedAllowance: line.tunjangan,
-      overtimePay: line.upah_lembur,
       totalEarnings: line.total_pendapatan,
       totalDeductions: line.total_potongan,
       netPay: line.gaji_bersih,
@@ -402,7 +399,6 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
       presentDays: detail.kehadiran.hadir,
       lateCount: detail.kehadiran.terlambat,
       absenceDays: detail.kehadiran.alpha,
-      overtimeHours: detail.kehadiran.jam_lembur ?? 0,
       earnings: earnings.map((item) => ({ label: item.nama, amount: item.jumlah })),
       deductions: deductions.map((item) => ({ label: item.nama, amount: item.jumlah })),
       isAggregate: false,
