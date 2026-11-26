@@ -382,7 +382,12 @@ class Karyawan extends BaseController
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Gagal update karyawan: ' . $e->getMessage());
-            return ApiResponse::error('SERVER_ERROR', 'Gagal memperbarui karyawan', null, 500);
+            return ApiResponse::error(
+                'SERVER_ERROR',
+                'Gagal memperbarui karyawan: ' . $e->getMessage(),
+                null,
+                500
+            );
         }
 
         return ApiResponse::success($this->detail($id), 'Karyawan diperbarui');
