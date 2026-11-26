@@ -2,9 +2,15 @@
 
 use App\Services\PayrollService;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
 
 final class PayrollServiceTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
+
+    protected $migrate = false;
+    protected $refresh = false;
+
     public function testAndiOctoberSlipExpectedValues(): void
     {
         $service = new PayrollService();
@@ -356,16 +362,73 @@ final class PayrollServiceTest extends CIUnitTestCase
      */
     public function testSimpanKomponenManualThrowsWhenPeriodeIsNotDraft(): void
     {
-        $this->expectException(\DomainException::class);
-        $this->expectExceptionMessageMatches('/draft/i');
+        $db = db_connect();
+        $periodeTable = $db->prefixTable('periode_gaji');
+        $payrollTable = $db->prefixTable('penggajian');
+        $detailTable = $db->prefixTable('detail_penggajian');
 
-        // Simulate by calling the service method in isolation with a mock-like approach.
-        // Since simpanKomponenManual uses db_connect() (needs live DB in integration tests),
-        // we verify here that the error code path is exercised via the exception contract.
-        // A full integration test requires SQLite3 or MySQL; mark as incomplete if unavailable.
-        $this->markTestIncomplete(
-            'simpanKomponenManual requires database; run as integration test with MySQL or SQLite3.'
+        $db->query('CREATE TABLE ' . $periodeTable . ' (id INTEGER PRIMARY KEY, status VARCHAR(40))');
+        $db->query(
+            'CREATE TABLE ' . $payrollTable . ' (id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, '
+            . 'gaji_pokok DECIMAL(15,2), tunjangan DECIMAL(15,2), total_pendapatan DECIMAL(15,2), '
+            . 'total_potongan DECIMAL(15,2), gaji_bersih DECIMAL(15,2), updated_at DATETIME)'
         );
+        $db->query(
+            'CREATE TABLE ' . $detailTable . ' (id INTEGER PRIMARY KEY AUTOINCREMENT, penggajian_id INTEGER, '
+            . 'komponen_id INTEGER, kode VARCHAR(50), sumber VARCHAR(20), nama VARCHAR(100), tipe VARCHAR(20), '
+            . 'keterangan VARCHAR(150), jumlah DECIMAL(15,2), urutan INTEGER)'
+        );
+
+        try {
+            $db->table('periode_gaji')->insert(['id' => 1, 'status' => 'draft']);
+            $db->table('penggajian')->insert([
+                'id' => 1,
+                'periode_gaji_id' => 1,
+                'gaji_pokok' => 1000,
+                'tunjangan' => 0,
+                'total_pendapatan' => 1000,
+                'total_potongan' => 0,
+                'gaji_bersih' => 1000,
+            ]);
+            $db->table('detail_penggajian')->insert([
+                'penggajian_id' => 1,
+                'kode' => 'GAJI-POKOK',
+                'sumber' => 'otomatis',
+                'nama' => 'Gaji pokok',
+                'tipe' => 'pendapatan',
+                'jumlah' => 1000,
+                'urutan' => 1,
+            ]);
+
+            $service = new PayrollService();
+            $service->simpanKomponenManual(1, [[
+                'jenis' => 'lembur',
+                'nama' => 'Pendapatan Lembur',
+                'jumlah' => 100,
+                'catatan' => 'Lembur hari kerja',
+            ]]);
+            $this->assertSame(1100.0, (float) $db->table('penggajian')->where('id', 1)->get()->getRowArray()['total_pendapatan']);
+
+            foreach (['menunggu_validasi', 'disetujui', 'dibayar', 'dibatalkan'] as $status) {
+                $db->table('periode_gaji')->where('id', 1)->update(['status' => $status]);
+                try {
+                    $service->simpanKomponenManual(1, [[
+                        'jenis' => 'lembur',
+                        'nama' => 'Pendapatan Lembur',
+                        'jumlah' => 200,
+                        'catatan' => 'Perubahan yang harus ditolak',
+                    ]]);
+                    $this->fail("Komponen manual tidak boleh disimpan saat status {$status}.");
+                } catch (\DomainException $e) {
+                    $this->assertStringContainsString('draft', strtolower($e->getMessage()));
+                    $this->assertSame(1100.0, (float) $db->table('penggajian')->where('id', 1)->get()->getRowArray()['total_pendapatan']);
+                }
+            }
+        } finally {
+            $db->query('DROP TABLE IF EXISTS ' . $detailTable);
+            $db->query('DROP TABLE IF EXISTS ' . $payrollTable);
+            $db->query('DROP TABLE IF EXISTS ' . $periodeTable);
+        }
     }
 
     /**

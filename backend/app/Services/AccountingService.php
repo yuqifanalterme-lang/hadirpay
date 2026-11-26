@@ -182,16 +182,17 @@ class AccountingService
             ->where('periode_gaji_id', $pid)
             ->get()->getRowArray()['total'];
         $deductions = $db->table('detail_penggajian dp')
-            ->select('COALESCE(NULLIF(dp.kode, \'\'), kg.kode) AS kode, SUM(dp.jumlah) AS total', false)
+            ->select('dp.kode, kg.kode AS master_kode, SUM(dp.jumlah) AS total', false)
             ->join('penggajian p', 'p.id = dp.penggajian_id')
             ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
             ->where('p.periode_gaji_id', $pid)
             ->where('dp.tipe', 'potongan')
-            ->groupBy('kode')
+            ->groupBy(['dp.kode', 'kg.kode'])
             ->get()->getResultArray();
         $withheld = [];
         foreach ($deductions as $row) {
-            $withheld[$row['kode']] = (float) $row['total'];
+            $kode = $row['kode'] ?: $row['master_kode'];
+            $withheld[$kode] = ($withheld[$kode] ?? 0.0) + (float) $row['total'];
         }
 
         $incomeTax = $withheld['PPH21'] ?? 0.0;

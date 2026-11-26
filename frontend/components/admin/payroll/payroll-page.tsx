@@ -122,6 +122,8 @@ export function PayrollPage() {
   }, [role, selectedPeriodId, page])
 
   const totals = {
+    income: period?.totalEarnings ?? 0,
+    deductions: period?.totalDeductions ?? 0,
     net: period?.totalNetPay ?? 0,
     employees: period?.employeeCount ?? 0,
   }
@@ -285,7 +287,9 @@ export function PayrollPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Total gaji bersih" value={formatRupiah(totals.net)} hint="Nilai periode pada dashboard admin" icon={CircleDollarSign} tone="blue" />
+        <StatCard label="Total pendapatan" value={formatRupiah(totals.income)} hint="Periode terpilih" icon={CircleDollarSign} tone="blue" />
+        <StatCard label="Total potongan" value={formatRupiah(totals.deductions)} hint="Periode terpilih" icon={Trash2} tone="amber" />
+        <StatCard label="Gaji bersih" value={formatRupiah(totals.net)} hint="Periode terpilih" icon={CircleDollarSign} tone="green" />
         <StatCard
           label="Karyawan dalam periode"
           value={String(totals.employees)}

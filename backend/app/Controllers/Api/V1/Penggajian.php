@@ -135,8 +135,9 @@ class Penggajian extends BaseController
         $db = db_connect();
         $db->transBegin();
         try {
+            $lock = in_array($db->DBDriver, ['MySQLi', 'Postgre'], true) ? ' FOR UPDATE' : '';
             $periode = $db->query(
-                'SELECT id, status FROM periode_gaji WHERE id = ? FOR UPDATE',
+                'SELECT id, status FROM ' . $db->prefixTable('periode_gaji') . ' WHERE id = ?' . $lock,
                 [(int) $periodeId]
             )->getRowArray();
             if (! $periode) {

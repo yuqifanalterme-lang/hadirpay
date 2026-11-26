@@ -28,6 +28,8 @@ export type PayrollPeriod = {
   cutoffDate: string
   workDays: number
   employeeCount: number
+  totalEarnings?: number
+  totalDeductions?: number
   totalNetPay: number
   status: PayrollPeriodStatus
   closed?: boolean
@@ -37,6 +39,7 @@ export type PayrollPeriod = {
 export type PayrollBreakdownItem = {
   label: string
   amount: number
+  code?: string
 }
 
 export type PayrollManualComponentKind =
@@ -52,6 +55,7 @@ export type PayrollManualComponent = {
 }
 
 export type PayrollLine = {
+  payrollId?: number
   employeeId: string
   employeeName: string
   position: string

@@ -433,7 +433,7 @@ export function SettingsPage() {
                 <input type="number" min={1} max={28} className={fieldClass} value={settings.payrollPolicy.cutoffDay} onChange={(event) => updatePayroll('cutoffDay', Number(event.target.value))} />
               </Field>
               {!config.mock.pengaturan && (
-                <Field label="Potongan per keterlambatan (Rp)" error={fieldError('kebijakan_gaji.potongan_terlambat_per_keterlambatan')}>
+                <Field label="Potongan terlambat per kejadian (Rp)" error={fieldError('kebijakan_gaji.potongan_terlambat_per_keterlambatan')}>
                   <input
                     type="number"
                     min={0}

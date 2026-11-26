@@ -5,6 +5,8 @@ import {
   mockPayrollPeriod,
   type PayrollComponent,
   type PayrollLine,
+  type PayrollManualComponent,
+  type PayrollManualComponentKind,
   type PayrollPeriod,
   type PayrollPeriodStatus,
 } from '@/lib/mock/payroll'
@@ -16,12 +18,55 @@ import { readAccountingState, writeAccountingState } from './accounting-storage'
 import { notifyNotificationsChanged } from './request-events'
 
 const COMPONENTS_KEY = 'hadirpay-payroll-components-v2'
+const MANUAL_PAYROLL_COMPONENTS_KEY = 'hadirpay-manual-payroll-components-v1'
 
 function readStored<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
   const stored = window.localStorage.getItem(key)
   if (!stored) return fallback
   return JSON.parse(stored) as T
+}
+
+export async function saveManualPayrollComponents(
+  employeeId: string,
+  components: PayrollManualComponent[],
+): Promise<void> {
+  if (readAccountingState().payrollStatus !== 'Draft') {
+    throw new Error('Komponen manual hanya dapat diubah saat periode berstatus Draf.')
+  }
+
+  const allowedKinds: PayrollManualComponentKind[] = [
+    'lembur',
+    'potongan_lain',
+    'penyesuaian_pendapatan',
+    'penyesuaian_potongan',
+  ]
+  if (components.some((item) =>
+    !allowedKinds.includes(item.jenis)
+    || !Number.isFinite(item.jumlah)
+    || item.jumlah <= 0
+    || !item.catatan.trim()
+    || item.catatan.trim().length > 150
+  )) {
+    throw new Error('Setiap komponen harus memiliki jumlah lebih dari nol dan catatan maksimal 150 karakter.')
+  }
+
+  const lines = await listPayrollLines()
+  const line = lines.find((item) => item.employeeId === employeeId && !item.isAggregate)
+  if (!line) throw new Error('Rincian penggajian karyawan tidak ditemukan.')
+  const current = line.manualComponents ?? []
+  const incomeKinds = new Set<PayrollManualComponentKind>(['lembur', 'penyesuaian_pendapatan'])
+  const currentIncome = current.reduce((sum, item) => sum + (incomeKinds.has(item.jenis) ? item.jumlah : 0), 0)
+  const currentDeduction = current.reduce((sum, item) => sum + (incomeKinds.has(item.jenis) ? 0 : item.jumlah), 0)
+  const nextIncome = components.reduce((sum, item) => sum + (incomeKinds.has(item.jenis) ? item.jumlah : 0), 0)
+  const nextDeduction = components.reduce((sum, item) => sum + (incomeKinds.has(item.jenis) ? 0 : item.jumlah), 0)
+  if (line.netPay - currentIncome + currentDeduction + nextIncome - nextDeduction < 0) {
+    throw new Error('Total potongan melebihi pendapatan. Sesuaikan komponen manual sebelum menyimpan.')
+  }
+
+  const saved = readStored<Record<string, PayrollManualComponent[]>>(MANUAL_PAYROLL_COMPONENTS_KEY, {})
+  saved[employeeId] = components.map((item) => ({ ...item, catatan: item.catatan.trim() }))
+  writeStored(MANUAL_PAYROLL_COMPONENTS_KEY, saved)
 }
 
 function writeStored<T>(key: string, value: T) {
@@ -65,6 +110,8 @@ export async function getPayrollPeriod(): Promise<PayrollPeriod> {
     ...mockPayrollPeriod,
     status: state.payrollStatus,
     employeeCount: payrollLines.reduce((count, line) => count + line.employeeCount, 0),
+    totalEarnings: payrollLines.filter((line) => !line.isAggregate).reduce((total, line) => total + (line.totalEarnings ?? 0), 0),
+    totalDeductions: payrollLines.filter((line) => !line.isAggregate).reduce((total, line) => total + line.totalDeductions, 0),
     totalNetPay: payrollLines.reduce((total, line) => total + line.netPay, 0),
   }
   if (state.payrollStatus === 'Disetujui' || state.payrollStatus === 'Dibayar') {
@@ -96,6 +143,8 @@ export async function updatePayrollStatus(
     ...mockPayrollPeriod,
     status: accountingState.payrollStatus,
     employeeCount: payrollLines.reduce((count, line) => count + line.employeeCount, 0),
+    totalEarnings: payrollLines.filter((line) => !line.isAggregate).reduce((total, line) => total + (line.totalEarnings ?? 0), 0),
+    totalDeductions: payrollLines.filter((line) => !line.isAggregate).reduce((total, line) => total + line.totalDeductions, 0),
     totalNetPay: payrollLines.reduce((total, line) => total + line.netPay, 0),
   }
   const allowed =
@@ -144,6 +193,7 @@ function todayIsoDate() {
 
 export async function listPayrollLines(): Promise<PayrollLine[]> {
   const employees = (await listEmployees()).filter((employee) => employee.status === 'Aktif')
+  const manualByEmployee = readStored<Record<string, PayrollManualComponent[]>>(MANUAL_PAYROLL_COMPONENTS_KEY, {})
   const details = employees.flatMap((employee) => {
     const savedInput = mockPayrollInputs[employee.id] ?? {
       workDays: mockPayrollPeriod.workDays,
@@ -163,6 +213,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
     const bpjs = Math.round(input.baseSalary * bpjsRate / 100 * 100) / 100
     const additionalEarnings: { label: string; amount: number }[] = []
     const additionalDeductions: { label: string; amount: number }[] = []
+    const manualComponents = manualByEmployee[employee.id] ?? []
     for (const component of employee.salaryComponents ?? []) {
       if (!component.code || ['BPJS', 'PPH21', 'TUN-TRANSPORT', 'POT-LEMBUR'].includes(component.code)) continue
       const amount = component.method === 'nominal_tetap'
@@ -183,6 +234,20 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
         label: 'Potongan lembur',
         amount: Math.round((employee.overtimeDeduction ?? 0) * 100) / 100,
       })
+    }
+    const manualLabels: Record<PayrollManualComponentKind, string> = {
+      lembur: 'Pendapatan Lembur',
+      potongan_lain: 'Potongan Lain',
+      penyesuaian_pendapatan: 'Penyesuaian Pendapatan',
+      penyesuaian_potongan: 'Penyesuaian Potongan',
+    }
+    for (const component of manualComponents) {
+      const item = { label: manualLabels[component.jenis], amount: component.jumlah }
+      if (component.jenis === 'lembur' || component.jenis === 'penyesuaian_pendapatan') {
+        additionalEarnings.push(item)
+      } else {
+        additionalDeductions.push(item)
+      }
     }
     const calculation = calculatePayroll({
       ...input,
@@ -221,6 +286,7 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       absenceDays: input.absenceDays,
       earnings,
       deductions,
+      manualComponents,
       statutoryDeductions: {
         incomeTax,
         bpjs,

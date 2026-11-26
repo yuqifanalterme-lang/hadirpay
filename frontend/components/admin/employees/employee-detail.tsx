@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   CalendarCheck,
   CalendarDays,
+  CircleDollarSign,
   CircleUserRound,
   CircleX,
   Clock3,
@@ -109,6 +110,34 @@ export function EmployeeDetail({ id }: { id: string }) {
   const [assignmentSaving, setAssignmentSaving] = useState(false)
   const [removingComponent, setRemovingComponent] = useState<EmployeeSalaryComponent | null>(null)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const salaryPreview = useMemo(() => {
+    if (!employee) return null
+
+    let income = employee.baseSalary + employee.fixedAllowance
+    let deductions = 0
+    let hasUncalculatedComponents = false
+    for (const component of employee.salaryComponents ?? []) {
+      if (component.code === 'TUN-TRANSPORT') continue
+      const amount = component.method === 'nominal_tetap'
+        ? component.value
+        : component.method === 'persen'
+          ? employee.baseSalary * component.value / 100
+          : null
+      if (amount === null) {
+        if (component.method !== 'manual_periode') hasUncalculatedComponents = true
+        continue
+      }
+      if (component.type === 'pendapatan') income += amount
+      else deductions += amount
+    }
+
+    return {
+      income,
+      deductions,
+      net: income - deductions,
+      hasUncalculatedComponents,
+    }
+  }, [employee])
 
   async function load() {
     setLoading(true)
@@ -410,6 +439,21 @@ export function EmployeeDetail({ id }: { id: string }) {
                 value={`${formatRupiah(employee.fixedAllowance)}${employee.payrollType === 'harian' ? ' per hari' : ''}`}
               />
             </dl>
+            {salaryPreview && (
+              <>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <StatCard label="Total pendapatan" value={formatRupiah(salaryPreview.income)} icon={CircleDollarSign} tone="blue" />
+                  <StatCard label="Total potongan" value={formatRupiah(salaryPreview.deductions)} icon={CircleX} tone="amber" />
+                  <StatCard label="Gaji bersih" value={formatRupiah(salaryPreview.net)} icon={FileCheck2} tone="green" />
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Pratinjau menghitung gaji pokok, tunjangan tetap, nominal tetap, dan persentase.
+                  {salaryPreview.hasUncalculatedComponents
+                    ? ' Komponen berbasis kehadiran atau lembur dihitung setelah data periode tersedia.'
+                    : ' Komponen manual periode dihitung saat proses penggajian.'}
+                </p>
+              </>
+            )}
             <div className="mb-2 mt-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-heading">Komponen terpasang</h3>
               <Button type="button" variant="outline" size="sm" onClick={() => void openAssignment()}>

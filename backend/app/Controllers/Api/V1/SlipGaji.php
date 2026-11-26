@@ -104,20 +104,40 @@ class SlipGaji extends BaseController
             return ApiResponse::error('NOT_FOUND', 'Data penggajian tidak ditemukan', null, 404);
         }
 
-        $rows = '';
-        foreach ($detail['rincian'] as $r) {
-            $rows .= '<tr><td>' . esc($r['nama']) . '</td><td style="text-align:right">Rp ' . number_format((float) $r['jumlah'], 2, ',', '.') . '</td></tr>';
-        }
-        $html = '<html><body style="font-family:DejaVu Sans;font-size:12px">'
-            . '<h2>HADIRPAY - Slip Gaji</h2>'
+        $pendapatan = array_values(array_filter($detail['rincian'], static fn ($row) => $row['tipe'] === 'pendapatan'));
+        $potongan = array_values(array_filter($detail['rincian'], static fn ($row) => $row['tipe'] === 'potongan'));
+        $rows = static function (array $items, string $emptyLabel): string {
+            if ($items === []) {
+                return '<tr><td colspan="2">' . esc($emptyLabel) . '</td></tr>';
+            }
+
+            $html = '';
+            foreach ($items as $item) {
+                $html .= '<tr><td>' . esc($item['nama']) . '</td><td style="text-align:right">Rp '
+                    . number_format((float) $item['jumlah'], 2, ',', '.') . '</td></tr>';
+            }
+            return $html;
+        };
+        $html = '<html><body style="font-family:DejaVu Sans;font-size:12px;color:#17233b">'
+            . '<h2>HADIRPAY | Slip Gaji</h2>'
             . '<p><strong>Nomor:</strong> ' . esc($s['nomor_slip']) . '<br>'
             . '<strong>Periode:</strong> ' . esc($detail['periode']) . '<br>'
             . '<strong>Karyawan:</strong> ' . esc($detail['karyawan']['nama']) . '</p>'
-            . '<table width="100%" cellspacing="0" cellpadding="6" border="1">' . $rows
-            . '<tr><td><strong>Total Pendapatan</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['total_pendapatan'], 2, ',', '.') . '</strong></td></tr>'
-            . '<tr><td><strong>Total Potongan</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['total_potongan'], 2, ',', '.') . '</strong></td></tr>'
-            . '<tr><td><strong>Gaji Bersih</strong></td><td style="text-align:right"><strong>Rp ' . number_format($detail['gaji_bersih'], 2, ',', '.') . '</strong></td></tr>'
-            . '</table></body></html>';
+            . '<h3>Pendapatan</h3><table width="100%" cellspacing="0" cellpadding="6" border="1">'
+            . '<thead><tr><th align="left">Komponen</th><th align="right">Jumlah</th></tr></thead><tbody>'
+            . $rows($pendapatan, 'Tidak ada pendapatan tambahan.')
+            . '<tr><td><strong>Total pendapatan</strong></td><td style="text-align:right"><strong>Rp '
+            . number_format($detail['total_pendapatan'], 2, ',', '.') . '</strong></td></tr></tbody></table>'
+            . '<h3>Potongan</h3><table width="100%" cellspacing="0" cellpadding="6" border="1">'
+            . '<thead><tr><th align="left">Komponen</th><th align="right">Jumlah</th></tr></thead><tbody>'
+            . $rows($potongan, 'Tidak ada potongan.')
+            . '<tr><td><strong>Total potongan</strong></td><td style="text-align:right"><strong>Rp '
+            . number_format($detail['total_potongan'], 2, ',', '.') . '</strong></td></tr></tbody></table>'
+            . '<h3>Ringkasan kehadiran</h3><p>Hari hadir: ' . (int) $detail['kehadiran']['hadir']
+            . ' | Terlambat: ' . (int) $detail['kehadiran']['terlambat']
+            . ' | Alpha: ' . (int) $detail['kehadiran']['alpha'] . '</p>'
+            . '<p><strong>Gaji bersih: Rp ' . number_format($detail['gaji_bersih'], 2, ',', '.') . '</strong></p>'
+            . '</body></html>';
 
         $options = new Options();
         $options->set('isRemoteEnabled', false);

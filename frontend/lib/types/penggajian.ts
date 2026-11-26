@@ -41,6 +41,8 @@ export type PeriodeGaji = {
   status: StatusPeriode
   ditutup?: boolean
   jumlah_karyawan: number
+  total_pendapatan?: Uang
+  total_potongan?: Uang
   total_gaji_bersih: Uang
   dibuat_oleh?: string
 }

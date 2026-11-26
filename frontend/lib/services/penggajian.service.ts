@@ -28,6 +28,7 @@ import {
   getPayrollPeriod as getPayrollPeriodMock,
   listPayrollComponents as listPayrollComponentsMock,
   listPayrollLines as listPayrollLinesMock,
+  saveManualPayrollComponents as saveManualPayrollComponentsMock,
   savePayrollComponent as savePayrollComponentMock,
   updatePayrollStatus as updatePayrollStatusMock,
   returnPayrollPeriod as returnPayrollPeriodMock,
@@ -77,6 +78,8 @@ function toUiPeriod(period: PeriodeGaji): PayrollPeriod {
     workDays: period.hari_kerja,
     employeeCount: period.jumlah_karyawan,
     totalNetPay: period.total_gaji_bersih,
+    totalEarnings: period.total_pendapatan,
+    totalDeductions: period.total_potongan,
     status: uiPeriodStatus(period.status),
     closed: period.ditutup ?? false,
     isMock: false,
@@ -198,6 +201,8 @@ export async function listPayrollPeriods(query: PeriodeListQuery = {}): Promise<
       hari_kerja: mock.workDays,
       status: mock.status === 'Draft' ? 'draft' : mock.status === 'Menunggu validasi keuangan' ? 'menunggu_validasi' : mock.status.toLowerCase() as PeriodeGaji['status'],
       jumlah_karyawan: mock.employeeCount,
+      total_pendapatan: mock.totalEarnings ?? 0,
+      total_potongan: mock.totalDeductions ?? 0,
       total_gaji_bersih: mock.totalNetPay,
     }]
   }
@@ -387,6 +392,7 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
     const earnings = detail.rincian.filter((item) => item.tipe === 'pendapatan')
     const deductions = detail.rincian.filter((item) => item.tipe === 'potongan')
     return {
+      payrollId: Number(line.id),
       employeeId: String(detail.karyawan.id),
       employeeName: detail.karyawan.nama,
       position: detail.karyawan.jabatan,
@@ -403,8 +409,8 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
       presentDays: detail.kehadiran.hadir,
       lateCount: detail.kehadiran.terlambat,
       absenceDays: detail.kehadiran.alpha,
-      earnings: earnings.map((item) => ({ label: item.nama, amount: item.jumlah })),
-      deductions: deductions.map((item) => ({ label: item.nama, amount: item.jumlah })),
+      earnings: earnings.map((item) => ({ label: item.nama, amount: item.jumlah, code: item.kode ?? undefined })),
+      deductions: deductions.map((item) => ({ label: item.nama, amount: item.jumlah, code: item.kode ?? undefined })),
       manualComponents: detail.rincian
         .filter((item) => item.sumber === 'manual')
         .map((item) => ({
@@ -423,6 +429,26 @@ export async function listPayrollLines(query: PeriodePayrollListQuery = {}, peri
     }
   }))
   return { items, meta: requireMeta(result.meta) }
+}
+
+export async function savePayrollManualComponents(
+  periodId: string | number,
+  payrollId: string | number,
+  employeeId: string,
+  components: PayrollManualComponent[],
+): Promise<void> {
+  if (config.mock.penggajian) {
+    await saveManualPayrollComponentsMock(employeeId, components)
+    return
+  }
+  const period = parseId(String(periodId))
+  const payroll = parseId(String(payrollId))
+  await apiRequest<unknown>(`periode-gaji/${period}/penggajian/${payroll}/komponen-manual`, {
+    method: 'PUT',
+    body: {
+      komponen: components.map(({ jenis, jumlah, catatan }) => ({ jenis, jumlah, catatan })),
+    },
+  })
 }
 
 export async function listPayslips(query: SlipListQuery = {}): Promise<PayrollPage<SlipGajiItem>> {

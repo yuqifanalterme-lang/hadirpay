@@ -208,10 +208,11 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             'tanggal_tutup' => '2026-11-30',
         ]);
         $this->db->table('penggajian')->insert([
-            'id'              => 2,
-            'periode_gaji_id' => 2,
-            'karyawan_id'     => 1,
-            'gaji_bersih'     => '100.00',
+            'id'                => 2,
+            'periode_gaji_id'   => 2,
+            'karyawan_id'       => 1,
+            'total_pendapatan'  => '155.00',
+            'gaji_bersih'       => '100.00',
         ]);
         $this->db->table('komponen_gaji')->insertBatch([
             ['id' => 2, 'kode' => 'PPH21'],
@@ -226,9 +227,9 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             ['id' => 6, 'kode' => '2-1500', 'nama' => 'Utang Potongan Karyawan', 'saldo_normal' => 'kredit', 'aktif' => 1],
         ]);
         $this->db->table('detail_penggajian')->insertBatch([
-            ['id' => 2, 'penggajian_id' => 2, 'komponen_id' => 2, 'tipe' => 'potongan', 'jumlah' => '10.00'],
-            ['id' => 3, 'penggajian_id' => 2, 'komponen_id' => 3, 'tipe' => 'potongan', 'jumlah' => '5.00'],
-            ['id' => 4, 'penggajian_id' => 2, 'komponen_id' => 4, 'tipe' => 'potongan', 'jumlah' => '40.00'],
+            ['id' => 2, 'penggajian_id' => 2, 'komponen_id' => 2, 'kode' => 'PPH21', 'sumber' => 'otomatis', 'tipe' => 'potongan', 'jumlah' => '10.00'],
+            ['id' => 3, 'penggajian_id' => 2, 'komponen_id' => 3, 'kode' => 'BPJS', 'sumber' => 'otomatis', 'tipe' => 'potongan', 'jumlah' => '5.00'],
+            ['id' => 4, 'penggajian_id' => 2, 'komponen_id' => 4, 'kode' => 'POT-LEMBUR', 'sumber' => 'otomatis', 'tipe' => 'potongan', 'jumlah' => '40.00'],
         ]);
 
         $journalId = AccountingService::jurnalPengakuan(
@@ -302,8 +303,8 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             'periode_gaji' => 'id INTEGER PRIMARY KEY, dibuat_oleh INTEGER, jurnal_pengakuan_id INTEGER, jurnal_pembayaran_id INTEGER, periode VARCHAR(7), tanggal_tutup DATE, FOREIGN KEY (dibuat_oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id), FOREIGN KEY (jurnal_pengakuan_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT, FOREIGN KEY (jurnal_pembayaran_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT',
             'jurnal' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, nomor_bukti VARCHAR(30), tanggal DATE, keterangan VARCHAR(255), sumber VARCHAR(20), jenis VARCHAR(30), status VARCHAR(20), reversal_of INTEGER, periode_gaji_id INTEGER, total_debit DECIMAL(15,2), total_kredit DECIMAL(15,2), dibuat_oleh INTEGER, created_at DATETIME, updated_at DATETIME, FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE RESTRICT, FOREIGN KEY (reversal_of) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE RESTRICT',
             'periode_status_log' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, oleh INTEGER, FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id) ON DELETE RESTRICT',
-            'penggajian' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, karyawan_id INTEGER, gaji_bersih DECIMAL(15,2), FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT',
-            'detail_penggajian' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, komponen_id INTEGER, tipe VARCHAR(20), jumlah DECIMAL(15,2), FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE CASCADE, FOREIGN KEY (komponen_id) REFERENCES ' . $this->db->prefixTable('komponen_gaji') . '(id) ON DELETE RESTRICT',
+            'penggajian' => 'id INTEGER PRIMARY KEY, periode_gaji_id INTEGER, karyawan_id INTEGER, total_pendapatan DECIMAL(15,2), gaji_bersih DECIMAL(15,2), FOREIGN KEY (periode_gaji_id) REFERENCES ' . $this->db->prefixTable('periode_gaji') . '(id) ON DELETE CASCADE, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT',
+            'detail_penggajian' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, komponen_id INTEGER, kode VARCHAR(50), sumber VARCHAR(20), tipe VARCHAR(20), jumlah DECIMAL(15,2), FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE CASCADE, FOREIGN KEY (komponen_id) REFERENCES ' . $this->db->prefixTable('komponen_gaji') . '(id) ON DELETE RESTRICT',
             'slip_gaji' => 'id INTEGER PRIMARY KEY, penggajian_id INTEGER, FOREIGN KEY (penggajian_id) REFERENCES ' . $this->db->prefixTable('penggajian') . '(id) ON DELETE RESTRICT',
             'detail_jurnal' => 'id INTEGER PRIMARY KEY AUTOINCREMENT, jurnal_id INTEGER, akun_id INTEGER, debit DECIMAL(15,2), kredit DECIMAL(15,2), urutan INTEGER, FOREIGN KEY (jurnal_id) REFERENCES ' . $this->db->prefixTable('jurnal') . '(id) ON DELETE CASCADE, FOREIGN KEY (akun_id) REFERENCES ' . $this->db->prefixTable('akun') . '(id) ON DELETE RESTRICT',
             'pengajuan_izin' => 'id INTEGER PRIMARY KEY, karyawan_id INTEGER, diproses_oleh INTEGER, FOREIGN KEY (karyawan_id) REFERENCES ' . $this->db->prefixTable('karyawan') . '(id) ON DELETE RESTRICT, FOREIGN KEY (diproses_oleh) REFERENCES ' . $this->db->prefixTable('users') . '(id) ON DELETE RESTRICT',

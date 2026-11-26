@@ -515,9 +515,10 @@ class PayrollService
     public function simpanKomponenManual(int $penggajianId, array $items): void
     {
         $db = db_connect();
+        $lock = in_array($db->DBDriver, ['MySQLi', 'Postgre'], true) ? ' FOR UPDATE' : '';
         $row = $db->query(
-            'SELECT g.*, p.status AS periode_status FROM penggajian g '
-            . 'JOIN periode_gaji p ON p.id = g.periode_gaji_id WHERE g.id = ? FOR UPDATE',
+            'SELECT g.*, p.status AS periode_status FROM ' . $db->prefixTable('penggajian') . ' g '
+            . 'JOIN ' . $db->prefixTable('periode_gaji') . ' p ON p.id = g.periode_gaji_id WHERE g.id = ?' . $lock,
             [$penggajianId]
         )->getRowArray();
         if (! $row) {

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, BadgeCheck, CalendarDays, Clock3, FileCheck2, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BadgeCheck, CalendarDays, Clock3, FileCheck2, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/hadirpay/panel'
 import { StatCard } from '@/components/hadirpay/stat-card'
@@ -15,6 +15,7 @@ import { PageLoadingSkeleton } from '@/components/ui/page-loading-skeleton'
 import { ROLE_STORAGE_KEY, type Role } from '@/lib/navigation'
 import { formatRupiah } from '@/lib/mock-data'
 import { payrollPeriodId, type PayrollLine, type PayrollPeriod } from '@/lib/mock/payroll'
+import type { PayrollManualComponent, PayrollManualComponentKind } from '@/lib/mock/payroll'
 import { config } from '@/lib/config'
 import { listPayrollCashAccounts } from '@/lib/services/akuntansi.service'
 import {
@@ -26,6 +27,7 @@ import {
   listPayrollLines,
   listPayrollPeriods,
   returnPayrollPeriod,
+  savePayrollManualComponents,
   updatePayrollStatus,
 } from '@/lib/services/penggajian.service'
 import type { PeriodeBayarRequest, PeriodeGaji, PeriodeRekapAbsensi } from '@/lib/types/penggajian'
@@ -34,6 +36,270 @@ import type { Akun } from '@/lib/types/akuntansi'
 const payrollPageSize = 10
 const steps = ['Pilih periode', 'Tinjau absensi', 'Hasil perhitungan', 'Persetujuan']
 type PayrollAction = 'submit' | 'approve' | 'pay'
+type DeductionRecap = {
+  alpa: number
+  terlambat: number
+  bpjs: number
+  pph21: number
+  lainnya: number
+  total: number
+}
+type PayrollSummary = {
+  totalEarnings: number
+  totalDeductions: number
+  netPay: number
+  deductions: DeductionRecap
+}
+type EditableManualComponent = PayrollManualComponent & { id: number }
+
+const manualComponentOptions: { value: PayrollManualComponentKind; label: string }[] = [
+  { value: 'lembur', label: 'Pendapatan lembur' },
+  { value: 'potongan_lain', label: 'Potongan lainnya' },
+  { value: 'penyesuaian_pendapatan', label: 'Penyesuaian pendapatan' },
+  { value: 'penyesuaian_potongan', label: 'Penyesuaian potongan' },
+]
+
+function summarizePayrollLines(lines: PayrollLine[]): PayrollSummary {
+  const deductions: DeductionRecap = { alpa: 0, terlambat: 0, bpjs: 0, pph21: 0, lainnya: 0, total: 0 }
+  let totalEarnings = 0
+  let totalDeductions = 0
+  let netPay = 0
+
+  for (const line of lines.filter((item) => !item.isAggregate)) {
+    totalEarnings += line.totalEarnings ?? line.earnings.reduce((sum, item) => sum + item.amount, 0)
+    totalDeductions += line.totalDeductions
+    netPay += line.netPay
+    for (const item of line.deductions) {
+      const label = item.label.toLowerCase()
+      const key = item.code === 'POT-ALPHA' || label.includes('alpha') || label.includes('alpa')
+        ? 'alpa'
+        : item.code === 'POT-TELAT' || label.includes('terlambat') || label.includes('keterlambatan')
+          ? 'terlambat'
+          : item.code === 'BPJS' || label.includes('bpjs')
+            ? 'bpjs'
+            : item.code === 'PPH21' || label.includes('pph 21') || label.includes('pph21')
+              ? 'pph21'
+              : 'lainnya'
+      deductions[key] += item.amount
+    }
+  }
+
+  for (const key of ['alpa', 'terlambat', 'bpjs', 'pph21', 'lainnya'] as const) {
+    deductions[key] = Math.round(deductions[key] * 100) / 100
+  }
+  deductions.total = Math.round(
+    (deductions.alpa + deductions.terlambat + deductions.bpjs + deductions.pph21 + deductions.lainnya) * 100,
+  ) / 100
+
+  return {
+    totalEarnings: Math.round(totalEarnings * 100) / 100,
+    totalDeductions: Math.round(totalDeductions * 100) / 100,
+    netPay: Math.round(netPay * 100) / 100,
+    deductions,
+  }
+}
+
+function PayrollSummaryCard({ summary }: { summary: PayrollSummary }) {
+  return (
+    <Panel title="Rekapan Total Potongan" description="Rincian potongan periode, total pendapatan, dan gaji bersih.">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-border p-4">
+          <p className="text-sm text-muted-foreground">Total pendapatan</p>
+          <p className="mt-1 break-words font-bold tabular-nums text-heading">{formatRupiah(summary.totalEarnings)}</p>
+        </div>
+        <div className="rounded-xl border border-border p-4">
+          <p className="text-sm text-muted-foreground">Total potongan</p>
+          <p className="mt-1 break-words font-bold tabular-nums text-heading">{formatRupiah(summary.deductions.total)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <p className="text-sm text-muted-foreground">Gaji bersih</p>
+          <p className="mt-1 break-words font-bold tabular-nums text-heading">{formatRupiah(summary.netPay)}</p>
+        </div>
+      </div>
+      <dl className="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-3">
+        {([
+          ['Alpa', summary.deductions.alpa],
+          ['Terlambat', summary.deductions.terlambat],
+          ['BPJS', summary.deductions.bpjs],
+          ['PPh 21', summary.deductions.pph21],
+          ['Lainnya', summary.deductions.lainnya],
+          ['Total potongan', summary.deductions.total],
+        ] as const).map(([label, amount]) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <dt className={label === 'Total potongan' ? 'font-semibold text-heading' : 'text-sm text-muted-foreground'}>{label}</dt>
+            <dd className={`text-right tabular-nums ${label === 'Total potongan' ? 'font-bold text-heading' : 'font-medium'}`}>{formatRupiah(amount)}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  )
+}
+
+function PayrollLineBreakdown({ line }: { line: PayrollLine }) {
+  if (line.isAggregate) return null
+  return (
+    <details className="mt-2 text-sm">
+      <summary className="min-h-11 cursor-pointer py-2 font-semibold text-primary">Lihat rincian komponen</summary>
+      <div className="grid gap-4 border-t border-border pt-3 sm:grid-cols-2">
+        <section>
+          <h4 className="mb-2 font-semibold text-heading">Pendapatan</h4>
+          <dl className="flex flex-col gap-2">
+            {line.earnings.map((item, index) => (
+              <div key={`${item.code ?? item.label}-${index}`} className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">{item.label}</dt>
+                <dd className="text-right tabular-nums">{formatRupiah(item.amount)}</dd>
+              </div>
+            ))}
+            <div className="flex justify-between gap-3 border-t border-border pt-2 font-semibold text-heading">
+              <dt>Total pendapatan</dt><dd className="text-right tabular-nums">{formatRupiah(line.totalEarnings ?? line.netPay + line.totalDeductions)}</dd>
+            </div>
+          </dl>
+        </section>
+        <section>
+          <h4 className="mb-2 font-semibold text-heading">Potongan</h4>
+          <dl className="flex flex-col gap-2">
+            {line.deductions.length ? line.deductions.map((item, index) => (
+              <div key={`${item.code ?? item.label}-${index}`} className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">{item.label}</dt>
+                <dd className="text-right tabular-nums">{formatRupiah(item.amount)}</dd>
+              </div>
+            )) : <p className="text-muted-foreground">Tidak ada potongan pada rincian ini.</p>}
+            <div className="flex justify-between gap-3 border-t border-border pt-2 font-semibold text-heading">
+              <dt>Total potongan</dt><dd className="text-right tabular-nums">{formatRupiah(line.totalDeductions)}</dd>
+            </div>
+          </dl>
+        </section>
+        <dl className="grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs text-muted-foreground sm:col-span-2 sm:grid-cols-3">
+          <div><dt>Hari hadir</dt><dd className="font-semibold text-heading">{line.presentDays}</dd></div>
+          <div><dt>Terlambat</dt><dd className="font-semibold text-heading">{line.lateCount} kali</dd></div>
+          <div><dt>Alpha</dt><dd className="font-semibold text-heading">{line.absenceDays} hari</dd></div>
+        </dl>
+      </div>
+    </details>
+  )
+}
+
+function PayrollManualComponentsDrawer({
+  line,
+  periodLabel,
+  open,
+  busy,
+  onClose,
+  onSave,
+}: {
+  line: PayrollLine | null
+  periodLabel: string
+  open: boolean
+  busy: boolean
+  onClose: () => void
+  onSave: (components: PayrollManualComponent[]) => Promise<void>
+}) {
+  const [components, setComponents] = useState<EditableManualComponent[]>([])
+  const nextId = useRef(0)
+
+  useEffect(() => {
+    nextId.current = 0
+    setComponents((line?.manualComponents ?? []).map((component) => ({
+      ...component,
+      id: nextId.current++,
+    })))
+  }, [line, open])
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await onSave(components.map(({ jenis, jumlah, catatan }) => ({ jenis, jumlah, catatan })))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => !value && onClose()} label="Atur komponen manual" size="drawer">
+      <form onSubmit={(event) => void submit(event)}>
+        <DialogHeader
+          title="Atur komponen"
+          description={`${line?.employeeName ?? 'Karyawan'} · ${periodLabel}`}
+          onClose={onClose}
+        />
+        <div className="flex flex-col gap-4 p-5 sm:p-6">
+          <p className="text-sm text-muted-foreground">Komponen hanya dapat diubah saat status periode Draf. Catatan wajib diisi untuk setiap baris.</p>
+          {components.length === 0 && (
+            <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground">
+              Belum ada komponen manual. Tambahkan pendapatan lembur atau potongan/penyesuaian bila diperlukan.
+            </p>
+          )}
+          {components.map((component, index) => (
+            <fieldset key={component.id} className="flex flex-col gap-3 rounded-xl border border-border p-4">
+              <legend className="px-1 text-sm font-semibold text-heading">Komponen {index + 1}</legend>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Jenis komponen
+                <select
+                  required
+                  value={component.jenis}
+                  onChange={(event) => setComponents((current) => current.map((item) => item.id === component.id
+                    ? { ...item, jenis: event.target.value as PayrollManualComponentKind }
+                    : item))}
+                  className="min-h-12 rounded-xl border border-border bg-white px-3"
+                >
+                  {manualComponentOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Jumlah (Rp)
+                <input
+                  required
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={component.jumlah || ''}
+                  onChange={(event) => setComponents((current) => current.map((item) => item.id === component.id
+                    ? { ...item, jumlah: Number(event.target.value) }
+                    : item))}
+                  className="min-h-12 rounded-xl border border-border bg-white px-3"
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-semibold text-heading">
+                Catatan
+                <input
+                  required
+                  maxLength={150}
+                  value={component.catatan}
+                  onChange={(event) => setComponents((current) => current.map((item) => item.id === component.id
+                    ? { ...item, catatan: event.target.value }
+                    : item))}
+                  className="min-h-12 rounded-xl border border-border bg-white px-3"
+                  placeholder="Alasan penyesuaian"
+                />
+              </label>
+              <Button type="button" variant="dangerOutline" size="action" disabled={busy} onClick={() => setComponents((current) => current.filter((item) => item.id !== component.id))}>
+                <Trash2 aria-hidden="true" />
+                Hapus komponen
+              </Button>
+            </fieldset>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="action"
+            disabled={busy}
+            onClick={() => setComponents((current) => [...current, {
+              id: nextId.current++,
+              jenis: 'lembur',
+              jumlah: 0,
+              catatan: '',
+            }])}
+          >
+            <Plus aria-hidden="true" />
+            Tambah komponen
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" size="action" disabled={busy} onClick={onClose}>Batal</Button>
+          <Button type="submit" variant="primary" size="action" disabled={busy}>
+            {busy ? 'Menyimpan…' : 'Simpan komponen'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
+  )
+}
 
 function actionLabel(action: PayrollAction) {
   if (action === 'submit') return 'Kirim ke validasi keuangan'
@@ -61,6 +327,15 @@ function DemoPayrollProcessPage() {
   const [error, setError] = useState('')
   const [pendingAction, setPendingAction] = useState<PayrollAction | null>(null)
   const [busy, setBusy] = useState(false)
+  const [editingLine, setEditingLine] = useState<PayrollLine | null>(null)
+  const detailedLines = lines.filter((line) => !line.isAggregate)
+  const totals = useMemo(() => ({
+    net: period?.totalNetPay ?? 0,
+    summary: summarizePayrollLines(detailedLines),
+    late: detailedLines.reduce((sum, line) => sum + line.lateCount, 0),
+    absent: detailedLines.reduce((sum, line) => sum + line.absenceDays, 0),
+    present: detailedLines.reduce((sum, line) => sum + line.presentDays, 0),
+  }), [lines, period?.totalNetPay])
 
   async function load() {
     setLoading(true)
@@ -88,13 +363,20 @@ function DemoPayrollProcessPage() {
 
   if (!config.mock.penggajian) return <LivePayrollProcessPage />
 
-  const detailedLines = lines.filter((line) => !line.isAggregate)
-  const totals = useMemo(() => ({
-    net: period?.totalNetPay ?? 0,
-    late: detailedLines.reduce((sum, line) => sum + line.lateCount, 0),
-    absent: detailedLines.reduce((sum, line) => sum + line.absenceDays, 0),
-    present: detailedLines.reduce((sum, line) => sum + line.presentDays, 0),
-  }), [lines])
+  async function handleManualComponentsSave(components: PayrollManualComponent[]) {
+    if (!role || role !== 'admin' || period?.status !== 'Draft' || !editingLine) return
+    setBusy(true)
+    try {
+      await savePayrollManualComponents(period.id, editingLine.payrollId ?? editingLine.employeeId, editingLine.employeeId, components)
+      await load()
+      setEditingLine(null)
+      toast.success('Komponen manual berhasil disimpan.')
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : 'Komponen manual gagal disimpan.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handleAction() {
     if (!role || !pendingAction) return
@@ -143,6 +425,7 @@ function DemoPayrollProcessPage() {
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
+    const [editingLine, setEditingLine] = useState<PayrollLine | null>(null)
 
     async function loadSelected(id: string) {
       const [nextDetail, nextAttendance] = await Promise.all([
@@ -266,6 +549,24 @@ function DemoPayrollProcessPage() {
       }
     }
 
+    async function handleManualComponentsSave(components: PayrollManualComponent[]) {
+      if (role !== 'admin' || !selectedId || !editingLine?.payrollId) {
+        toast.error('Komponen manual hanya dapat disimpan oleh Admin pada periode Draf.')
+        return
+      }
+      setBusy(true)
+      try {
+        await savePayrollManualComponents(selectedId, editingLine.payrollId, editingLine.employeeId, components)
+        await loadSelected(selectedId)
+        setEditingLine(null)
+        toast.success('Komponen manual berhasil disimpan.')
+      } catch (saveError) {
+        toast.error(saveError instanceof Error ? saveError.message : 'Komponen manual gagal disimpan.')
+      } finally {
+        setBusy(false)
+      }
+    }
+
     async function handleTransition(action: PayrollAction) {
       if (!role || !selectedId) return
       setBusy(true)
@@ -309,6 +610,7 @@ function DemoPayrollProcessPage() {
     const canReview = role === 'keuangan' && selected?.status === 'menunggu_validasi'
     const canPay = role === 'keuangan' && selected?.status === 'disetujui'
     const canCalculate = role === 'admin' && selected?.status === 'draft'
+    const canEditManual = role === 'admin' && selected?.status === 'draft'
     const fieldClass = 'min-h-12 rounded-xl border border-border bg-white px-3 text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
     return (
@@ -429,6 +731,14 @@ function DemoPayrollProcessPage() {
                 />
               </div>
             )}
+            {detail && detail.ringkasan.jumlah_karyawan > 0 && (
+              <PayrollSummaryCard summary={{
+                totalEarnings: detail.ringkasan.total_pendapatan,
+                totalDeductions: detail.ringkasan.total_potongan,
+                netPay: detail.ringkasan.total_gaji_bersih,
+                deductions: detail.ringkasan.rekap_potongan,
+              }} />
+            )}
             {!canCalculate && lines.length === 0 && (
               <p className="text-sm text-muted-foreground">Belum ada hasil perhitungan untuk periode ini. HRD perlu menghitung dan mengajukan periode terlebih dahulu.</p>
             )}
@@ -436,7 +746,7 @@ function DemoPayrollProcessPage() {
               <div className="no-scrollbar overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[680px] border-collapse text-left text-sm">
                   <thead className="bg-surface text-xs font-semibold uppercase text-muted-foreground"><tr><th scope="col" className="px-3 py-3">Karyawan</th><th scope="col" className="px-3 py-3 text-right">Pendapatan</th><th scope="col" className="px-3 py-3 text-right">Potongan</th><th scope="col" className="px-3 py-3 text-right">Gaji bersih</th></tr></thead>
-                  <tbody className="divide-y divide-border">{lines.map((line) => <tr key={line.employeeId}><td className="px-3 py-3 font-semibold text-heading">{line.employeeName}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalEarnings ?? line.netPay)}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalDeductions)}</td><td className="px-3 py-3 text-right font-bold tabular-nums">{formatRupiah(line.netPay)}</td></tr>)}</tbody>
+                  <tbody className="divide-y divide-border">{lines.map((line) => <tr key={line.employeeId}><td className="px-3 py-3"><p className="font-semibold text-heading">{line.employeeName}</p><PayrollLineBreakdown line={line} />{canEditManual && !line.isAggregate && <Button type="button" variant="outline" size="action" className="mt-2" onClick={() => setEditingLine(line)}>Atur komponen</Button>}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalEarnings ?? line.netPay + line.totalDeductions)}</td><td className="px-3 py-3 text-right tabular-nums">{formatRupiah(line.totalDeductions)}</td><td className="px-3 py-3 text-right font-bold tabular-nums">{formatRupiah(line.netPay)}</td></tr>)}</tbody>
                 </table>
               </div>
             )}
@@ -489,6 +799,14 @@ function DemoPayrollProcessPage() {
           <Button type="button" variant="outline" size="action" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}><ArrowLeft aria-hidden="true" />Langkah sebelumnya</Button>
           {step < steps.length - 1 && <Button type="button" variant="primary" size="action" onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>Langkah berikutnya<ArrowRight aria-hidden="true" /></Button>}
         </div>
+        <PayrollManualComponentsDrawer
+          line={editingLine}
+          periodLabel={selected?.label ?? selected?.periode ?? ''}
+          open={editingLine !== null}
+          busy={busy}
+          onClose={() => setEditingLine(null)}
+          onSave={handleManualComponentsSave}
+        />
       </div>
     )
   }
@@ -605,7 +923,9 @@ function DemoPayrollProcessPage() {
       )}
 
       {step === 2 && (
-        <Panel title="Hasil perhitungan" description={`Rumus gaji bersih: gaji pokok + tunjangan - total potongan. Total periode ${formatRupiah(totals.net)}.`}>
+      <div className="flex flex-col gap-5">
+      <PayrollSummaryCard summary={totals.summary} />
+      <Panel title="Hasil perhitungan" description={`Rumus gaji bersih: gaji pokok + tunjangan - total potongan. Total periode ${formatRupiah(totals.net)}.`}>
           <div className="no-scrollbar hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full min-w-[980px] border-collapse text-left text-sm">
               <caption className="sr-only">Hasil perhitungan gaji periode {period.period}</caption>
@@ -623,6 +943,12 @@ function DemoPayrollProcessPage() {
                   <tr key={line.employeeId} className="hover:bg-surface/70">
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-3"><Avatar initials={line.initials} tone={line.isAggregate ? 'muted' : 'outlined'} /><div><p className="font-semibold text-heading">{line.employeeName}</p><p className="text-xs text-muted-foreground">{line.department}</p></div></div>
+                      <PayrollLineBreakdown line={line} />
+                      {role === 'admin' && period.status === 'Draft' && !line.isAggregate && (
+                        <Button type="button" variant="outline" size="action" className="mt-2" onClick={() => setEditingLine(line)}>
+                          Atur komponen
+                        </Button>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.baseSalary)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{line.isAggregate ? 'Agregat' : formatRupiah(line.fixedAllowance)}</td>
@@ -646,10 +972,17 @@ function DemoPayrollProcessPage() {
                   <dt className="text-muted-foreground">Potongan</dt><dd className="text-right">{line.isAggregate ? 'Agregat' : formatRupiah(line.totalDeductions)}</dd>
                   <dt className="font-semibold text-heading">Gaji bersih</dt><dd className="text-right font-bold">{formatRupiah(line.netPay)}</dd>
                 </dl>
+                <PayrollLineBreakdown line={line} />
+                {role === 'admin' && period.status === 'Draft' && !line.isAggregate && (
+                  <Button type="button" variant="outline" size="action" className="mt-3" onClick={() => setEditingLine(line)}>
+                    Atur komponen
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
         </Panel>
+        </div>
       )}
 
       {step === 3 && (
@@ -704,6 +1037,14 @@ function DemoPayrollProcessPage() {
           </Button>
         </DialogFooter>
       </Dialog>
+      <PayrollManualComponentsDrawer
+        line={editingLine}
+        periodLabel={period.period}
+        open={editingLine !== null}
+        busy={busy}
+        onClose={() => setEditingLine(null)}
+        onSave={handleManualComponentsSave}
+      />
     </div>
   )
 }

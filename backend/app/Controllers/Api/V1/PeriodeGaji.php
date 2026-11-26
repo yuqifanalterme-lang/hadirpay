@@ -461,16 +461,17 @@ class PeriodeGaji extends BaseController
             ->get()->getRowArray();
 
         $potonganRows = $db->table('detail_penggajian dp')
-            ->select('COALESCE(NULLIF(dp.kode, \'\'), kg.kode) AS kode, SUM(dp.jumlah) AS total', false)
+            ->select('dp.kode, kg.kode AS master_kode, SUM(dp.jumlah) AS total', false)
             ->join('penggajian g', 'g.id = dp.penggajian_id')
             ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
             ->where('g.periode_gaji_id', $id)
             ->where('dp.tipe', 'potongan')
-            ->groupBy('kode')
+            ->groupBy(['dp.kode', 'kg.kode'])
             ->get()->getResultArray();
         $rekapPotongan = ['alpa' => 0.0, 'terlambat' => 0.0, 'bpjs' => 0.0, 'pph21' => 0.0, 'lainnya' => 0.0];
         foreach ($potonganRows as $row) {
-            $key = match ($row['kode']) {
+            $kode = $row['kode'] ?: $row['master_kode'];
+            $key = match ($kode) {
                 'POT-ALPHA' => 'alpa',
                 'POT-TELAT' => 'terlambat',
                 'BPJS' => 'bpjs',
