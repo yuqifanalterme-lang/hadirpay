@@ -199,7 +199,6 @@ class Karyawan extends BaseController
                 'updated_at'    => $now,
             ]);
             $this->syncPph21($db, (int) $id, (float) ($input['pph21'] ?? 0), $now);
-            $this->syncBpjs($db, (int) $id, $now);
             $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
@@ -251,6 +250,56 @@ class Karyawan extends BaseController
         }
 
         $db = db_connect();
+        $komponenUpdates = [];
+        if (array_key_exists('komponen_gaji', $input)) {
+            if (! is_array($input['komponen_gaji'])) {
+                return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
+                    'komponen_gaji' => 'Daftar komponen harus berupa array',
+                ], 422);
+            }
+            $seen = [];
+            foreach ($input['komponen_gaji'] as $item) {
+                if (! is_array($item)
+                    || ! isset($item['komponen_id'])
+                    || ! is_numeric($item['komponen_id'])
+                    || (int) $item['komponen_id'] < 1
+                    || ! array_key_exists('nilai', $item)
+                    || ! is_numeric($item['nilai'])
+                    || (float) $item['nilai'] < 0
+                ) {
+                    return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
+                        'komponen_gaji' => 'Setiap komponen harus memiliki ID dan nilai nol atau lebih',
+                    ], 422);
+                }
+
+                $komponenId = (int) $item['komponen_id'];
+                if (isset($seen[$komponenId])) {
+                    return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
+                        'komponen_gaji' => 'Komponen yang sama tidak boleh dikirim lebih dari sekali',
+                    ], 422);
+                }
+                $seen[$komponenId] = true;
+
+                $assignment = $db->table('karyawan_komponen kk')
+                    ->select('kk.id, kg.metode')
+                    ->join('komponen_gaji kg', 'kg.id = kk.komponen_id')
+                    ->where('kk.karyawan_id', (int) $id)
+                    ->where('kk.komponen_id', $komponenId)
+                    ->get()->getRowArray();
+                if (! $assignment) {
+                    return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
+                        'komponen_gaji' => 'Komponen tidak terpasang pada karyawan ini',
+                    ], 422);
+                }
+                if ($assignment['metode'] === 'persen' && (float) $item['nilai'] > 100) {
+                    return ApiResponse::error('VALIDATION_ERROR', 'Data komponen tidak valid', [
+                        'komponen_gaji' => 'Nilai persentase tidak boleh lebih dari 100',
+                    ], 422);
+                }
+                $komponenUpdates[] = ['id' => (int) $assignment['id'], 'nilai' => $item['nilai']];
+            }
+        }
+
         $db->transBegin();
         try {
             $this->model->update($id, $data);
@@ -270,6 +319,12 @@ class Karyawan extends BaseController
             $db->table('users')->where('karyawan_id', (int) $id)->update($akun);
             if (array_key_exists('pph21', $input)) {
                 $this->syncPph21($db, (int) $id, (float) $input['pph21'], date('Y-m-d H:i:s'));
+            }
+            foreach ($komponenUpdates as $komponenUpdate) {
+                $db->table('karyawan_komponen')->where('id', $komponenUpdate['id'])->update([
+                    'nilai' => $komponenUpdate['nilai'],
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
             }
 
             $db->transCommit();
@@ -503,22 +558,6 @@ class Karyawan extends BaseController
             'nilai' => $nilai,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
-    }
-
-    private function syncBpjs($db, int $karyawanId, string $now): void
-    {
-        $komponen = $db->table('komponen_gaji')->where('kode', 'BPJS')->get()->getRowArray();
-        if (! $komponen || $komponen['metode'] !== 'persen' || $komponen['nilai'] === null) {
-            throw new \RuntimeException('Komponen BPJS persen belum tersedia.');
-        }
-
-        $db->table('karyawan_komponen')->insert([
-            'karyawan_id' => $karyawanId,
-            'komponen_id' => (int) $komponen['id'],
-            'nilai'       => (float) $komponen['nilai'],
-            'created_at'  => $now,
-            'updated_at'  => $now,
         ]);
     }
 

@@ -31,7 +31,7 @@ class KaryawanKomponen extends BaseController
         return ApiResponse::success(array_map([KaryawanKomponenModel::class, 'format'], $rows));
     }
 
-    // POST /api/v1/karyawan/(:num)/komponen   body: {komponen_id, nilai?}
+    // POST /api/v1/karyawan/(:num)/komponen   body: {komponen_id, nilai}
     public function create($karyawanId = null)
     {
         if (! $this->karyawanAda($karyawanId)) {
@@ -43,13 +43,17 @@ class KaryawanKomponen extends BaseController
         $validation = service('validation');
         $validation->setRules([
             'komponen_id' => 'required|is_natural_no_zero|is_not_unique[komponen_gaji.id]',
-            'nilai'       => 'permit_empty|numeric|greater_than_equal_to[0]',
+            'nilai'       => 'required|numeric|greater_than_equal_to[0]',
         ], [
             'komponen_id' => [
                 'required'      => 'Komponen wajib dipilih',
                 'is_not_unique' => 'Komponen tidak ditemukan',
             ],
-            'nilai' => ['numeric' => 'Nilai harus berupa angka', 'greater_than_equal_to' => 'Nilai tidak boleh negatif'],
+            'nilai' => [
+                'required' => 'Nilai komponen wajib diisi manual',
+                'numeric' => 'Nilai harus berupa angka',
+                'greater_than_equal_to' => 'Nilai tidak boleh negatif',
+            ],
         ]);
         if (! $validation->run($input)) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', $validation->getErrors(), 422);
@@ -60,17 +64,9 @@ class KaryawanKomponen extends BaseController
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['komponen_id' => 'Komponen ini sedang nonaktif'], 422);
         }
 
-        $nilai = (isset($input['nilai']) && $input['nilai'] !== '') ? $input['nilai'] : $komp['nilai'];
-        if ($nilai === null) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', [
-                'nilai' => 'Nilai wajib diisi karena komponen ini tidak punya nilai default',
-            ], 422);
-        }
+        $nilai = $input['nilai'];
         if ($komp['metode'] === 'persen' && (float) $nilai > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
-        }
-        if ($komp['kode'] === 'BPJS' && (float) $nilai !== (float) $komp['nilai']) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Nilai BPJS mengikuti persentase pada komponen master'], 422);
         }
 
         $sudah = $this->model
@@ -119,10 +115,6 @@ class KaryawanKomponen extends BaseController
         if ($row['metode'] === 'persen' && (float) $input['nilai'] > 100) {
             return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Persen tidak boleh lebih dari 100'], 422);
         }
-        if ($row['kode'] === 'BPJS' && (float) $input['nilai'] !== (float) $row['nilai_default']) {
-            return ApiResponse::error('VALIDATION_ERROR', 'Data tidak valid', ['nilai' => 'Nilai BPJS mengikuti persentase pada komponen master'], 422);
-        }
-
         $this->model->update($row['id'], ['nilai' => $input['nilai']]);
 
         $baru = $this->model->denganKomponen()->where('karyawan_komponen.id', $row['id'])->first();
@@ -137,10 +129,6 @@ class KaryawanKomponen extends BaseController
         if (! $row) {
             return ApiResponse::error('NOT_FOUND', 'Komponen karyawan tidak ditemukan', null, 404);
         }
-        if ($row['kode'] === 'BPJS') {
-            return ApiResponse::error('CONFLICT', 'Komponen BPJS otomatis terpasang pada karyawan', null, 409);
-        }
-
         $this->model->delete($row['id']);
         return ApiResponse::success(null, 'Komponen dilepas dari karyawan');
     }

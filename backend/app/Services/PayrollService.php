@@ -9,12 +9,12 @@ namespace App\Services;
  *  - Hari kerja = jadwal_kerja default dikurangi hari_libur.
  *  - Karyawan "bulanan": gaji pokok penuh (prorata kalau mulai kerja di tengah periode);
  *    potongan alpha = jumlah alpha x (gaji pokok / hari kerja periode), kecuali POT-ALPHA punya nilai sendiri.
- *  - Karyawan "harian": gaji_pokok = upah PER HARI, dibayar untuk hari hadir, terlambat, dinas luar, dan cuti.
+ *  - Karyawan "harian": gaji_pokok = upah PER HARI, dibayar untuk hari hadir, terlambat, dan dinas luar.
  *  - Izin dan sakit tidak memotong gaji bulanan.
  *  - Hari tanpa absensi baru dihitung alpha untuk tanggal SEBELUM hari ini.
- *  - POT-TELAT dan POT-ALPHA berlaku otomatis ke semua karyawan (nilai bisa di-override lewat karyawan_komponen).
+ *  - Nilai POT-TELAT harus diatur pada komponen karyawan; POT-ALPHA memotong alpha dengan tarif harian dasar bila belum diatur.
  *  - Komponen lain hanya berlaku bila dipasang di karyawan_komponen. Persen dihitung dari gaji pokok.
- *  - Gaji bersih tidak boleh minus (minimal 0).
+ *  - Total potongan tidak boleh melebihi pendapatan agar hasil payroll tetap seimbang.
  */
 class PayrollService
 {
@@ -109,7 +109,13 @@ class PayrollService
         $izin = [];
         $rows = $db->table('pengajuan_izin')
             ->whereIn('jenis', ['izin', 'sakit', 'cuti'])
-            ->where('status', 'disetujui')
+            ->groupStart()
+                ->where('status', 'disetujui')
+                ->orGroupStart()
+                    ->where('status', 'menunggu')
+                    ->where('jenis', 'cuti')
+                ->groupEnd()
+            ->groupEnd()
             ->where('tanggal_mulai <=', $selesai)
             ->where('tanggal_selesai >=', $mulai)
             ->get()->getResultArray();
@@ -196,7 +202,17 @@ class PayrollService
         $belumBerlangsung = 0;
 
         foreach ($hariWajib as $tgl) {
-            if (isset($absensi[$tgl])) {
+            $cutiDiajukan = false;
+            foreach ($izin as $z) {
+                if ($z['jenis'] === 'cuti' && $tgl >= $z['tanggal_mulai'] && $tgl <= $z['tanggal_selesai']) {
+                    $cutiDiajukan = true;
+                    break;
+                }
+            }
+
+            if ($cutiDiajukan) {
+                $status = 'cuti';
+            } elseif (isset($absensi[$tgl])) {
                 $status = $absensi[$tgl]['status'];
             } else {
                 $status = null;
@@ -232,7 +248,7 @@ class PayrollService
         // --- gaji pokok ---
         if ($jenis === 'harian') {
             $tarifHarian = $gajiDasar;
-            $hariDibayar = $hadirBayar + $hitung['cuti'];
+            $hariDibayar = $hadirBayar;
             $gajiPokok   = round($tarifHarian * $hariDibayar, 2);
             $ketPokok    = $hariDibayar . ' hari x ' . $this->rp($tarifHarian);
         } else {
@@ -243,6 +259,11 @@ class PayrollService
             } else {
                 $gajiPokok = round($gajiDasar, 2);
                 $ketPokok  = 'Gaji pokok bulanan';
+            }
+            if ($hitung['cuti'] > 0) {
+                $hariCutiTidakDibayar = min($hitung['cuti'], $totalWajib);
+                $gajiPokok = round(max(0, $gajiPokok - ($tarifHarian * $hariCutiTidakDibayar)), 2);
+                $ketPokok .= " setelah {$hariCutiTidakDibayar} hari cuti tidak dibayar";
             }
         }
 
@@ -306,7 +327,7 @@ class PayrollService
         $upahLembur = 0.0;
 
         // --- komponen otomatis: keterlambatan ---
-        $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned);
+        $telat = $this->aturan(self::KODE_TELAT, $byKode, $assigned, false);
         if ($telat && $telat['nilai'] !== null && $menitTelat > 0) {
             $jml = round($menitTelat * $telat['nilai'], 2);
             if ($jml > 0) {
@@ -331,10 +352,8 @@ class PayrollService
             $totalPot += $p['jumlah'];
         }
         $bersih = round($totalPend - $totalPot, 2);
-        $peringatan = [];
         if ($bersih < 0) {
-            $peringatan[] = 'Potongan melebihi pendapatan, gaji bersih diset 0';
-            $bersih       = 0.0;
+            throw new \DomainException('Total potongan melebihi total pendapatan. Sesuaikan komponen potongan karyawan sebelum menghitung payroll.');
         }
 
         $rekap = [
@@ -352,7 +371,7 @@ class PayrollService
             'menit_terlambat'     => $menitTelat,
             'menit_kerja'         => $menitKerja,
             'gaji_pokok_dasar'    => $gajiDasar,
-            'peringatan'          => $peringatan,
+            'peringatan'          => [],
         ];
 
         return [
@@ -371,14 +390,17 @@ class PayrollService
         ];
     }
 
-    /** Komponen otomatis: aktif di master; nilai = override karyawan, kalau tidak ada pakai nilai master (bisa null). */
-    private function aturan(string $kode, array $byKode, array $assigned): ?array
+    /** Ambil nilai karyawan, dengan opsi memakai nilai master bila belum ada input khusus. */
+    private function aturan(string $kode, array $byKode, array $assigned, bool $pakaiDefault = true): ?array
     {
         $m = $byKode[$kode] ?? null;
         if (! $m || ! (int) $m['aktif']) {
             return null;
         }
         $id    = (int) $m['id'];
+        if (! array_key_exists($id, $assigned) && ! $pakaiDefault) {
+            return null;
+        }
         $nilai = array_key_exists($id, $assigned)
             ? (float) $assigned[$id]
             : ($m['nilai'] === null ? null : (float) $m['nilai']);

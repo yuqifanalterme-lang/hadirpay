@@ -10,8 +10,10 @@ import { ApiError } from '@/lib/api/client'
 import { config } from '@/lib/config'
 import type { Role } from '@/lib/types/common'
 import type { MasterRecord } from '@/lib/mock/master-data'
-import type { Employee, EmployeeStatus, PayrollType } from '@/lib/mock/employees'
+import type { Employee, EmployeeSalaryComponent, EmployeeStatus, PayrollType } from '@/lib/mock/employees'
 import { createEmployee, updateEmployee } from '@/lib/services/karyawan.service'
+
+type SalaryComponentFormValue = Omit<EmployeeSalaryComponent, 'value'> & { value: string }
 
 type FormValues = {
   id: string
@@ -27,6 +29,7 @@ type FormValues = {
   baseSalary: string
   fixedAllowance: string
   pph21: string
+  salaryComponents: SalaryComponentFormValue[]
   npwp: string
   noBpjs: string
   status: EmployeeStatus
@@ -50,6 +53,10 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: String(employee.baseSalary),
         fixedAllowance: String(employee.fixedAllowance),
         pph21: String(employee.pph21 ?? 0),
+        salaryComponents: (employee.salaryComponents ?? []).map((component) => ({
+          ...component,
+          value: String(component.value),
+        })),
         npwp: employee.npwp ?? '',
         noBpjs: employee.noBpjs ?? employee.bpjsKesehatan ?? employee.bpjsKetenagakerjaan ?? '',
         status: employee.status,
@@ -68,6 +75,7 @@ function valuesFromEmployee(employee: Employee | null): FormValues {
         baseSalary: '',
         fixedAllowance: '0',
         pph21: '0',
+        salaryComponents: [],
         npwp: '',
         noBpjs: '',
         status: 'Aktif',
@@ -104,6 +112,7 @@ export function EmployeeFormDialog({
   function update<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
+    setFormError('')
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -139,6 +148,23 @@ export function EmployeeFormDialog({
     if (values.pph21 === '' || !Number.isFinite(pph21) || pph21 < 0) {
       nextErrors.pph21 = 'PPh 21 tidak boleh kurang dari nol.'
     }
+    const invalidComponent = values.salaryComponents.find((component) => {
+      const value = Number(component.value)
+      return (
+        component.value === '' ||
+        !Number.isFinite(value) ||
+        value < 0 ||
+        (component.method === 'persen' && value > 100)
+      )
+    })
+    if (invalidComponent) {
+      setFormError(
+        invalidComponent.method === 'persen'
+          ? `Nilai ${invalidComponent.name} harus berupa persentase 0 sampai 100.`
+          : `Nilai ${invalidComponent.name} harus berupa angka nol atau lebih.`,
+      )
+      return
+    }
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
@@ -155,6 +181,10 @@ export function EmployeeFormDialog({
       baseSalary,
       fixedAllowance,
       pph21,
+      salaryComponents: values.salaryComponents.map((component) => ({
+        ...component,
+        value: component.code === 'PPH21' ? pph21 : Number(component.value),
+      })),
       npwp: values.npwp.trim() || undefined,
       noBpjs: values.noBpjs.trim() || undefined,
       status: values.status,
@@ -238,7 +268,7 @@ export function EmployeeFormDialog({
       <form noValidate onSubmit={handleSubmit}>
         <DialogHeader
           title={employee ? 'Ubah data karyawan' : 'Tambah karyawan'}
-          description="Masukkan data sesuai kontrak layanan karyawan."
+          description="Masukkan nilai gaji pokok dan komponen sesuai data karyawan."
           onClose={() => onOpenChange(false)}
         />
         <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
@@ -424,6 +454,40 @@ export function EmployeeFormDialog({
             />
             {fieldError('pph21', 'employee-pph21-error')}
           </div>
+          {values.salaryComponents
+            .filter((component) => component.code !== 'PPH21')
+            .map((component) => {
+              const unit = {
+                nominal_tetap: 'Rp per periode',
+                persen: '%',
+                per_hari: 'Rp per hari',
+                per_jam: 'Rp per jam',
+                per_menit: 'Rp per menit',
+              }[component.method]
+              return (
+                <div key={component.id}>
+                  <TextField
+                    id={`employee-component-${component.id}`}
+                    label={`${component.name} (${unit})`}
+                    type="number"
+                    min="0"
+                    max={component.method === 'persen' ? '100' : undefined}
+                    step="any"
+                    value={component.value}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setValues((current) => ({
+                        ...current,
+                        salaryComponents: current.salaryComponents.map((item) =>
+                          item.id === component.id ? { ...item, value } : item,
+                        ),
+                      }))
+                      setFormError('')
+                    }}
+                  />
+                </div>
+              )
+            })}
           <div>
             <SelectField
               label="Status karyawan"

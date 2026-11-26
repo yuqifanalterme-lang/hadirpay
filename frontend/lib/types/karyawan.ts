@@ -57,7 +57,9 @@ export type KaryawanCreateRequest = {
   role: Role
   password: string
 }
-export type KaryawanUpdateRequest = Partial<KaryawanCreateRequest>
+export type KaryawanUpdateRequest = Partial<KaryawanCreateRequest> & {
+  komponen_gaji?: Array<{ komponen_id: Id; nilai: Uang }>
+}
 
 export type KaryawanListQuery = {
   search?: string

@@ -203,6 +203,9 @@ export async function updateEmployee(id: string, changes: Employee): Promise<Emp
     no_hp: current.data.no_hp,
     no_bpjs: changes.noBpjs ?? null,
     role: current.data.role,
+    komponen_gaji: changes.salaryComponents
+      ?.filter((component) => component.code !== 'PPH21')
+      .map((component) => ({ komponen_id: component.id, nilai: component.value })),
   }
   await apiRequest<KaryawanDetail>(`karyawan/${employeeId}`, {
     method: 'PUT',

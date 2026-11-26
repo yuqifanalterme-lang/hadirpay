@@ -27,7 +27,8 @@ class KaryawanKomponenSeeder extends Seeder
             'dewi@hadirpay.test' => 86000,
         ];
 
-        foreach ($this->db->table('karyawan')->orderBy('id')->get()->getResultArray() as $k) {
+        $kodeDemo = array_map(static fn ($n) => sprintf('KRY-%04d', $n), range(1, 10));
+        foreach ($this->db->table('karyawan')->whereIn('kode', $kodeDemo)->orderBy('id')->get()->getResultArray() as $k) {
             $assignments = [
                 'TUN-TRANSPORT' => 245000,
                 'BPJS' => 3,
@@ -41,14 +42,13 @@ class KaryawanKomponenSeeder extends Seeder
                 $existing = $this->db->table('karyawan_komponen')
                     ->where('karyawan_id', $k['id'])->where('komponen_id', $component['id'])
                     ->get()->getRowArray();
-                $row = ['nilai' => $nilai, 'updated_at' => $now];
-                if ($existing) {
-                    $this->db->table('karyawan_komponen')->where('id', $existing['id'])->update($row);
-                } else {
-                    $this->db->table('karyawan_komponen')->insert($row + [
+                if (! $existing) {
+                    $this->db->table('karyawan_komponen')->insert([
                         'karyawan_id' => $k['id'],
                         'komponen_id' => $component['id'],
-                        'created_at' => $now,
+                        'nilai'       => $nilai,
+                        'created_at'  => $now,
+                        'updated_at'  => $now,
                     ]);
                 }
             }

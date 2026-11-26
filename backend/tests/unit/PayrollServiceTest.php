@@ -64,13 +64,115 @@ final class PayrollServiceTest extends CIUnitTestCase
         $this->assertSame(1, json_decode($hasil['penggajian']['rekap_json'], true)['alpha']);
         $this->assertSame(0.0, $hasil['penggajian']['upah_lembur']);
         $this->assertSame(4745000.0, $hasil['penggajian']['total_pendapatan']);
-        $this->assertSame(559545.45, $hasil['penggajian']['total_potongan']);
-        $this->assertSame(4185454.55, $hasil['penggajian']['gaji_bersih']);
+        $this->assertSame(539545.45, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(4205454.55, $hasil['penggajian']['gaji_bersih']);
         $this->assertNotContains('Upah lembur', array_column($hasil['detail'], 'nama'));
+        $this->assertNotContains('Potongan keterlambatan', array_column($hasil['detail'], 'nama'));
         $bpjsRows = array_values(array_filter($hasil['detail'], static fn ($row) => $row['nama'] === 'Iuran BPJS'));
         $this->assertCount(1, $bpjsRows);
         $this->assertSame(135000.0, $bpjsRows[0]['jumlah']);
         $this->assertSame(204545.45, $hasil['penggajian']['tarif_harian']);
+        $this->assertSame(
+            $hasil['penggajian']['total_pendapatan'] - $hasil['penggajian']['total_potongan'],
+            $hasil['penggajian']['gaji_bersih']
+        );
+    }
+
+    public function testSubmittedCutiIsUnpaidAndDoesNotCountAsAlphaForMonthlyPayroll(): void
+    {
+        $service = new PayrollService();
+        $days = ['2026-11-02', '2026-11-03', '2026-11-04'];
+        $absensi = [];
+        foreach ($days as $date) {
+            $absensi[$date] = ['status' => 'hadir', 'menit_terlambat' => 0, 'durasi_menit' => 480];
+        }
+        $absensi['2026-11-03']['status'] = 'alpha';
+
+        $hasil = $service->hitungKaryawan(
+            [
+                'id' => 1,
+                'jenis_penggajian' => 'bulanan',
+                'gaji_pokok' => 3000,
+                'tunjangan_tetap' => 0,
+                'tanggal_mulai' => '2026-01-01',
+            ],
+            $days,
+            [],
+            [],
+            [],
+            $absensi,
+            [[
+                'jenis' => 'cuti',
+                'tanggal_mulai' => '2026-11-03',
+                'tanggal_selesai' => '2026-11-03',
+            ]],
+            '2026-12-01'
+        );
+
+        $rekap = json_decode($hasil['penggajian']['rekap_json'], true);
+        $this->assertSame(1, $rekap['cuti']);
+        $this->assertSame(0, $rekap['alpha']);
+        $this->assertSame(2000.0, $hasil['penggajian']['gaji_pokok']);
+        $this->assertSame(0.0, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(2000.0, $hasil['penggajian']['gaji_bersih']);
+    }
+
+    public function testCutiIsNotPaidForDailyPayroll(): void
+    {
+        $service = new PayrollService();
+        $hasil = $service->hitungKaryawan(
+            [
+                'id' => 1,
+                'jenis_penggajian' => 'harian',
+                'gaji_pokok' => 100000,
+                'tunjangan_tetap' => 0,
+                'tanggal_mulai' => '2026-01-01',
+            ],
+            ['2026-11-02', '2026-11-03'],
+            [],
+            [],
+            [],
+            [
+                '2026-11-02' => ['status' => 'hadir', 'menit_terlambat' => 0, 'durasi_menit' => 480],
+                '2026-11-03' => ['status' => 'alpha', 'menit_terlambat' => 0, 'durasi_menit' => null],
+            ],
+            [[
+                'jenis' => 'cuti',
+                'tanggal_mulai' => '2026-11-03',
+                'tanggal_selesai' => '2026-11-03',
+            ]],
+            '2026-12-01'
+        );
+
+        $rekap = json_decode($hasil['penggajian']['rekap_json'], true);
+        $this->assertSame(1, $rekap['cuti']);
+        $this->assertSame(0, $rekap['alpha']);
+        $this->assertSame(100000.0, $hasil['penggajian']['gaji_pokok']);
+    }
+
+    public function testPayrollRejectsDeductionsThatExceedEarnings(): void
+    {
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('Total potongan melebihi total pendapatan');
+
+        (new PayrollService())->hitungKaryawan(
+            [
+                'id' => 1,
+                'jenis_penggajian' => 'bulanan',
+                'gaji_pokok' => 1000,
+                'tunjangan_tetap' => 0,
+                'tanggal_mulai' => '2026-01-01',
+            ],
+            ['2026-11-02'],
+            [
+                1 => ['id' => 1, 'kode' => 'POT-LAIN', 'nama' => 'Potongan lain', 'tipe' => 'potongan', 'metode' => 'nominal_tetap', 'nilai' => 0, 'aktif' => 1],
+            ],
+            [],
+            [1 => 2000],
+            ['2026-11-02' => ['status' => 'hadir', 'menit_terlambat' => 0, 'durasi_menit' => 480]],
+            [],
+            '2026-12-01'
+        );
     }
 
     public function testCastUangUsesTwoDecimals(): void

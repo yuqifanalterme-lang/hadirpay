@@ -215,6 +215,8 @@ class PeriodeGaji extends BaseController
 
         try {
             $hasil = (new PayrollService())->hitungPeriode($p);
+        } catch (\DomainException $e) {
+            return ApiResponse::error('VALIDATION_ERROR', $e->getMessage(), null, 422);
         } catch (\Throwable $e) {
             log_message('error', 'Gagal hitung gaji: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
             return ApiResponse::error('SERVER_ERROR', 'Gagal menghitung gaji', null, 500);

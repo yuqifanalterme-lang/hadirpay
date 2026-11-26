@@ -5,11 +5,11 @@ namespace App\Database\Seeds;
 use CodeIgniter\Database\Seeder;
 
 /**
- * DATA DEMO. Mengisi absensi semua karyawan aktif dari tanggal 1 bulan berjalan sampai KEMARIN,
- * hanya untuk hari kerja (jadwal default, tanpa hari libur). Baris yang sudah ada tidak ditimpa.
+ * DATA DEMO. Mengisi 20 hari kerja pertama November 2026 untuk karyawan aktif.
+ * Baris manual dipertahankan, data demo yang sudah ada diperbarui tanpa lembur.
  *
  * Semua baris diberi sumber = 'sistem', jadi mudah dihapus:
- *   DELETE FROM absensi WHERE sumber = 'sistem';
+ *   DELETE FROM absensi WHERE sumber = 'sistem' AND tanggal BETWEEN '2026-11-01' AND '2026-11-30';
  */
 class AbsensiDemoSeeder extends Seeder
 {
@@ -18,12 +18,7 @@ class AbsensiDemoSeeder extends Seeder
         $db    = $this->db;
         $now   = date('Y-m-d H:i:s');
         $awal  = '2026-11-01';
-        $akhir = '2026-11-17';
-
-        if ($akhir < $awal) {
-            echo "Hari ini tanggal 1, belum ada hari yang bisa diisi.\n";
-            return;
-        }
+        $akhir = '2026-11-30';
 
         $jadwal = $db->table('jadwal_kerja')->where('is_default', 1)->get()->getRowArray();
         $hari   = $jadwal
@@ -37,28 +32,33 @@ class AbsensiDemoSeeder extends Seeder
 
         $nama     = [1 => 'senin', 2 => 'selasa', 3 => 'rabu', 4 => 'kamis', 5 => 'jumat', 6 => 'sabtu', 7 => 'minggu'];
         $tanggal  = [];
-        for ($d = new \DateTime($awal); $d->format('Y-m-d') <= $akhir; $d->modify('+1 day')) {
+        for ($d = new \DateTime($awal); $d->format('Y-m-d') <= $akhir && count($tanggal) < 20; $d->modify('+1 day')) {
             $t = $d->format('Y-m-d');
             if (in_array($nama[(int) $d->format('N')], $hari, true) && ! in_array($t, $libur, true)) {
                 $tanggal[] = $t;
             }
         }
+        if (count($tanggal) !== 20) {
+            throw new \RuntimeException('Jadwal kerja November 2026 tidak menyediakan 20 hari kerja untuk data demo.');
+        }
 
         $lokasi = $db->table('lokasi_absensi')->where('aktif', 1)->orderBy('id')->get(1)->getRowArray();
 
         $ada = [];
-        foreach ($db->table('absensi')->select('karyawan_id, tanggal')->where('tanggal >=', $awal)->where('tanggal <=', $akhir)->get()->getResultArray() as $a) {
-            $ada[$a['karyawan_id'] . '|' . $a['tanggal']] = true;
+        foreach ($db->table('absensi')->select('id, karyawan_id, tanggal, sumber')->where('tanggal >=', $awal)->where('tanggal <=', $akhir)->get()->getResultArray() as $a) {
+            $ada[$a['karyawan_id'] . '|' . $a['tanggal']] = $a;
         }
 
-        $baris = [];
-        foreach ($db->table('karyawan')->where('status', 'aktif')->orderBy('id')->get()->getResultArray() as $k) {
+        $dibuat = 0;
+        $diperbarui = 0;
+        $kodeDemo = array_map(static fn ($n) => sprintf('KRY-%04d', $n), range(1, 10));
+        foreach ($db->table('karyawan')->whereIn('kode', $kodeDemo)->where('status', 'aktif')->orderBy('id')->get()->getResultArray() as $k) {
             foreach ($tanggal as $t) {
-                if ($t < $k['tanggal_mulai'] || isset($ada[$k['id'] . '|' . $t])) {
+                $existing = $ada[$k['id'] . '|' . $t] ?? null;
+                if ($t < $k['tanggal_mulai'] || ($existing && $existing['sumber'] !== 'sistem')) {
                     continue;
                 }
 
-                // angka 0-99 yang tetap untuk pasangan karyawan + tanggal (hasil selalu sama kalau diulang)
                 $n = crc32($k['id'] . '|' . $t) % 100;
 
                 $row = [
@@ -77,26 +77,22 @@ class AbsensiDemoSeeder extends Seeder
                     'updated_at'        => $now,
                 ];
 
-                if ($n >= 90 && $n <= 92) {
+                if ($n < 3) {
                     $row['status'] = 'izin';
-                } elseif ($n >= 93 && $n <= 94) {
+                } elseif ($n < 5) {
                     $row['status'] = 'sakit';
-                } elseif ($n >= 95 && $n <= 96) {
+                } elseif ($n < 7) {
                     $row['status'] = 'alpha';
                 } else {
-                    $masukMenit = 7 * 60 + 45 + ($n % 14);              // 07:45 - 07:58
-                    $pulangMenit = 17 * 60;                              // 17:00 tepat, tanpa lembur
+                    $masukMenit = 7 * 60 + 45 + ($n % 14);
+                    $pulangMenit = 17 * 60;
                     $row['dalam_radius'] = 1;
 
-                    if ($n >= 80 && $n <= 89) {                          // terlambat 5 - 44 menit
+                    if ($n >= 80 && $n <= 89) {
                         $telat = 5 + ($n - 80) * 4;
                         $masukMenit = 8 * 60 + $telat;
                         $row['status'] = 'terlambat';
                         $row['menit_terlambat'] = $telat;
-                    } elseif ($n >= 97) {                                // lembur 60 - 120 menit
-                        $lembur = 60 + ($n - 97) * 30;
-                        $pulangMenit = 17 * 60 + $lembur;
-                        $row['lembur_menit'] = $lembur;
                     }
 
                     $row['jam_masuk']    = sprintf('%02d:%02d:00', intdiv($masukMenit, 60), $masukMenit % 60);
@@ -104,42 +100,16 @@ class AbsensiDemoSeeder extends Seeder
                     $row['durasi_menit'] = $pulangMenit - $masukMenit;
                 }
 
-                // Data demo kontrak untuk tanggal hari ini: 17 November 2026.
-                if ($t === '2026-11-17') {
-                    if ($k['email'] === 'andi@hadirpay.test') {
-                        $row['status'] = 'hadir';
-                        $row['jam_masuk'] = '07:52:00';
-                        $row['jam_pulang'] = null;
-                        $row['durasi_menit'] = null;
-                        $row['menit_terlambat'] = 0;
-                    } elseif ($k['email'] === 'rudi@hadirpay.test') {
-                        $row['status'] = 'terlambat';
-                        $row['jam_masuk'] = '08:17:00';
-                        $row['menit_terlambat'] = 17;
-                        $row['jam_pulang'] = '17:00:00';
-                        $row['durasi_menit'] = 523;
-                    } elseif ($k['email'] === 'siti@hadirpay.test') {
-                        $row['status'] = 'izin';
-                        $row['jam_masuk'] = null;
-                        $row['jam_pulang'] = null;
-                        $row['durasi_menit'] = null;
-                    } else {
-                        $row['status'] = 'hadir';
-                        $row['jam_masuk'] = '07:' . sprintf('%02d', 45 + (((int) $k['id']) % 14)) . ':00';
-                        $row['jam_pulang'] = '17:00:00';
-                        $row['durasi_menit'] = 555;
-                        $row['menit_terlambat'] = 0;
-                    }
+                if ($existing) {
+                    $db->table('absensi')->where('id', $existing['id'])->update($row);
+                    $diperbarui++;
+                } else {
+                    $db->table('absensi')->insert($row);
+                    $dibuat++;
                 }
-
-                $baris[] = $row;
             }
         }
 
-        foreach (array_chunk($baris, 400) as $paket) {
-            $db->table('absensi')->insertBatch($paket);
-        }
-
-        echo count($baris) . " baris absensi demo dibuat ({$awal} s/d {$akhir}).\n";
+        echo "{$dibuat} baris absensi demo dibuat dan {$diperbarui} diperbarui untuk 20 hari kerja November 2026 tanpa lembur.\n";
     }
 }

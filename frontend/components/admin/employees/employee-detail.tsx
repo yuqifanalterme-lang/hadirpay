@@ -322,7 +322,7 @@ export function EmployeeDetail({ id }: { id: string }) {
               <p className="text-sm text-muted-foreground">Belum ada komponen tambahan yang dipasang untuk karyawan ini.</p>
             )}
             <p className="mt-3 text-sm text-muted-foreground">
-              BPJS mengikuti persentase komponen master dan dihitung dari gaji pokok periode. Nilai PPh 21 dan tunjangan dapat diubah dari profil karyawan.
+              Nilai komponen diatur per karyawan. Mengubah profil tidak menghapus komponen yang sudah terpasang.
             </p>
           </Panel>
         )}
