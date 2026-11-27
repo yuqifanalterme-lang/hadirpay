@@ -166,7 +166,7 @@ export function EmployeeFormDialog({
       nextErrors.bpjsPercent = 'Persentase BPJS harus antara 0 sampai 100.'
     }
     if (values.overtimeDeduction === '' || !Number.isFinite(overtimeDeduction) || overtimeDeduction < 0) {
-      nextErrors.overtimeDeduction = 'Potongan lembur tidak boleh kurang dari nol.'
+      nextErrors.overtimeDeduction = 'Pendapatan lembur tidak boleh kurang dari nol.'
     }
     const invalidComponent = values.salaryComponents.find((component) => {
       const value = Number(component.value)
@@ -517,7 +517,7 @@ export function EmployeeFormDialog({
           <div>
             <TextField
               id="employee-overtime-deduction"
-              label="Potongan lembur per periode (Rp)"
+              label="Pendapatan lembur per periode (Rp)"
               type="number"
               min="0"
               step="1"
@@ -587,8 +587,8 @@ export function EmployeeFormDialog({
               const overtimeDeductionVal = Number(values.overtimeDeduction) || 0
               const pph21Amount = values.pph21Method === 'persen' ? base * pph21Val / 100 : pph21Val
               const bpjsAmount = base * bpjsPercentVal / 100
-              const earnings = base + fixed + extraIncome
-              const deductions = pph21Amount + bpjsAmount + overtimeDeductionVal + otherDeductions
+              const earnings = base + fixed + overtimeDeductionVal + extraIncome
+              const deductions = pph21Amount + bpjsAmount + otherDeductions
               return (
                 <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
                   <div><dt className="text-muted-foreground">Pendapatan</dt><dd className="font-semibold text-heading">{formatRupiah(earnings)}</dd></div>

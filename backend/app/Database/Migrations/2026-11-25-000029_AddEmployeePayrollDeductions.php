@@ -30,8 +30,8 @@ class AddEmployeePayrollDeductions extends Migration
         if (! $overtime) {
             $this->db->table('komponen_gaji')->insert([
                 'kode' => 'POT-LEMBUR',
-                'nama' => 'Potongan lembur per periode',
-                'tipe' => 'potongan',
+                'nama' => 'Pendapatan lembur per periode',
+                'tipe' => 'pendapatan',
                 'metode' => 'nominal_tetap',
                 'nilai' => 0,
                 'keterangan' => null,

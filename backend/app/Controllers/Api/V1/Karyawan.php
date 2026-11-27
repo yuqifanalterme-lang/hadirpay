@@ -750,8 +750,8 @@ class Karyawan extends BaseController
         if (! $komponen) {
             $pendingName = $kode === 'TUN-TRANSPORT'
                 ? 'Tunjangan transport'
-                : ($kode === 'POT-LEMBUR' ? 'Potongan lembur per periode' : $kode);
-            $pendingType = $kode === 'TUN-TRANSPORT' ? 'pendapatan' : 'potongan';
+                : ($kode === 'POT-LEMBUR' ? 'Pendapatan lembur per periode' : $kode);
+            $pendingType = in_array($kode, ['TUN-TRANSPORT', 'POT-LEMBUR'], true) ? 'pendapatan' : 'potongan';
             $db->table('komponen_gaji')->insert([
                 'kode' => $kode,
                 'nama' => $pendingName,
@@ -857,8 +857,8 @@ class Karyawan extends BaseController
                 'less_than_equal_to' => 'Persentase BPJS tidak boleh lebih dari 100',
             ],
             'potongan_lembur' => [
-                'numeric' => 'Potongan lembur harus berupa angka',
-                'greater_than_equal_to' => 'Potongan lembur tidak boleh negatif',
+                'numeric' => 'Pendapatan lembur harus berupa angka',
+                'greater_than_equal_to' => 'Pendapatan lembur tidak boleh negatif',
             ],
             'status'           => ['in_list' => 'Pilih aktif atau nonaktif'],
             'role'             => ['in_list' => 'Role harus admin_hrd, karyawan, keuangan, atau pemilik'],

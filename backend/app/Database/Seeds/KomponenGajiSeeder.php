@@ -17,7 +17,7 @@ class KomponenGajiSeeder extends Seeder
             ['POT-TELAT',     'Potongan keterlambatan', 'potongan',   'nominal_tetap', null,   1],
             ['BPJS',          'Iuran BPJS',             'potongan',   'persen',        3,      1],
             ['PPH21',         'PPh 21',                 'potongan',   'nominal_tetap', null,   1],
-            ['POT-LEMBUR',    'Potongan lembur per periode', 'potongan', 'nominal_tetap', 0, 1],
+            ['POT-LEMBUR',    'Pendapatan lembur per periode', 'pendapatan', 'nominal_tetap', 0, 1],
             ['POT-LAIN',      'Potongan lainnya',       'potongan',   'nominal_tetap', 0,      1],
         ];
 

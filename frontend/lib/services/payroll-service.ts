@@ -230,8 +230,8 @@ export async function listPayrollLines(): Promise<PayrollLine[]> {
       else additionalDeductions.push(item)
     }
     if ((employee.overtimeDeduction ?? 0) > 0) {
-      additionalDeductions.push({
-        label: 'Potongan lembur',
+      additionalEarnings.push({
+        label: 'Pendapatan lembur',
         amount: Math.round((employee.overtimeDeduction ?? 0) * 100) / 100,
       })
     }

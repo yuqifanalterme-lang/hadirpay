@@ -224,7 +224,7 @@ final class PayrollServiceTest extends CIUnitTestCase
         $this->assertSame(5000000.0, $hasil['penggajian']['total_pendapatan']);
     }
 
-    public function testEmployeeBpjsRateAndManualOvertimeDeductionAffectNetPay(): void
+    public function testEmployeeBpjsRateAndOvertimeIncomeAffectNetPay(): void
     {
         $bpjs = [
             'id' => 1,
@@ -238,8 +238,8 @@ final class PayrollServiceTest extends CIUnitTestCase
         $overtime = [
             'id' => 2,
             'kode' => 'POT-LEMBUR',
-            'nama' => 'Potongan lembur per periode',
-            'tipe' => 'potongan',
+            'nama' => 'Pendapatan lembur per periode',
+            'tipe' => 'pendapatan',
             'metode' => 'nominal_tetap',
             'nilai' => 0,
             'aktif' => 1,
@@ -261,12 +261,14 @@ final class PayrollServiceTest extends CIUnitTestCase
             '2026-10-02'
         );
 
-        $this->assertSame(165000.0, $hasil['penggajian']['total_potongan']);
-        $this->assertSame(4835000.0, $hasil['penggajian']['gaji_bersih']);
+        $this->assertSame(125000.0, $hasil['penggajian']['total_potongan']);
+        $this->assertSame(4915000.0, $hasil['penggajian']['gaji_bersih']);
         $deductions = array_filter($hasil['detail'], static fn ($row) => $row['tipe'] === 'potongan');
         $deductionAmounts = array_column($deductions, 'jumlah', 'nama');
         $this->assertSame(125000.0, $deductionAmounts['Iuran BPJS']);
-        $this->assertSame(40000.0, $deductionAmounts['Potongan lembur per periode']);
+        $earnings = array_filter($hasil['detail'], static fn ($row) => $row['tipe'] === 'pendapatan');
+        $earningAmounts = array_column($earnings, 'jumlah', 'nama');
+        $this->assertSame(40000.0, $earningAmounts['Pendapatan lembur per periode']);
     }
 
     /**

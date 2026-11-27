@@ -107,7 +107,7 @@ export const mockPayrollComponents: PayrollComponent[] = [
   { id: 'potongan-alpha', name: 'Potongan alpha', category: 'potongan', method: 'per hari', amount: 0, active: true, isMock: true },
   { id: 'pph-21', code: 'PPH21', name: 'PPh 21 per karyawan', category: 'potongan', method: 'nominal tetap', amount: null, description: 'Diinput pada profil karyawan', active: true, isMock: true },
   { id: 'bpjs', code: 'BPJS', name: 'Iuran BPJS', category: 'potongan', method: 'persen', amount: 3, description: 'Default 3% dari gaji pokok, dapat diatur per karyawan', active: true, isMock: true },
-  { id: 'potongan-lembur', code: 'POT-LEMBUR', name: 'Potongan lembur per periode', category: 'potongan', method: 'nominal tetap', amount: 0, description: 'Diinput pada profil karyawan', active: true, isMock: true },
+  { id: 'pendapatan-lembur', code: 'POT-LEMBUR', name: 'Pendapatan lembur per periode', category: 'pendapatan', method: 'nominal tetap', amount: 0, description: 'Diinput pada profil karyawan', active: true, isMock: true },
 ]
 
 export const mockPayrollInputs: Record<string, MockPayrollInput> = {
