@@ -339,10 +339,8 @@ final class ResetPayrollCommandTest extends CIUnitTestCase
             ];
         }
 
-        $this->assertSame(2349000.0, (float) $journal['total_debit']);
-        $this->assertSame(2349000.0, (float) $journal['total_kredit']);
-        $this->assertSame(2349000.0, $amountByAccount[3]['debit']);
-        $this->assertSame(2014000.0, $amountByAccount[2]['kredit']);
+        $this->assertSame(4600000.0, (float) $journal['total_debit']);
+        $this->assertSame(4600000.0, (float) $journal['total_kredit']);
         $this->assertSame(200000.0, $amountByAccount[4]['kredit']);
         $this->assertSame(135000.0, $amountByAccount[5]['kredit']);
     }

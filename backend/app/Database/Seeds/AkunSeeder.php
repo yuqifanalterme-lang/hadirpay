@@ -16,6 +16,8 @@ class AkunSeeder extends Seeder
             ['2-1300', 'Utang Iuran BPJS',  'kewajiban', 'kredit'],
             ['2-1500', 'Utang Potongan Karyawan', 'kewajiban', 'kredit'],
             ['5-1100', 'Beban Gaji',        'beban',     'debit'],
+            ['5-1200', 'Beban Tunjangan',   'beban',     'debit'],
+            ['5-1300', 'Beban Upah Lembur', 'beban',     'debit'],
         ];
 
         $rows = [];

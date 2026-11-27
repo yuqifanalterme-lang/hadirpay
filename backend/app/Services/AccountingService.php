@@ -22,6 +22,37 @@ class AccountingService
     public const AKUN_BPJS  = '2-1300';
     public const AKUN_POTONGAN = '2-1500';
     public const AKUN_BEBAN = '5-1100';
+    public const AKUN_BEBAN_TUNJANGAN = '5-1200';
+    public const AKUN_BEBAN_LEMBUR = '5-1300';
+
+    private static function rp(float $amount): string
+    {
+        return 'Rp' . number_format($amount, floor($amount) == $amount ? 0 : 2, ',', '.');
+    }
+
+    private static function akunBeban($db, string $accountCode): int
+    {
+        try {
+            return self::akunId($db, $accountCode);
+        } catch (\DomainException $error) {
+            if (in_array($accountCode, [self::AKUN_BEBAN_TUNJANGAN, self::AKUN_BEBAN_LEMBUR], true)) {
+                return self::akunId($db, self::AKUN_BEBAN);
+            }
+            throw $error;
+        }
+    }
+
+    private static function akunPotongan($db, string $accountCode): int
+    {
+        try {
+            return self::akunId($db, $accountCode);
+        } catch (\DomainException $error) {
+            if ($accountCode === self::AKUN_POTONGAN) {
+                return self::akunId($db, self::AKUN_UTANG);
+            }
+            throw $error;
+        }
+    }
 
     /** Rupiah ke sen (integer) supaya tidak ada selisih pembulatan desimal. */
     public static function sen($v): int
@@ -181,52 +212,99 @@ class AccountingService
             ->select('COALESCE(SUM(gaji_bersih),0) AS total', false)
             ->where('periode_gaji_id', $pid)
             ->get()->getRowArray()['total'];
-        $deductions = $db->table('detail_penggajian dp')
-            ->select('dp.kode, kg.kode AS master_kode, SUM(dp.jumlah) AS total', false)
+        $incomeRows = $db->table('detail_penggajian dp')
+            ->select('dp.kode, dp.nama, kg.kode AS master_kode, SUM(dp.jumlah) AS total', false)
+            ->join('penggajian p', 'p.id = dp.penggajian_id')
+            ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
+            ->where('p.periode_gaji_id', $pid)
+            ->where('dp.tipe', 'pendapatan')
+            ->groupBy(['dp.kode', 'dp.nama', 'kg.kode'])
+            ->get()->getResultArray();
+        $deductionRows = $db->table('detail_penggajian dp')
+            ->select('dp.kode, dp.nama, kg.kode AS master_kode, SUM(dp.jumlah) AS total', false)
             ->join('penggajian p', 'p.id = dp.penggajian_id')
             ->join('komponen_gaji kg', 'kg.id = dp.komponen_id', 'left')
             ->where('p.periode_gaji_id', $pid)
             ->where('dp.tipe', 'potongan')
-            ->groupBy(['dp.kode', 'kg.kode'])
+            ->groupBy(['dp.kode', 'dp.nama', 'kg.kode'])
             ->get()->getResultArray();
-        $withheld = [];
-        foreach ($deductions as $row) {
+
+        $expenseAmounts = [
+            self::AKUN_BEBAN => 0.0,
+            self::AKUN_BEBAN_TUNJANGAN => 0.0,
+            self::AKUN_BEBAN_LEMBUR => 0.0,
+        ];
+        $incomeDetail = [];
+        foreach ($incomeRows as $row) {
+            $amount = (float) $row['total'];
             $kode = $row['kode'] ?: $row['master_kode'];
-            $withheld[$kode] = ($withheld[$kode] ?? 0.0) + (float) $row['total'];
+            $nama = (string) $row['nama'];
+            $accountCode = self::AKUN_BEBAN;
+            if ($kode === 'TUN-TRANSPORT' || stripos($nama, 'tunjangan') !== false) {
+                $accountCode = self::AKUN_BEBAN_TUNJANGAN;
+            } elseif (in_array($kode, ['PEND-LEMBUR', 'POT-LEMBUR'], true)
+                || stripos($nama, 'lembur') !== false) {
+                $accountCode = self::AKUN_BEBAN_LEMBUR;
+            } elseif ($kode !== 'GAJI-POKOK') {
+                $accountCode = self::AKUN_BEBAN;
+            }
+            $expenseAmounts[$accountCode] += $amount;
+            $incomeDetail[] = $nama . ' ' . self::rp($amount);
         }
 
-        $incomeTax = $withheld['PPH21'] ?? 0.0;
-        $bpjs = $withheld['BPJS'] ?? 0.0;
-        $alpha = $withheld['POT-ALPHA'] ?? 0.0;
-        $late = $withheld['POT-TELAT'] ?? 0.0;
-        $otherDeductions = array_sum(array_diff_key($withheld, [
-            'PPH21' => true,
-            'BPJS' => true,
-            'POT-ALPHA' => true,
-            'POT-TELAT' => true,
-        ]));
+        $withheld = [
+            self::AKUN_PPH => 0.0,
+            self::AKUN_BPJS => 0.0,
+            self::AKUN_POTONGAN => 0.0,
+        ];
+        $deductionDetail = [];
+        foreach ($deductionRows as $row) {
+            $amount = (float) $row['total'];
+            $kode = $row['kode'] ?: $row['master_kode'];
+            $nama = (string) $row['nama'];
+            if ($kode === 'PPH21') {
+                $withheld[self::AKUN_PPH] += $amount;
+            } elseif ($kode === 'BPJS') {
+                $withheld[self::AKUN_BPJS] += $amount;
+            } else {
+                $withheld[self::AKUN_POTONGAN] += $amount;
+            }
+            $deductionDetail[] = $nama . ' ' . self::rp($amount);
+        }
         $totalPendapatan = (float) $db->table('penggajian')
             ->select('COALESCE(SUM(total_pendapatan),0) AS total', false)
             ->where('periode_gaji_id', $pid)
             ->get()->getRowArray()['total'];
-        $grossPay = round($totalPendapatan - $alpha - $late, 2);
-        $lines = [
-            ['akun_id' => self::akunId($db, self::AKUN_BEBAN), 'debit' => $grossPay, 'kredit' => 0],
-            ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $netPay],
-        ];
-        foreach ([
-            [self::AKUN_PPH, $incomeTax],
-            [self::AKUN_BPJS, $bpjs],
-            [self::AKUN_POTONGAN, $otherDeductions],
-        ] as [$accountCode, $amount]) {
+        $expenseTotal = array_sum($expenseAmounts);
+        $expenseDifference = round($totalPendapatan - $expenseTotal, 2);
+        if ($expenseDifference > 0) {
+            $expenseAmounts[self::AKUN_BEBAN] += $expenseDifference;
+        }
+        $lines = [];
+        foreach ($expenseAmounts as $accountCode => $amount) {
             if ($amount > 0) {
-                $lines[] = ['akun_id' => self::akunId($db, $accountCode), 'debit' => 0, 'kredit' => $amount];
+                $lines[] = ['akun_id' => self::akunBeban($db, $accountCode), 'debit' => $amount, 'kredit' => 0];
             }
         }
+        $lines[] = ['akun_id' => self::akunId($db, self::AKUN_UTANG), 'debit' => 0, 'kredit' => $netPay];
+        foreach ([
+            [self::AKUN_PPH, $withheld[self::AKUN_PPH]],
+            [self::AKUN_BPJS, $withheld[self::AKUN_BPJS]],
+            [self::AKUN_POTONGAN, $withheld[self::AKUN_POTONGAN]],
+        ] as [$accountCode, $amount]) {
+            if ($amount > 0) {
+                $lines[] = ['akun_id' => self::akunPotongan($db, $accountCode), 'debit' => 0, 'kredit' => $amount];
+            }
+        }
+        $rincianPendapatan = $incomeDetail ? '; Pendapatan: ' . implode(', ', $incomeDetail) : '';
+        $rincianPotongan = $deductionDetail ? '; Potongan: ' . implode(', ', $deductionDetail) : '';
 
         return self::simpanJurnal($db, [
             'tanggal'         => $periode['tanggal_tutup'],
-            'keterangan'      => 'Pengakuan beban gaji periode ' . Tanggal::labelPeriode($periode['periode']),
+            'keterangan'      => 'Pengakuan beban gaji periode ' . Tanggal::labelPeriode($periode['periode'])
+                . $rincianPendapatan . $rincianPotongan
+                . '; Total pendapatan ' . self::rp($totalPendapatan)
+                . '; Gaji bersih ' . self::rp($netPay),
             'sumber'          => 'otomatis',
             'jenis'           => 'pengakuan_gaji',
             'periode_gaji_id' => $pid,
